@@ -1,3 +1,4 @@
+#include "AstHelper.h"
 #include "Printer.h"
 #include <iostream>
 #include <unordered_map>
@@ -46,13 +47,9 @@ std::unordered_map<std::string, std::string> ParseEnv(const char** envp, const s
     }
     return env;
 }
-} // namespace
 
-int main(int argc, const char** argv, const char** envp)
+void PrintArgs(const std::vector<std::string>& args, const std::unordered_map<std::string, std::string>& env)
 {
-    ShowHelperInfo();
-    auto args = ParseArgs(argc, argv);
-    auto env = ParseEnv(envp, {"CANGJIE_PATH", "CANGJIE_HOME", "LIBRARY_PATH", "LD_LIBRARY_PATH", "PATH", "SDKROOT"});
     Printer p(std::cout, 4);
 
     p.printc<std::string>(args, [](const std::string& v) { return "\"" + v + "\""; }, ", ", "[", "]", true).pnl();
@@ -66,5 +63,17 @@ int main(int argc, const char** argv, const char** envp)
          },
          "", "{\n", "}", true)
         .pnl();
+}
+} // namespace
+
+int main(int argc, const char** argv, const char** envp)
+{
+    ShowHelperInfo();
+    auto args = ParseArgs(argc, argv);
+    auto env = ParseEnv(envp, {"CANGJIE_PATH", "CANGJIE_HOME", "LIBRARY_PATH", "LD_LIBRARY_PATH", "PATH", "SDKROOT"});
+
+    PrintArgs(args, env);
+    AstHelper ah(args, env);
+    ah.run();
     return 0;
 }

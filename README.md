@@ -18,12 +18,12 @@ bash build.sh -t Debug -b
 
 ### 打印解糖后源码
 
-提供 `--dump-source` 选项用来支持打印某个阶段后的源码，输出到指定目录，支持参数值：parser，deusgar-parser, sema，desugar-sema
+提供 `--dump-source` 选项用来支持打印某个阶段后的源码，输出到指定目录，支持参数值：parser，deusgared-parser, sema，desugared-sema
 
-- parser 用来打印语法解析后源码
-- desugar-parser 用来打印语法解析并解糖后的源码
+- parse 用来打印语法解析后源码
+- desugared-parse 用来打印语法解析并解糖后的源码
 - sema   用来打印语义分析后的源码
-- desugar-sema 用来打印语义分析并解糖后的源码
+- desugared-sema 用来打印语义分析并解糖后的源码
 
 ```bash
 CJASTHelper --dump-source=desugar --output-dir=out
