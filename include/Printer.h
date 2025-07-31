@@ -112,22 +112,22 @@ public:
     explicit Printer(std::ostream& os, int indent = 2);
 
     // 增加缩进
-    void indent();
+    void Indent();
     // 输出换行并重置下一行前导空格
-    Printer& pnl();
+    Printer& PNL();
     // 减少缩进
-    void unindent();
+    void Unindent();
     // 输出单个值
-    template <typename T> Printer& pval(const T& value)
+    template <typename T> Printer& PVal(const T& value)
     {
-        ensureIndent();
+        EnsureIndent();
         os_ << value;
         return *this;
     }
 
-    template <typename... Args> Printer& pvals(Args&&... args)
+    template <typename... Args> Printer& PVals(Args&&... args)
     {
-        ensureIndent();
+        EnsureIndent();
         // 使用折叠表达式展开参数包，对每个参数执行 os_ << arg
         // 表达式 ((std::cout << args), ...) 会从左到右展开
         // 例如：print(a, b, c) 展开为 (std::cout << a), (std::cout << b), (std::cout << c)
@@ -135,9 +135,9 @@ public:
         return *this;
     }
 
-    template <typename Sep, typename... Args> Printer& psvals(Sep&& sep, Args&&... args)
+    template <typename Sep, typename... Args> Printer& PSVals(Sep&& sep, Args&&... args)
     {
-        ensureIndent();
+        EnsureIndent();
         if constexpr (sizeof...(args) > 0) {
             std::size_t n{0};
             ((os_ << (n++ ? sep : "") << args), ...);
@@ -147,12 +147,12 @@ public:
 
     template <typename T> Printer& operator<<(const T& value)
     {
-        return this->pval(value);
+        return this->PVal(value);
     }
 
     // 按指定分隔符输出容器
     template <typename T, typename C, typename CB>
-    std::enable_if_t<can_deref_vv<C, T>, Printer&> printc(const C& con, const CB& cb, const std::string& sep = "",
+    std::enable_if_t<can_deref_vv<C, T>, Printer&> Printc(const C& con, const CB& cb, const std::string& sep = "",
         const std::string& pre = "", const std::string& suf = "", bool b = false)
     {
         printcc<T>(os_, con, cb, sep, pre, suf, b);
@@ -160,18 +160,18 @@ public:
     }
 
     template <typename T>
-    inline void printp(
+    inline void Printp(
         const T* t, const std::function<void(const T&)>& cb, const std::string& pre = "", const std::string& suf = "")
     {
         if (t) {
-            pval(pre);
+            PVal(pre);
             cb(*t);
-            pval(suf);
+            PVal(suf);
         }
     }
 
 private:
-    void ensureIndent();
+    void EnsureIndent();
 
     std::ostream& os_;
     int indent_;

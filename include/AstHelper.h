@@ -7,17 +7,10 @@
 #define AST_HELPER_H
 
 #include "Printer.h"
-#include "cangjie/FrontendTool/DefaultCompilerInstance.h"
+#include "cangjie/Frontend/CompilerInstance.h"
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
-
-#ifdef NDEBUG
-#define AH_ASSERT(f) static_cast<void>(f)
-#else
-#define AH_ASSERT(f) assert(f)
-#endif
-#define AH_CHECK_NULL(p) AH_ASSERT((p) != nullptr)
 
 /**
  * 实现对Cangjie前端工具的封装
@@ -55,10 +48,13 @@ private:
     bool DesugaredSema();
 
 private:
-    std::unique_ptr<Cangjie::SourceManager> sm;
-    std::unique_ptr<Cangjie::DiagnosticEngine> diag;
-    std::unique_ptr<Cangjie::CompilerInvocation> ci;
-    std::unique_ptr<Cangjie::DefaultCompilerInstance> dci;
+    using DiagnosticEngine = Cangjie::DiagnosticEngine;
+    using CompilerInvocation = Cangjie::CompilerInvocation;
+    using CompilerInstance = Cangjie::CompilerInstance;
+    DiagnosticEngine diag;
+    CompilerInvocation ci;
+    std::unique_ptr<CompilerInstance> mci;
+
     SourceStage stage = SourceStage::DEFAULT;
 
     static inline const std::unordered_map<std::string, SourceStage> key2Stage{{"parse", SourceStage::PARSE},

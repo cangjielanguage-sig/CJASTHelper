@@ -4,29 +4,22 @@
  * This file implements the AstHelper.
  */
 #include "AstHelper.h"
+#include "Ast2SourceVisitor.h"
 #include "Logger.h"
 #include "cangjie/Sema/Desugar.h"
 
 using namespace Cangjie;
 
 AstHelper::AstHelper(const std::vector<std::string>& args, const std::unordered_map<std::string, std::string>& env)
-    : sm(std::make_unique<SourceManager>()),
-      diag(std::make_unique<DiagnosticEngine>()),
-      ci(std::make_unique<CompilerInvocation>()),
-      dci(std::make_unique<DefaultCompilerInstance>(*ci, *diag))
 {
-    AH_CHECK_NULL(sm);
-    AH_CHECK_NULL(diag);
-    AH_CHECK_NULL(ci);
-    AH_CHECK_NULL(dci);
-    diag->SetSourceManager(sm.get());
-    ci->frontendOptions.ReadPathsFromEnvironmentVars(env);
+    ci.frontendOptions.ReadPathsFromEnvironmentVars(env);
     ParseArgs(args);
+    mci = std::make_unique<CompilerInstance>(ci, diag);
 }
 
 std::string AstHelper::GetOutputDir() const
 {
-    return ci->globalOptions.outputDir.value_or("");
+    return ci.globalOptions.outputDir.value_or(".");
 }
 
 void AstHelper::Run()
@@ -40,8 +33,13 @@ void AstHelper::Run()
             return;
         }
     }
-    auto pkgs = dci->GetSourcePackages();
-    Logger::get().debug("AstHelper::Run", "Get pkgs: ", pkgs.size());
+    auto pkgs = mci->GetSourcePackages();
+    Logger::Get().Debug("AstHelper::Run", "Get pkgs: ", pkgs.size());
+    Ast2SourceVisitor ast2SourceVisitor(GetOutputDir());
+    for (auto pkg : pkgs) {
+        Logger::Get().Debug("AstHelper::Run", "traverseAst ", pkg->fullPackageName, " by Ast2SourceVisitor");
+        traverseAst(*pkg, ast2SourceVisitor);
+    }
 }
 
 void AstHelper::ParseArgs(const std::vector<std::string>& args)
@@ -52,36 +50,39 @@ void AstHelper::ParseArgs(const std::vector<std::string>& args)
         if (arg.find(DS_KEY) != std::string::npos) {
             // parse the value
             auto val = arg.substr(DS_KEY.size());
-            Logger::get().debug("AstHelper::ParseArgs", "Get Stage: ", val);
+            Logger::Get().Debug("AstHelper::ParseArgs", "Get Stage: ", val);
             if (auto it = key2Stage.find(val); it != key2Stage.end()) {
                 stage = it->second;
             } else {
-                Logger::get().warn("AstHelper::ParseArgs", "not supported stage: ", val);
+                Logger::Get().Warn("AstHelper::ParseArgs", "not supported stage: ", val);
             }
         } else {
             ciArgs.push_back(arg);
         }
     }
-    ci->ParseArgs(ciArgs);
+    Logger::Get().Debug("AstHelper::ParseArgs", "args: ", ciArgs.size());
+    ci.ParseArgs(ciArgs);
 }
 
 bool AstHelper::Default()
 {
-    Logger::get().debug("AstHelper::Default", "input files: ", ci->globalOptions.srcFiles.size());
-    Logger::get().debug("AstHelper::Default", "Output", GetOutputDir());
+    Logger::Get().Debug("AstHelper::Default", "input files: ", ci.globalOptions.srcFiles.size());
+    Logger::Get().Debug("AstHelper::Default", "Output", GetOutputDir());
     return true;
 }
 
 bool AstHelper::Parse()
 {
-    Logger::get().debug("AstHelper::Parse");
-    return dci->PerformParse();
+    Logger::Get().Debug("AstHelper::Parse");
+    Logger::Get().Debug("AstHelper::Parse", "file paths: ", mci->srcFilePaths.size());
+
+    return mci->PerformParse();
 }
 
 bool AstHelper::DesugaredParse()
 {
-    Logger::get().debug("AstHelper::DesugaredParse");
-    for (auto& pkg : dci->GetPackages()) {
+    Logger::Get().Debug("AstHelper::DesugaredParse");
+    for (auto& pkg : mci->GetPackages()) {
         PerformDesugarBeforeTypeCheck(*pkg);
     }
     return true;
@@ -89,14 +90,14 @@ bool AstHelper::DesugaredParse()
 
 bool AstHelper::Sema()
 {
-    Logger::get().debug("AstHelper::Sema");
-    return dci->PerformSema();
+    Logger::Get().Debug("AstHelper::Sema");
+    return mci->PerformSema();
 }
 
 bool AstHelper::DesugaredSema()
 {
-    Logger::get().debug("AstHelper::DesugaredSema");
-    return dci->PerformDesugarAfterSema();
+    Logger::Get().Debug("AstHelper::DesugaredSema");
+    return mci->PerformDesugarAfterSema();
 }
 
 std::vector<std::string> ParseArgs(int argc, const char* const* argv)

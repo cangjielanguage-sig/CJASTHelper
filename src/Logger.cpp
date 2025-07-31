@@ -8,7 +8,7 @@
 
 std::vector<std::unique_ptr<Logger>> Logger::instances(2);
 
-Logger& Logger::get(Mode m)
+Logger& Logger::Get(Mode m)
 {
     // 注意: 当前实现不是线程安全的
     if (m == Mode::FILE) {
@@ -25,7 +25,7 @@ Logger& Logger::get(Mode m)
     return *instances.at(0);
 }
 
-void Logger::close()
+void Logger::Close()
 {
     if (instances[1]->fs.is_open()) {
         instances[1]->fs.close();
@@ -45,27 +45,27 @@ Logger::Logger(const std::string& path) : p(fs, 0)
     }
 }
 
-void Logger::plevel()
+void Logger::PLevel()
 {
     switch (level) {
         case Level::DEBUG:
-            p.pval("[DEBUG]");
+            p.PVal("[DEBUG]");
             break;
         case Level::INFO:
-            p.pval("[INFO]");
+            p.PVal("[INFO]");
             break;
         case Level::WARN:
-            p.pval("[WARN]");
+            p.PVal("[WARN]");
             break;
         case Level::ERROR:
-            p.pval("[ERROR]");
+            p.PVal("[ERROR]");
             break;
         default:
             break;
     }
 }
 
-void Logger::pdomain(const std::string& domain)
+void Logger::PDomain(const std::string& domain)
 {
-    p.pval(" <" + domain + "> ");
+    p.PVal(" <" + domain + "> ");
 }

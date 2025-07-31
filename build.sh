@@ -2,14 +2,14 @@
 
 # help:
 #    bash build.sh -b -r -u [run_args]
-
-CJ_INC=$CANGJIE_HOME/include
+CWD=$(dirname $(realpath "$0"))
+CJ_INC=$CANGJIE_SRC_HOME/include
 BTYPE=Debug
-BUILD_DIR=build
-SOURCE_DIR=.
+BUILD_DIR=$CWD/build
+SOURCE_DIR=$CWD
 NINJA_BIN=ninja
 VERBOSE=
-EXT=.exe
+EXT=
 CJH=$BUILD_DIR/bin/cjah$EXT
 TEST_RUNNER=$BUILD_DIR/bin/runner$EXT
 PRE=$PWD/output
@@ -29,7 +29,7 @@ function run_cmd() {
 
 # update cmake cache 
 function update() {
-    run_cmd cmake -G "Ninja" -B $BUILD_DIR -S $SOURCE_DIR -DCANGJIE_INCLUDE=$CJ_INC -DCMAKE_BUILD_TYPE=$BTYPE -DCMAKE_INSTALL_PREFIX=$PRE -DCMAKE_ENABLE_TEST=$TEST
+    run_cmd cmake -G "Ninja" -B $BUILD_DIR -S $SOURCE_DIR -DCANGJIE_INCLUDE=$CJ_INC -DCMAKE_BUILD_TYPE=$BTYPE -DCMAKE_INSTALL_PREFIX=$PRE -DCMAKE_ENABLE_TEST=$TEST -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
 }
 
 function build() {

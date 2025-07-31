@@ -34,48 +34,51 @@ public:
     enum class Level { DEBUG = 0, INFO, WARN, ERROR };
     enum class Mode { STD = 0, FILE, ALL, NO };
 
-    void setLevel(Level level)
+    void SetLevel(Level level)
     {
         this->level = level;
     }
 
-    template <typename... Args> inline void debug(const std::string& domain, Args&&... args)
+    template <typename... Args> inline void Debug(const std::string& domain, Args&&... args)
     {
-        log(Level::DEBUG, domain, std::forward<Args>(args)...);
+        Log(Level::DEBUG, domain, std::forward<Args>(args)...);
     }
 
-    template <typename... Args> inline void info(const std::string& domain, Args&&... args)
+    template <typename... Args> inline void Info(const std::string& domain, Args&&... args)
     {
-        log(Level::INFO, domain, std::forward<Args>(args)...);
+        Log(Level::INFO, domain, std::forward<Args>(args)...);
     }
 
-    template <typename... Args> inline void warn(const std::string& domain, Args&&... args)
+    template <typename... Args> inline void Warn(const std::string& domain, Args&&... args)
     {
-        log(Level::WARN, domain, std::forward<Args>(args)...);
+        Log(Level::WARN, domain, std::forward<Args>(args)...);
     }
 
-    template <typename... Args> void log(Level level, const std::string& domain, Args&&... args)
+    template <typename... Args> void Log(Level level, const std::string& domain, Args&&... args)
     {
+#ifdef NDEBUG
+#else
         if (this->level > level) {
             return;
         }
-        plevel();
-        pdomain(domain);
-        p.pvals(std::forward<Args>(args)...);
-        p.pnl();
+        PLevel();
+        PDomain(domain);
+        p.PVals(std::forward<Args>(args)...);
+        p.PNL();
+#endif
     }
 
     // 获取合适的日志流示例
-    static Logger& get(Mode m = Mode::STD);
+    static Logger& Get(Mode m = Mode::STD);
     // 清空所有日志流
-    static void close();
+    static void Close();
 
 private:
     Logger();
     Logger(const std::string& path);
 
-    void plevel();
-    void pdomain(const std::string& domain);
+    void PLevel();
+    void PDomain(const std::string& domain);
 
 private:
     Printer p;

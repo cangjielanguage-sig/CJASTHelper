@@ -10,19 +10,19 @@ Printer::Printer(std::ostream& os, int indent) : os_(os), indent_(indent), curre
 {
 }
 
-void Printer::indent()
+void Printer::Indent()
 {
     currentIndent_++;
 }
 
-Printer& Printer::pnl()
+Printer& Printer::PNL()
 {
     os_ << std::endl;
     needIndent_ = true;
     return *this;
 }
 
-void Printer::unindent()
+void Printer::Unindent()
 {
     if (currentIndent_ > 0) {
         currentIndent_--;
@@ -30,7 +30,7 @@ void Printer::unindent()
 }
 
 /// private implementation
-void Printer::ensureIndent()
+void Printer::EnsureIndent()
 {
     if (needIndent_) {
         os_ << std::string(currentIndent_ * indent_, ' ');

@@ -45,7 +45,7 @@ TEST(CJAHTest, OutputTest)
         cjahPath = std::string(envPath);
     }
     // 构建命令行字符串以运行你的应用
-    std::string command = cjahPath + " --dump-source=parse ../tmp/test.cj";
+    std::string command = cjahPath + " --dump-source=parse test/main.cj";
 
     // 使用 popen 执行命令并捕获输出
     std::string output = exec(command.c_str());
@@ -54,7 +54,7 @@ TEST(CJAHTest, OutputTest)
     // EXPECT_EQ(output, "Hello, World!\n");
 
     // 读取两个文件内容
-    std::string outputFilename = "../tmp/test.cj";
+    std::string outputFilename = "test/main.cj";
     // 检查输出文件是否存在
     EXPECT_TRUE(fs::exists(outputFilename)) << "Output file not found.";
 

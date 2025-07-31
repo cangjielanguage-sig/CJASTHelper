@@ -13,17 +13,17 @@ void PrintArgs(const std::vector<std::string>& args, const std::unordered_map<st
 {
     Printer p(std::cout, 4);
 
-    p.printc<std::string>(args, [](const std::string& v) { return "\"" + v + "\""; }, ", ", "[", "]", true).pnl();
+    p.Printc<std::string>(args, [](const std::string& v) { return "\"" + v + "\""; }, ", ", "[", "]", true).PNL();
 
-    p.printc<std::pair<const std::string, std::string>>(
+    p.Printc<std::pair<const std::string, std::string>>(
          env,
          [&p](const std::pair<const std::string, std::string>& kv) {
-             p.indent();
-             p.pval(kv.first).pval(": ").pval(kv.second).pnl();
-             p.unindent();
+             p.Indent();
+             p.PVal(kv.first).PVal(": ").PVal(kv.second).PNL();
+             p.Unindent();
          },
          "", "{\n", "}", true)
-        .pnl();
+        .PNL();
 }
 } // namespace
 
