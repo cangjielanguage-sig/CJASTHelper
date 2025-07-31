@@ -74,6 +74,6 @@ int main(int argc, const char** argv, const char** envp)
 
     PrintArgs(args, env);
     AstHelper ah(args, env);
-    ah.run();
+    ah.Run();
     return 0;
 }

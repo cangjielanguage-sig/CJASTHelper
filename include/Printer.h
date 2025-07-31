@@ -125,6 +125,26 @@ public:
         return *this;
     }
 
+    template <typename... Args> Printer& pvals(Args&&... args)
+    {
+        ensureIndent();
+        // 使用折叠表达式展开参数包，对每个参数执行 os_ << arg
+        // 表达式 ((std::cout << args), ...) 会从左到右展开
+        // 例如：print(a, b, c) 展开为 (std::cout << a), (std::cout << b), (std::cout << c)
+        ((os_ << args), ...);
+        return *this;
+    }
+
+    template <typename Sep, typename... Args> Printer& psvals(Sep&& sep, Args&&... args)
+    {
+        ensureIndent();
+        if constexpr (sizeof...(args) > 0) {
+            std::size_t n{0};
+            ((os_ << (n++ ? sep : "") << args), ...);
+        }
+        return *this;
+    }
+
     template <typename T> Printer& operator<<(const T& value)
     {
         return this->pval(value);

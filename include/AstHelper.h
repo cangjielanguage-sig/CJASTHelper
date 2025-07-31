@@ -26,9 +26,9 @@ public:
 
     ~AstHelper() = default;
 
-    std::string getOutputDir() const;
+    std::string GetOutputDir() const;
 
-    void run();
+    void Run();
 
 private:
     enum class SourceStage {
@@ -47,21 +47,12 @@ private:
     bool Sema();
     bool DesugaredSema();
 
-    template <typename T> void log(const std::string& info, const T& val)
-    {
-#ifdef NDEBUG
-#else
-        logger.pval(info).pval(": ").pval(val).pnl();
-#endif
-    }
-
 private:
     std::unique_ptr<Cangjie::SourceManager> sm;
     std::unique_ptr<Cangjie::DiagnosticEngine> diag;
     std::unique_ptr<Cangjie::CompilerInvocation> ci;
     std::unique_ptr<Cangjie::DefaultCompilerInstance> dci;
     SourceStage stage = SourceStage::DEFAULT;
-    Printer logger;
 
     static inline const std::unordered_map<std::string, SourceStage> key2Stage{{"parse", SourceStage::PARSE},
         {"desugared-parse", SourceStage::DESUGARED_PARSE}, {"sema", SourceStage::SEMA},

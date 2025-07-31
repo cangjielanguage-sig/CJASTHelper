@@ -4,6 +4,7 @@
  * This file implements the AstHelper.
  */
 #include "AstHelper.h"
+#include "Logger.h"
 #include "cangjie/Sema/Desugar.h"
 
 using namespace Cangjie;
@@ -12,8 +13,7 @@ AstHelper::AstHelper(const std::vector<std::string>& args, const std::unordered_
     : sm(std::make_unique<SourceManager>()),
       diag(std::make_unique<DiagnosticEngine>()),
       ci(std::make_unique<CompilerInvocation>()),
-      dci(std::make_unique<DefaultCompilerInstance>(*ci, *diag)),
-      logger(std::cout)
+      dci(std::make_unique<DefaultCompilerInstance>(*ci, *diag))
 {
     AH_CHECK_NULL(sm);
     AH_CHECK_NULL(diag);
@@ -24,12 +24,12 @@ AstHelper::AstHelper(const std::vector<std::string>& args, const std::unordered_
     ParseArgs(args);
 }
 
-std::string AstHelper::getOutputDir() const
+std::string AstHelper::GetOutputDir() const
 {
     return ci->globalOptions.outputDir.value_or("");
 }
 
-void AstHelper::run()
+void AstHelper::Run()
 {
     for (int i = 0; i <= static_cast<int>(stage); i++) {
         if (i == static_cast<int>(SourceStage::DESUGARED_PARSE) && stage > SourceStage::DESUGARED_PARSE) {
@@ -41,7 +41,7 @@ void AstHelper::run()
         }
     }
     auto pkgs = dci->GetSourcePackages();
-    log("Get pkgs", pkgs.size());
+    Logger::get().debug("AstHelper::Run", "Get pkgs: ", pkgs.size());
 }
 
 void AstHelper::ParseArgs(const std::vector<std::string>& args)
@@ -52,11 +52,11 @@ void AstHelper::ParseArgs(const std::vector<std::string>& args)
         if (arg.find(DS_KEY) != std::string::npos) {
             // parse the value
             auto val = arg.substr(DS_KEY.size());
-            log("Get Stage", val);
+            Logger::get().debug("AstHelper::ParseArgs", "Get Stage: ", val);
             if (auto it = key2Stage.find(val); it != key2Stage.end()) {
                 stage = it->second;
             } else {
-                log("Warning: not supported stage", val);
+                Logger::get().warn("AstHelper::ParseArgs", "not supported stage: ", val);
             }
         } else {
             ciArgs.push_back(arg);
@@ -67,19 +67,20 @@ void AstHelper::ParseArgs(const std::vector<std::string>& args)
 
 bool AstHelper::Default()
 {
-    log("inputs", ci->globalOptions.srcFiles.size());
-    log("Output", getOutputDir());
+    Logger::get().debug("AstHelper::Default", "input files: ", ci->globalOptions.srcFiles.size());
+    Logger::get().debug("AstHelper::Default", "Output", GetOutputDir());
     return true;
 }
 
 bool AstHelper::Parse()
 {
-    log("Parse", "");
+    Logger::get().debug("AstHelper::Parse");
     return dci->PerformParse();
 }
 
 bool AstHelper::DesugaredParse()
 {
+    Logger::get().debug("AstHelper::DesugaredParse");
     for (auto& pkg : dci->GetPackages()) {
         PerformDesugarBeforeTypeCheck(*pkg);
     }
@@ -88,10 +89,12 @@ bool AstHelper::DesugaredParse()
 
 bool AstHelper::Sema()
 {
+    Logger::get().debug("AstHelper::Sema");
     return dci->PerformSema();
 }
 
 bool AstHelper::DesugaredSema()
 {
+    Logger::get().debug("AstHelper::DesugaredSema");
     return dci->PerformDesugarAfterSema();
 }
