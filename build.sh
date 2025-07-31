@@ -11,7 +11,9 @@ NINJA_BIN=ninja
 VERBOSE=
 EXT=.exe
 CJH=$BUILD_DIR/bin/cjah$EXT
+TEST_RUNNER=$BUILD_DIR/bin/runner$EXT
 PRE=$PWD/output
+TEST=OFF
 
 
 function run_cmd() {
@@ -27,7 +29,7 @@ function run_cmd() {
 
 # update cmake cache 
 function update() {
-    run_cmd cmake -G "Ninja" -B $BUILD_DIR -S $SOURCE_DIR -DCANGJIE_INCLUDE=$CJ_INC -DCMAKE_BUILD_TYPE=$BTYPE -DCMAKE_INSTALL_PREFIX=$PRE
+    run_cmd cmake -G "Ninja" -B $BUILD_DIR -S $SOURCE_DIR -DCANGJIE_INCLUDE=$CJ_INC -DCMAKE_BUILD_TYPE=$BTYPE -DCMAKE_INSTALL_PREFIX=$PRE -DCMAKE_ENABLE_TEST=$TEST
 }
 
 function build() {
@@ -53,14 +55,25 @@ function run() {
     fi
 }
 
+function test() {
+    if [ ! -f "$TEST_RUNNER" ]; then
+        build
+    fi
+    run_cmd $TEST_RUNNER $@
+}
+
 function main() {
-    TEMP=$(getopt -o "vp:t:ubicr" -n "opts" -- "$@")
+    TEMP=$(getopt -o "vgp:t:ubicr" -n "opts" -- "$@")
     eval set -- "$TEMP"
     run_flag=
     while true; do
         case "$1" in
             -v)
                 VERBOSE="-v"
+                shift
+                ;;
+            -g)
+                TEST="ON"
                 shift
                 ;;
             -p)
@@ -88,7 +101,10 @@ function main() {
                 shift
                 ;;
             -r)
-                run_flag="1"
+                run_flag="run"
+                if [[ "$TEST" == "ON" ]]; then
+                    run_flag="test"
+                fi
                 shift
                 ;;
             --)
@@ -102,8 +118,10 @@ function main() {
         esac
     done
 
-    if [ -n "$run_flag" ]; then
+    if [[ "X$run_flag" == "Xrun" ]]; then
         run $@
+    elif [[ "X$run_flag" == "Xtest" ]]; then
+        test $@
     fi
 }
 

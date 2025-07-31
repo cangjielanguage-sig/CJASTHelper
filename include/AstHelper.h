@@ -9,6 +9,8 @@
 #include "Printer.h"
 #include "cangjie/FrontendTool/DefaultCompilerInstance.h"
 #include <memory>
+#include <unordered_map>
+#include <unordered_set>
 
 #ifdef NDEBUG
 #define AH_ASSERT(f) static_cast<void>(f)
@@ -22,6 +24,15 @@
  */
 class AstHelper {
 public:
+    enum class SourceStage {
+        DEFAULT = 0,     /**< No Source. */
+        PARSE,           /**< Source of parsed ast. */
+        DESUGARED_PARSE, /**< Source of desugared parsed ast. */
+        SEMA,            /**< Source of typechecked ast. */
+        DESUGARED_SEMA,  /**< Source of desugared typechecked ast. */
+    };
+
+public:
     explicit AstHelper(const std::vector<std::string>& args, const std::unordered_map<std::string, std::string>& env);
 
     ~AstHelper() = default;
@@ -30,14 +41,10 @@ public:
 
     void Run();
 
-private:
-    enum class SourceStage {
-        DEFAULT = 0,     /**< No Source. */
-        PARSE,           /**< Source of parsed ast. */
-        DESUGARED_PARSE, /**< Source of desugared parsed ast. */
-        SEMA,            /**< Source of typechecked ast. */
-        DESUGARED_SEMA,  /**< Source of desugared typechecked ast. */
-    };
+    SourceStage GetStage() const
+    {
+        return stage;
+    }
 
 private:
     void ParseArgs(const std::vector<std::string>& args);
@@ -63,4 +70,7 @@ private:
         {SourceStage::DESUGARED_SEMA, &AstHelper::DesugaredSema}};
 };
 
+std::vector<std::string> ParseArgs(int argc, const char* const* argv);
+std::unordered_map<std::string, std::string> ParseEnv(
+    const char* const* envp, const std::unordered_set<std::string>& focus);
 #endif // AST_HELPER_H

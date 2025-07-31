@@ -28,6 +28,11 @@ if(NOT CMAKE_INCLUDE_SYSTEM_FLAG_CXX)
 endif()
 
 include_directories(include)
+include_directories(${CANGJIE_HOME}/include)
+if(CANGJIE_INCLUDE)
+    message(STATUS "include: ${CANGJIE_INCLUDE}")
+    include_directories(${CANGJIE_INCLUDE})
+endif()
 
 # Add definitions and compiler flags by build type
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -82,3 +87,62 @@ add_compile_definitions(__${TARGET_OS}__)
 
 # Add source
 add_subdirectory(src)
+
+# For Testing
+if(CMAKE_ENABLE_TEST)
+    # 待测试是否可以下载成功
+    # 设置gtest的版本和URL等信息
+    set(GTEST_VERSION "v1.17.0" CACHE STRING "Version of GoogleTest to download")
+    set(GTEST_URL "https://github.com/google/googletest/archive/tags/${GTEST_VERSION}.zip" CACHE STRING "URL for downloading GoogleTest")
+
+    # 设置第三方库目录
+    set(THIRD_PARTY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+    set(GTEST_SOURCE_DIR "${CMAKE_BINARY_DIR}/gtest")
+
+    # 检查third_party/gtest是否存在
+    if(EXISTS "${THIRD_PARTY_DIR}/googletest-${GTEST_VERSION}")
+        message(STATUS "Found local gtest installation in third_party.")
+    else()
+        # 如果不存在，则尝试下载并解压
+        message(STATUS "No local gtest found, attempting to download...")
+        # 使用ExternalProject_Add下载并安装gtest
+        include(ExternalProject)
+        ExternalProject_Add(
+            gtest
+            URL ${GTEST_URL}
+            DOWNLOAD_DIR ${CMAKE_BINARY_DIR}
+            SOURCE_DIR ${GTEST_SOURCE_DIR}
+            CONFIGURE_COMMAND ""
+            BUILD_COMMAND ""
+            INSTALL_COMMAND ""
+            TEST_COMMAND ""
+            UPDATE_COMMAND ""
+            PATCH_COMMAND ""
+        )
+    
+    # 添加一个自定义命令来移动解压后的文件到 third_party/gtest
+    add_custom_command(
+        TARGET gtest POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/third_party
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${GTEST_SOURCE_DIR}/googletest-release-${GTEST_VERSION} ${THIRD_PARTY_DIR}/googletest-${GTEST_VERSION}
+        )
+    # 添加一个自定义目标，确保 gtest 目标会被执行
+    add_custom_target(
+        fetch_gtest ALL
+        DEPENDS gtest
+        COMMENT "Fetching and extracting GTest..."
+        )
+    endif()
+
+    
+
+    # 添加gtest路径
+    include_directories(${THIRD_PARTY_DIR}/gtest/include)
+
+    # 添加gtest源码路径
+    add_subdirectory(${THIRD_PARTY_DIR}/googletest-v1.17.0)
+
+    # 现在可以将gtest添加为可执行文件或测试的目标依赖
+    enable_testing()
+    add_subdirectory(test)
+endif()

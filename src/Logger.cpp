@@ -5,7 +5,6 @@
  */
 #include "Logger.h"
 #include <cstdlib>
-#include <stdexcept>
 
 std::vector<std::unique_ptr<Logger>> Logger::instances(2);
 
@@ -42,7 +41,7 @@ Logger::Logger(const std::string& path) : p(fs, 0)
 {
     fs.open(path);
     if (!fs.is_open()) {
-        throw std::runtime_error("Failed to open logger file " + path);
+        throw LoggerException("Failed to open logger file " + path);
     }
 }
 

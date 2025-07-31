@@ -98,3 +98,41 @@ bool AstHelper::DesugaredSema()
     Logger::get().debug("AstHelper::DesugaredSema");
     return dci->PerformDesugarAfterSema();
 }
+
+std::vector<std::string> ParseArgs(int argc, const char* const* argv)
+{
+    std::vector<std::string> args;
+    for (int i = 0; i < argc; ++i) {
+        if (!argv[i]) {
+            continue;
+        }
+        args.emplace_back(argv[i]);
+    }
+    return args;
+}
+
+// Filter some key vars
+std::unordered_map<std::string, std::string> ParseEnv(
+    const char* const* envp, const std::unordered_set<std::string>& focus)
+{
+    std::unordered_map<std::string, std::string> env;
+    if (!envp) {
+        return env;
+    }
+    int i = 0;
+    constexpr char ASSIGN = '=';
+    while (true) {
+        if (!envp[i]) {
+            break;
+        }
+        std::string kv(envp[i]);
+        if (auto pos = kv.find(ASSIGN); pos != std::string::npos) {
+            std::string key = kv.substr(0, pos);
+            if (focus.find(key) != focus.end()) {
+                env.emplace(key, kv.substr(pos + 1));
+            }
+        }
+        i++;
+    }
+    return env;
+}

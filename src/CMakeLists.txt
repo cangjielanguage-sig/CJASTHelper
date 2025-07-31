@@ -1,18 +1,14 @@
 file(GLOB AST_HELPER_SRC "*.cpp")
 
-add_executable(cjah ${AST_HELPER_SRC})
+list(REMOVE_ITEM AST_HELPER_SRC "Main.cpp")
 
+add_library(ast_helper STATIC ${AST_HELPER_SRC})
 
+add_executable(cjah Main.cpp)
 
-target_link_directories(cjah PUBLIC ${CANGJIE_TOOLS_LIB} ${LLVM_LIB})
+target_link_directories(cjah PRIVATE ${CANGJIE_TOOLS_LIB} ${LLVM_LIB})
 
-target_link_libraries(cjah PUBLIC ${DEPEN_LIBS})
-
-include_directories(${CANGJIE_HOME}/include)
-if(CANGJIE_INCLUDE)
-    message(STATUS "include: ${CANGJIE_INCLUDE}")
-    include_directories(${CANGJIE_INCLUDE})
-endif()
+target_link_libraries(cjah PUBLIC ast_helper ${DEPEN_LIBS})
 
 if (CMAKE_BUILD_TYPE MATCHES Release AND MINGW)
     target_link_options(cjah PRIVATE -static-libgcc -static-libstdc++ LINKER:-Bstatic,--whole-archive -lwinpthread LINKER:-Bdynamic,--no-whole-archive)
