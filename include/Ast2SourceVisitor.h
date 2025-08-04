@@ -15,14 +15,8 @@ private:
     std::string message;
 
 public:
-    explicit Ast2SourceException(const std::string& msg) noexcept : message(msg)
-    {
-    }
-
-    const char* what() const noexcept override
-    {
-        return message.c_str();
-    }
+    explicit Ast2SourceException(const std::string& msg) noexcept;
+    const char* what() const noexcept override;
 };
 
 class Ast2SourceVisitor : public AstVisitor {

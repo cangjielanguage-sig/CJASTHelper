@@ -39,6 +39,15 @@ std::string Id(const Cangjie::Identifier& id)
 const std::string SUFFIX = "_source.cj";
 } // namespace
 
+Ast2SourceException::Ast2SourceException(const std::string& msg) noexcept : message(msg)
+{
+}
+
+const char* Ast2SourceException::what() const noexcept
+{
+    return message.c_str();
+}
+
 Ast2SourceVisitor::Ast2SourceVisitor(const std::string& out, int indent) : out(out), p(ofs, indent)
 {
     CreateDirIfNotExists(out);

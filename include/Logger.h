@@ -11,22 +11,14 @@
 #include <memory>
 #include <vector>
 
-// 定义自定义异常类
+// Logger Exception
 class LoggerException : public std::exception {
 private:
     std::string message;
 
 public:
-    // 构造函数
-    explicit LoggerException(const std::string& msg) noexcept : message(msg)
-    {
-    }
-
-    // 重写 what() 方法，返回异常描述
-    const char* what() const noexcept override
-    {
-        return message.c_str();
-    }
+    explicit LoggerException(const std::string& msg) noexcept;
+    const char* what() const noexcept override;
 };
 
 class Logger {
