@@ -5,6 +5,7 @@
  */
 #include "Ast2SourceVisitor.h"
 #include "Logger.h"
+#include "Macro.h"
 #include <filesystem>
 
 namespace fs = std::filesystem;

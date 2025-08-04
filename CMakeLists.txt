@@ -83,7 +83,10 @@ else()
 endif()
 
 # Only cjnative
+# other version
 add_compile_definitions(CANGJIE_CODEGEN_CJNATIVE_BACKEND)
+# LTS version
+add_compile_definitions(CANGJIE_CODEGEN_LLVMGC_BACKEND)
 
 if(CMAKE_ENABLE_ASSERT)
     add_compile_definitions(CMAKE_ENABLE_ASSERT)

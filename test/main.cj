@@ -1,5 +1,2 @@
-func foo() {
-
-}
-
+func foo() {}
 main() {}
