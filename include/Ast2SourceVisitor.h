@@ -28,18 +28,19 @@ protected:
     VisitResult Before(const File& node) override;
     void After(const File& node, const VisitResult& res) override;
 
-// 定义重写 Visit 的声明宏
+// 定义重写 Visit 声明的宏
 #define GEN_VISIT_OVERRIDE(N) void Visit(const N& node, VisitResult&) override
     // 递归展开需要重写的节点
     EXPAND2(GEN_VISIT_OVERRIDE, Annotation, Modifier);
+    EXPAND1(GEN_VISIT_OVERRIDE, File);
     EXPAND4(GEN_VISIT_OVERRIDE, FuncDecl, FuncBody, FuncParamList, FuncParam);
-    EXPAND2(GEN_VISIT_OVERRIDE, MainDecl, VarDecl);
+    EXPAND4(GEN_VISIT_OVERRIDE, MainDecl, VarDecl, ClassDecl, ClassBody);
     // Type
     EXPAND2(GEN_VISIT_OVERRIDE, PrimitiveType, RefType);
     // Expr
     EXPAND2(GEN_VISIT_OVERRIDE, Block, FuncArg);
     EXPAND4(GEN_VISIT_OVERRIDE, RefExpr, BinaryExpr, CallExpr, ReturnExpr);
-    EXPAND1(GEN_VISIT_OVERRIDE, LitConstExpr);
+    EXPAND4(GEN_VISIT_OVERRIDE, LitConstExpr, ArrayLit, MemberAccess, LambdaExpr);
 
 private:
     Printer& PRT();
