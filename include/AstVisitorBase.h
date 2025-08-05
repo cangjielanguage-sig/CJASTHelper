@@ -28,6 +28,6 @@ public:
 };
 
 // 通用遍历接口
-VisitResult traverseAst(const AstNode& node, AstVisitorBase& visitor);
+VisitResult Traverse(const AstNode& node, AstVisitorBase& visitor);
 
 #endif // AST_VISITOR_BASE_H

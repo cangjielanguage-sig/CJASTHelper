@@ -98,7 +98,7 @@ EXPAND1(GEN_VISIT_DEFAULT_IMPL, MacroExpandParam); // To check
 void AstVisitor::Visit(const ImportContent& node, VisitResult& res)
 {
     for (auto& ic : node.items) {
-        traverseAst(ic, *this);
+        Traverse(ic, *this);
     }
 }
 
@@ -116,7 +116,7 @@ void AstVisitor::Visit(const Package& node, VisitResult& res)
 void AstVisitor::Visit(const PackageSpec& node, VisitResult& res)
 {
     if (node.modifier) {
-        traverseAst(*node.modifier, *this);
+        Traverse(*node.modifier, *this);
     }
 }
 

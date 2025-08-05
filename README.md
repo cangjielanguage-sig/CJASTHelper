@@ -26,5 +26,5 @@ bash build.sh -t Debug -b
 - desugared-sema 用来打印语义分析并解糖后的源码
 
 ```bash
-CJASTHelper --dump-source=desugar --output-dir=out
+CJASTHelper --dump-source=desugar-sema --output-dir=out
 ```
