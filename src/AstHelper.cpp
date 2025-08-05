@@ -91,6 +91,8 @@ bool AstHelper::DesugaredParse()
 bool AstHelper::Sema()
 {
     Logger::Get().Debug("AstHelper::Sema");
+    // Necessary pipeline
+    mci->PerformImportPackage();
     return mci->PerformSema();
 }
 
