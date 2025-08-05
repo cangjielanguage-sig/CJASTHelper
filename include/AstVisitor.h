@@ -31,34 +31,31 @@ public:
     void registerHandler(AstKind kind, BeforeFunc before, VisitFunc visit = nullptr, AfterFunc after = nullptr);
 
     VisitResult BeforeVisit(const AstNode& node) override;
-    void VisitChildren(const AstNode& node, VisitResult& visitResult) override;
-    void AfterVisit(const AstNode& node, const VisitResult& visitResult) override;
+    void Visit(const AstNode& node, VisitResult& res) override;
+    void AfterVisit(const AstNode& node, const VisitResult& res) override;
 
     virtual VisitResult DefaultBefore(const AstNode& node);
-    virtual void DefaultVisitChildren(const AstNode& node, VisitResult& visitResult);
-    virtual void DefaultAfter(const AstNode& node, const VisitResult& visitResult);
+    virtual void DefaultVisit(const AstNode& node, VisitResult& res);
+    virtual void DefaultAfter(const AstNode& node, const VisitResult& res);
 
+protected:
     // 宏定义
-#define GEN_BEFORE_AFTER_VISIT_CHILDREN(N)                                                                             \
+#define GEN_BEFORE_AFTER_VISIT(N)                                                                                      \
     virtual VisitResult Before(const N& node)                                                                          \
     {                                                                                                                  \
         return VisitResult::Cont();                                                                                    \
     }                                                                                                                  \
-    virtual void After(const N& node, const VisitResult& visitResult)                                                  \
+    virtual void After(const N& node, const VisitResult& res)                                                          \
     {                                                                                                                  \
     }                                                                                                                  \
-    virtual void VisitChildren(const N& node, VisitResult& visitResult);
+    virtual void Visit(const N& node, VisitResult& res);
 
     // 使用宏生成代码
-#define AST_INFO(KIND, STR, DEF) GEN_BEFORE_AFTER_VISIT_CHILDREN(DEF)
+#define AST_INFO(KIND, STR, DEF) GEN_BEFORE_AFTER_VISIT(DEF)
 #include "AstInfo.inc"
 #undef AST_INFO
 
-protected:
-    std::map<AstKind, std::tuple<BeforeFunc, VisitFunc, AfterFunc>> handlers;
-
-private:
-    void VisitDecl(const Decl& node, VisitResult& visitResult);
+    void VisitDecl(const Decl& node, VisitResult& res);
 
     template <template <typename> class Ptr, typename T> inline void VisitNode(const Ptr<T>& pnode)
     {
@@ -73,6 +70,9 @@ private:
             traverseAst(*node, *this);
         }
     }
+
+protected:
+    std::map<AstKind, std::tuple<BeforeFunc, VisitFunc, AfterFunc>> handlers;
 };
 
 #endif // AST_VISITOR_H

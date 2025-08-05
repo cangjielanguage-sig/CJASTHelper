@@ -6,6 +6,7 @@
 #ifndef AST_2_SOURCE_VISITOR_H
 #define AST_2_SOURCE_VISITOR_H
 #include "AstVisitor.h"
+#include "Macro.h"
 #include "Printer.h"
 #include <fstream>
 
@@ -24,12 +25,12 @@ public:
     Ast2SourceVisitor(const std::string& out, int indent = 2);
 
     VisitResult Before(const File& node) override;
-    void After(const File& node, const VisitResult& visitResult) override;
+    void After(const File& node, const VisitResult& res) override;
 
-    VisitResult Before(const FuncDecl& node) override;
-    VisitResult Before(const FuncBody& node) override;
-    VisitResult Before(const FuncParamList& node) override;
-    VisitResult Before(const FuncParam& node) override;
+// 定义重写 Visit 的声明宏
+#define GEN_VISIT_OVERRIDE(N) void Visit(const N& node, VisitResult& res) override
+    // 递归展开需要重写的节点
+    EXPAND4(GEN_VISIT_OVERRIDE, FuncDecl, FuncBody, FuncParamList, FuncParam);
 
 private:
     Printer& GetPrinter();

@@ -5,7 +5,6 @@
  */
 #include "Ast2SourceVisitor.h"
 #include "Logger.h"
-#include "Macro.h"
 #include <filesystem>
 
 namespace fs = std::filesystem;
@@ -56,7 +55,7 @@ Ast2SourceVisitor::Ast2SourceVisitor(const std::string& out, int indent) : out(o
 
 VisitResult Ast2SourceVisitor::Before(const File& node)
 {
-    Logger::Get().Debug("Ast2SourceVisitor::Before", "For File: ", node.fileName);
+    Logger::Get(Logger::Mode::STD).Debug("Ast2SourceVisitor::Before", "For File: ", node.fileName);
     std::string fp = out + "/" + GetFileNameWithoutSuffix(node.fileName) + SUFFIX;
     ofs.open(fp, std::ios::out);
     if (!ofs.is_open()) {
@@ -65,37 +64,51 @@ VisitResult Ast2SourceVisitor::Before(const File& node)
     return VisitResult::Cont();
 }
 
-void Ast2SourceVisitor::After(const File& node, const VisitResult& visitResult)
+void Ast2SourceVisitor::After(const File& node, const VisitResult& res)
 {
     ofs.close();
 }
 
-VisitResult Ast2SourceVisitor::Before(const FuncDecl& node)
+void Ast2SourceVisitor::Visit(const FuncDecl& node, VisitResult& res)
 {
-    Logger::Get().Debug("Ast2SourceVisitor::Before", "For FuncDecl: ", node.identifier.Val());
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncDecl: ", node.identifier.Val());
+    VisitNodes(node.annotations);
+    VisitNode(node.annotationsArray);
+    for (auto& mod : node.modifiers) {
+        AstVisitor::Visit(mod, res);
+    }
+    VisitNode(node.generic);
     AH_CHECK_NULL(node.funcBody);
     GetPrinter().PSVals(" ", "func", Id(node.identifier));
-    return VisitResult::Cont();
 }
 
-VisitResult Ast2SourceVisitor::Before(const FuncBody& node)
+void Ast2SourceVisitor::Visit(const FuncBody& node, VisitResult& res)
 {
-    Logger::Get().Debug("Ast2SourceVisitor::Before", "For FuncBody");
-    return VisitResult::Cont();
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncBody");
+    VisitNode(node.paramLists[0]);
+    VisitNode(node.generic);
+    VisitNode(node.retType);
+    if (node.body) {
+        GetPrinter().PVal(" {").PNL();
+        GetPrinter().Indent();
+        VisitNode(node.body);
+        GetPrinter().Unindent();
+        GetPrinter().PVal("}").PNL();
+    }
 }
 
-VisitResult Ast2SourceVisitor::Before(const FuncParamList& node)
+void Ast2SourceVisitor::Visit(const FuncParamList& node, VisitResult& res)
 {
-    Logger::Get().Debug("Ast2SourceVisitor::Before", "For FuncParamList");
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncParamList");
     GetPrinter().Printc<FuncParam>(
         node.params, [this](const FuncParam& param) { traverseAst(param, *this); }, ",", "(", ")", true);
-    return VisitResult::Skip();
+    // Do not traverse children
+    res.status = false;
 }
 
-VisitResult Ast2SourceVisitor::Before(const FuncParam& node)
+void Ast2SourceVisitor::Visit(const FuncParam& node, VisitResult& res)
 {
-    Logger::Get().Debug("Ast2SourceVisitor::Before", "For FuncParam");
-    return VisitResult::Cont();
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncParam");
 }
 
 Printer& Ast2SourceVisitor::GetPrinter()

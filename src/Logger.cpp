@@ -48,7 +48,7 @@ Logger::Logger() : p(std::cout, 0)
 
 Logger::Logger(const std::string& path) : p(fs, 0)
 {
-    fs.open(path);
+    fs.open(path, std::ios::out);
     if (!fs.is_open()) {
         throw LoggerException("Failed to open logger file " + path);
     }

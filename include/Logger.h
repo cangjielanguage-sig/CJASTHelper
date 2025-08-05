@@ -61,7 +61,7 @@ public:
     }
 
     // 获取合适的日志流示例
-    static Logger& Get(Mode m = Mode::STD);
+    static Logger& Get(Mode m = Mode::FILE);
     // 清空所有日志流
     static void Close();
 

@@ -22,10 +22,13 @@ VisitResult VisitResult::Skip()
 
 VisitResult traverseAst(const AstNode& node, AstVisitorBase& visitor)
 {
-    auto visitResult = visitor.BeforeVisit(node);
-    if (visitResult.status) {
-        visitor.VisitChildren(node, visitResult);
-        visitor.AfterVisit(node, visitResult);
+    auto res = visitor.BeforeVisit(node);
+    if (!res.status) {
+        return res;
     }
-    return visitResult;
+    visitor.Visit(node, res);
+    if (res.status) {
+        visitor.AfterVisit(node, res);
+    }
+    return res;
 }
