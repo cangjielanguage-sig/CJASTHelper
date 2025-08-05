@@ -60,14 +60,14 @@ protected:
     template <template <typename> class Ptr, typename T> inline void VisitNode(const Ptr<T>& pnode)
     {
         if (pnode) {
-            traverseAst(*pnode, *this);
+            Traverse(*pnode, *this);
         }
     }
 
     template <template <typename> class Ptr, typename T> inline void VisitNodes(const std::vector<Ptr<T>>& nodes)
     {
         for (auto& node : nodes) {
-            traverseAst(*node, *this);
+            Traverse(*node, *this);
         }
     }
 

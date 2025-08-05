@@ -37,8 +37,8 @@ void AstHelper::Run()
     Logger::Get().Debug("AstHelper::Run", "Get pkgs: ", pkgs.size());
     Ast2SourceVisitor ast2SourceVisitor(GetOutputDir());
     for (auto pkg : pkgs) {
-        Logger::Get().Debug("AstHelper::Run", "traverseAst ", pkg->fullPackageName, " by Ast2SourceVisitor");
-        traverseAst(*pkg, ast2SourceVisitor);
+        Logger::Get().Debug("AstHelper::Run", "Traverse ", pkg->fullPackageName, " by Ast2SourceVisitor");
+        Traverse(*pkg, ast2SourceVisitor);
     }
 }
 

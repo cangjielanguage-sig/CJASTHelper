@@ -20,7 +20,7 @@ VisitResult VisitResult::Skip()
     return {false};
 }
 
-VisitResult traverseAst(const AstNode& node, AstVisitorBase& visitor)
+VisitResult Traverse(const AstNode& node, AstVisitorBase& visitor)
 {
     auto res = visitor.BeforeVisit(node);
     if (!res.status) {

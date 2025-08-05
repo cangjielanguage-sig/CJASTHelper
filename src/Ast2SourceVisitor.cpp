@@ -101,7 +101,7 @@ void Ast2SourceVisitor::Visit(const FuncParamList& node, VisitResult& res)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncParamList");
     GetPrinter().Printc<FuncParam>(
-        node.params, [this](const FuncParam& param) { traverseAst(param, *this); }, ",", "(", ")", true);
+        node.params, [this](const FuncParam& param) { Traverse(param, *this); }, ",", "(", ")", true);
     // Do not traverse children
     res.status = false;
 }
