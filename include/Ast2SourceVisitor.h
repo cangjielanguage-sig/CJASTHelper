@@ -24,21 +24,36 @@ class Ast2SourceVisitor : public AstVisitor {
 public:
     Ast2SourceVisitor(const std::string& out, int indent = 2);
 
+protected:
     VisitResult Before(const File& node) override;
     void After(const File& node, const VisitResult& res) override;
 
 // 定义重写 Visit 的声明宏
-#define GEN_VISIT_OVERRIDE(N) void Visit(const N& node, VisitResult& res) override
+#define GEN_VISIT_OVERRIDE(N) void Visit(const N& node, VisitResult&) override
     // 递归展开需要重写的节点
+    EXPAND2(GEN_VISIT_OVERRIDE, Annotation, Modifier);
     EXPAND4(GEN_VISIT_OVERRIDE, FuncDecl, FuncBody, FuncParamList, FuncParam);
+    EXPAND2(GEN_VISIT_OVERRIDE, MainDecl, VarDecl);
+    // Type
+    EXPAND2(GEN_VISIT_OVERRIDE, PrimitiveType, RefType);
+    // Expr
+    EXPAND2(GEN_VISIT_OVERRIDE, Block, FuncArg);
+    EXPAND4(GEN_VISIT_OVERRIDE, RefExpr, BinaryExpr, CallExpr, ReturnExpr);
+    EXPAND1(GEN_VISIT_OVERRIDE, LitConstExpr);
 
 private:
-    Printer& GetPrinter();
+    Printer& PRT();
+    using Ty = Cangjie::AST::Ty;
+    using Type = Cangjie::AST::Type;
+    // 优先使用type, 其次使用ty
+    void VisitType(const Ptr<Type> type, const Ptr<Ty> ty = nullptr);
+    void VisitTy(const Ty& ty);
+    void VisitDecl(const Decl& node);
 
 private:
     std::string out;
     std::fstream ofs;
-    Printer p;
+    Printer prt;
 };
 
 #endif // AST_2_SOURCE_VISITOR_H
