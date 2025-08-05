@@ -99,10 +99,15 @@ void Ast2SourceVisitor::Visit(const FuncDecl& node, VisitResult& res)
 void Ast2SourceVisitor::Visit(const MainDecl& node, VisitResult& res)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For MainDecl");
-    VisitDecl(node);
-    PRT().PVal("main");
-    AH_CHECK_NULL(node.funcBody);
-    Visit(*node.funcBody, res);
+    if (node.desugarDecl) {
+        Logger::Get().Debug("Ast2SourceVisitor::Visit", "For Desugared Decl of MainDecl");
+        VisitNode(node.desugarDecl);
+    } else {
+        VisitDecl(node);
+        PRT().PVal("main");
+        AH_CHECK_NULL(node.funcBody);
+        Visit(*node.funcBody, res);
+    }
 }
 
 void Ast2SourceVisitor::Visit(const VarDecl& node, VisitResult& res)
@@ -165,8 +170,7 @@ void Ast2SourceVisitor::Visit(const RefType& node, VisitResult& res)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For RefType");
     PRT().PVal(Id(node.ref.identifier));
-    PRT().Printc<AstNode>(
-        node.typeArguments, [this](const AstNode& node) { Traverse(node, *this); }, ", ", "<", ">");
+    PRT().Printc<AstNode>(node.typeArguments, [this](const AstNode& node) { Traverse(node, *this); }, ", ", "<", ">");
 }
 
 // Expr
@@ -203,8 +207,7 @@ void Ast2SourceVisitor::Visit(const CallExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For CallExpr");
     VisitNode(node.baseFunc);
-    PRT().Printc<FuncArg>(
-        node.args, [this](const FuncArg& arg) { Traverse(arg, *this); }, ", ", "(", ")", true);
+    PRT().Printc<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, *this); }, ", ", "(", ")", true);
 }
 
 void Ast2SourceVisitor::Visit(const ReturnExpr& node, VisitResult&)
@@ -247,8 +250,7 @@ void Ast2SourceVisitor::VisitDecl(const Decl& node)
 {
     VisitNodes(node.annotations);
     VisitNode(node.annotationsArray);
-    PRT().Printc<Modifier>(
-        node.modifiers, [this](const Modifier& mod) { Traverse(mod, *this); }, " ", "", " ");
+    PRT().Printc<Modifier>(node.modifiers, [this](const Modifier& mod) { Traverse(mod, *this); }, " ", "", " ");
     VisitNode(node.generic);
 }
 
