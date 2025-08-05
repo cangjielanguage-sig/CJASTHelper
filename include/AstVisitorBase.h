@@ -22,8 +22,8 @@ struct VisitResult {
 class AstVisitorBase {
 public:
     virtual VisitResult BeforeVisit(const AstNode& node) = 0;
-    virtual void VisitChildren(const AstNode& node, VisitResult& visitResult) = 0;
-    virtual void AfterVisit(const AstNode& node, const VisitResult& visitResult) = 0;
+    virtual void Visit(const AstNode& node, VisitResult& res) = 0;
+    virtual void AfterVisit(const AstNode& node, const VisitResult& res) = 0;
     virtual ~AstVisitorBase() = default;
 };
 
