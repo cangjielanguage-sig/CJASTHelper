@@ -8,6 +8,7 @@
 #include <filesystem>
 
 namespace fs = std::filesystem;
+using Cangjie::AST::Attribute;
 
 namespace {
 void CreateDirIfNotExists(const std::string& path)
@@ -41,6 +42,18 @@ inline std::string Tk2Str(Cangjie::TokenKind tk)
     return Cangjie::TOKENS[static_cast<int>(tk)];
 }
 
+inline Ptr<Cangjie::AST::Ty> TryGetRetTy(const FuncBody& funcBody)
+{
+    if (!funcBody.ty) {
+        return nullptr;
+    }
+    if (!funcBody.ty->IsFunc()) {
+        return nullptr;
+    }
+    using FuncTy = Cangjie::AST::FuncTy;
+    return static_cast<FuncTy*>(funcBody.ty.get())->retTy;
+}
+
 const std::string SUFFIX = "_source.cj";
 } // namespace
 
@@ -70,6 +83,15 @@ VisitResult Ast2SourceVisitor::Before(const File& node)
     return VisitResult::Cont();
 }
 
+void Ast2SourceVisitor::Visit(const File& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For File");
+    PRT().Printc<Decl>(node.decls, [this](const Decl& decl) {
+        Traverse(decl, *this);
+        PRT().PNL().PNL();
+    });
+}
+
 void Ast2SourceVisitor::After(const File& node, const VisitResult&)
 {
     ofs.close();
@@ -91,7 +113,10 @@ void Ast2SourceVisitor::Visit(const FuncDecl& node, VisitResult& res)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncDecl: ", node.identifier.Val());
     VisitDecl(node);
-    PRT().PSVals(" ", "func", Id(node.identifier));
+    if (!node.TestAttr(Attribute::CONSTRUCTOR)) {
+        PRT().PVal("func ");
+    }
+    PRT().PVal(Id(node.identifier));
     AH_CHECK_NULL(node.funcBody);
     Visit(*node.funcBody, res);
 }
@@ -129,19 +154,44 @@ void Ast2SourceVisitor::Visit(const VarDecl& node, VisitResult& res)
     }
 }
 
+void Ast2SourceVisitor::Visit(const ClassDecl& node, VisitResult& res)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ClassDecl: ", node.identifier.Val());
+    VisitDecl(node);
+    PRT().PVals("class ", Id(node.identifier));
+    PRT().Printc<Type>(
+        node.inheritedTypes, [this](const Type& ty) { Traverse(ty, *this); }, " & ", " <: ");
+    VisitNode(node.body);
+}
+
+void Ast2SourceVisitor::Visit(const ClassBody& node, VisitResult& res)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ClassBody");
+    PRT().PVal(" {").PNL();
+    PRT().Indent();
+    PRT().Printc<Decl>(node.decls, [this](const Decl& decl) {
+        Traverse(decl, *this);
+        PRT().PNL();
+    });
+    PRT().Unindent();
+    PRT().PVal("}");
+}
+
 void Ast2SourceVisitor::Visit(const FuncBody& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncBody");
     VisitNode(node.paramLists[0]);
     VisitNode(node.generic);
-    // To add sema type (optional)
-    VisitType(node.retType);
+    Ptr<Ty> retTy = TryGetRetTy(node);
+    if (!node.funcDecl || (node.funcDecl && !node.funcDecl->TestAttr(Attribute::CONSTRUCTOR))) {
+        VisitType(node.retType, retTy);
+    }
     if (node.body) {
         PRT().PVal(" {").PNL();
         PRT().Indent();
         VisitNode(node.body);
         PRT().Unindent();
-        PRT().PVal("}").PNL();
+        PRT().PVal("}");
     }
 }
 
@@ -169,8 +219,13 @@ void Ast2SourceVisitor::Visit(const PrimitiveType& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const RefType& node, VisitResult& res)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For RefType");
-    PRT().PVal(Id(node.ref.identifier));
-    PRT().Printc<AstNode>(node.typeArguments, [this](const AstNode& node) { Traverse(node, *this); }, ", ", "<", ">");
+    if (node.ref.identifier.Val() == "" && node.ty) {
+        VisitTy(*node.ty);
+    } else {
+        PRT().PVal(Id(node.ref.identifier));
+        PRT().Printc<AstNode>(
+            node.typeArguments, [this](const AstNode& node) { Traverse(node, *this); }, ", ", "<", ">");
+    }
 }
 
 // Expr
@@ -206,13 +261,26 @@ void Ast2SourceVisitor::Visit(const FuncArg& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const CallExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For CallExpr");
-    VisitNode(node.baseFunc);
-    PRT().Printc<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, *this); }, ", ", "(", ")", true);
+    using CallKind = Cangjie::AST::CallKind;
+    if (node.callKind == CallKind::CALL_STRUCT_CREATION || node.callKind == CallKind::CALL_OBJECT_CREATION) {
+        AH_CHECK_NULL(node.ty);
+        // 构造函数调用
+        VisitTy(*node.ty);
+    } else {
+        VisitNode(node.baseFunc);
+    }
+    PRT().Printc<FuncArg>(
+        node.args, [this](const FuncArg& arg) { Traverse(arg, *this); }, ", ", "(", ")", true);
 }
 
 void Ast2SourceVisitor::Visit(const ReturnExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ReturnExpr");
+    // return in init, skip
+    auto body = node.refFuncBody;
+    if (body && body->funcDecl && body->funcDecl->TestAttr(Attribute::CONSTRUCTOR)) {
+        return;
+    }
     PRT().PVal("return");
     if (node.expr) {
         PRT().PVal(" ");
@@ -223,7 +291,37 @@ void Ast2SourceVisitor::Visit(const ReturnExpr& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const LitConstExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For LitConstExpr");
-    PRT().PVal(node.stringValue);
+    PRT().PVal(node.ToString());
+}
+
+void Ast2SourceVisitor::Visit(const ArrayLit& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ArrayLit");
+    PRT().Printc<AstNode>(
+        node.children, [this](const AstNode& expr) { Traverse(expr, *this); }, ", ", "[", "]", true);
+}
+
+void Ast2SourceVisitor::Visit(const MemberAccess& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For MemberAccess");
+    VisitNode(node.baseExpr);
+    PRT().PVals(".", Id(node.field));
+}
+
+void Ast2SourceVisitor::Visit(const LambdaExpr& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For LambdaExpr");
+    auto& body = *node.funcBody;
+    PRT().PVal("{ ");
+    AH_ASSERT(body.paramLists.size() == 1);
+    auto& params = body.paramLists[0]->params;
+    PRT().Printc<FuncParam>(
+        params, [this](const FuncParam& param) { Traverse(param, *this); }, ", ", "", "=> ", true);
+    PRT().PNL();
+    PRT().Indent();
+    VisitNode(body.body);
+    PRT().Unindent();
+    PRT().PVal("}");
 }
 
 // Seam Type
@@ -232,7 +330,12 @@ void Ast2SourceVisitor::VisitType(const Ptr<Type> type, const Ptr<Ty> ty)
     if (type) {
         Logger::Get().Debug("Ast2SourceVisitor::VisitType", "For Type");
         PRT().PVal(": ");
-        Traverse(*type, *this);
+        // For desugared node (only Type)
+        if (type->astKind == Cangjie::AST::ASTKind::TYPE && type->ty) {
+            VisitTy(*type->ty);
+        } else {
+            Traverse(*type, *this);
+        }
     } else if (ty && ty->kind != Cangjie::AST::TypeKind::TYPE_INITIAL) {
         PRT().PVal(": ");
         VisitTy(*ty);
@@ -242,7 +345,26 @@ void Ast2SourceVisitor::VisitType(const Ptr<Type> type, const Ptr<Ty> ty)
 void Ast2SourceVisitor::VisitTy(const Ty& ty)
 {
     Logger::Get().Debug("Ast2SourceVisitor::VisitTy", "For Ty");
+    using TyKind = Cangjie::AST::TypeKind;
     // If the format is incorrect, need to adjust it.
+    switch (ty.kind) {
+        case TyKind::TYPE_CSTRING:
+            PRT().PVal("CString");
+            return;
+        case TyKind::TYPE_POINTER:
+            PRT().PVal("CPointer");
+            PRT().Printc<Ty>(
+                ty.typeArgs, [this](const Ty& argTy) { VisitTy(argTy); }, ", ", "<", ">");
+            return;
+        case TyKind::TYPE_CLASS:
+        case TyKind::TYPE_INTERFACE:
+        case TyKind::TYPE_STRUCT:
+        case TyKind::TYPE_ENUM:
+            PRT().PVal(ty.name);
+            return;
+        default:
+            break;
+    };
     PRT().PVal(ty.String());
 }
 
@@ -250,7 +372,8 @@ void Ast2SourceVisitor::VisitDecl(const Decl& node)
 {
     VisitNodes(node.annotations);
     VisitNode(node.annotationsArray);
-    PRT().Printc<Modifier>(node.modifiers, [this](const Modifier& mod) { Traverse(mod, *this); }, " ", "", " ");
+    PRT().Printc<Modifier>(
+        node.modifiers, [this](const Modifier& mod) { Traverse(mod, *this); }, " ", "", " ");
     VisitNode(node.generic);
 }
 
