@@ -8,6 +8,15 @@
 
 std::vector<std::unique_ptr<Logger>> Logger::instances(2);
 
+LoggerException::LoggerException(const std::string& msg) noexcept : message(msg)
+{
+}
+
+const char* LoggerException::what() const noexcept
+{
+    return message.c_str();
+}
+
 Logger& Logger::Get(Mode m)
 {
     // 注意: 当前实现不是线程安全的
