@@ -248,6 +248,66 @@ void Ast2SourceVisitor::Visit(const RefType& node, VisitResult& res)
     }
 }
 
+void Ast2SourceVisitor::Visit(const OptionType& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For OptionType");
+    PRT().PVal("?");
+    VisitNode(node.componentType);
+}
+
+void Ast2SourceVisitor::Visit(const TupleType& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For TupleType");
+    PRT().Printc<Type>(node.fieldTypes, [this](const Type& tp) { Traverse(tp, *this); }, ", ", "(", ")");
+}
+
+void Ast2SourceVisitor::Visit(const QualifiedType& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For QualifiedType");
+    VisitNode(node.baseType);
+    PRT().PVals(".", Id(node.field));
+    PRT().Printc<Type>(node.typeArguments, [this](const Type& tp) { Traverse(tp, *this); }, ", ", "<", ">");
+}
+
+void Ast2SourceVisitor::Visit(const ThisType& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ThisType");
+    PRT().PVal("This");
+}
+
+void Ast2SourceVisitor::Visit(const VArrayType& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For VArrayType");
+    PRT().PVal("VArray<");
+    VisitNode(node.typeArgument);
+    PRT().PVal(", ");
+    VisitNode(node.constantType);
+    PRT().PVal(">");
+}
+
+void Ast2SourceVisitor::Visit(const ParenType& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ParenType");
+    PRT().PVal("(");
+    VisitNode(node.type);
+    PRT().PVal(")");
+}
+
+void Ast2SourceVisitor::Visit(const ConstantType& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ConstantType");
+    PRT().PVal("$");
+    VisitNode(node.constantExpr);
+}
+
+void Ast2SourceVisitor::Visit(const FuncType& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncType");
+    PRT().Printc<Type>(node.paramTypes, [this](const Type& tp) { Traverse(tp, *this); }, ", ", "(", ")", true);
+    PRT().PVal(" -> ");
+    VisitNode(node.retType);
+}
+
 // Pattern
 void Ast2SourceVisitor::Visit(const WildcardPattern& node, VisitResult&)
 {
