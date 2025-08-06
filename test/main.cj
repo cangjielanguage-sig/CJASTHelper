@@ -34,10 +34,20 @@ func foo2() {
     lam1() + lam2(1) + lam3(2, 3)
 }
 
+func foo3() {
+    let v = 1
+    match (v) {
+        case b: Bool => b
+        case _ =>
+            throw Exception("exception")
+    }
+}
+
 unsafe main() {
     let res = foo(2, 3)
     println(res)
     foo1(A())
     foo2()
+    foo3()
     return 0
 }

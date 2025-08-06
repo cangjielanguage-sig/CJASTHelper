@@ -8,7 +8,9 @@
 #include <filesystem>
 
 namespace fs = std::filesystem;
+using AstKind = Cangjie::AST::ASTKind;
 using Cangjie::AST::Attribute;
+using Cangjie::AST::CallKind;
 using Pattern = Cangjie::AST::Pattern;
 
 namespace {
@@ -53,6 +55,18 @@ inline Ptr<Cangjie::AST::Ty> TryGetRetTy(const FuncBody& funcBody)
     }
     using FuncTy = Cangjie::AST::FuncTy;
     return static_cast<FuncTy*>(funcBody.ty.get())->retTy;
+}
+
+bool IsCallConstrctor(const CallExpr& node)
+{
+    if (node.callKind == CallKind::CALL_STRUCT_CREATION || node.callKind == CallKind::CALL_OBJECT_CREATION) {
+        return true;
+    }
+    // 处理编译器生成的错误类型节点
+    if (node.callKind == CallKind::CALL_INVALID && node.baseFunc->astKind == AstKind::REF_EXPR) {
+        return static_cast<RefExpr*>(node.baseFunc.get().get())->ref.identifier.Val() == "init";
+    }
+    return false;
 }
 
 const std::string SUFFIX = "_source.cj";
@@ -267,8 +281,7 @@ void Ast2SourceVisitor::Visit(const TypePattern& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For TypePattern");
     VisitNode(node.pattern);
-    PRT().PVal(" : ");
-    VisitNode(node.type);
+    VisitType(node.type.get());
 }
 
 void Ast2SourceVisitor::Visit(const TuplePattern& node, VisitResult&)
@@ -309,8 +322,7 @@ void Ast2SourceVisitor::Visit(const FuncArg& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const CallExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For CallExpr");
-    using CallKind = Cangjie::AST::CallKind;
-    if (node.callKind == CallKind::CALL_STRUCT_CREATION || node.callKind == CallKind::CALL_OBJECT_CREATION) {
+    if (IsCallConstrctor(node)) {
         AH_CHECK_NULL(node.ty);
         // 构造函数调用
         VisitTy(*node.ty);
@@ -441,6 +453,13 @@ void Ast2SourceVisitor::Visit(const AssignExpr& node, VisitResult&)
     VisitNode(node.rightExpr);
 }
 
+void Ast2SourceVisitor::Visit(const ThrowExpr& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ThrowExpr");
+    PRT().PVal("throw ");
+    VisitNode(node.expr);
+}
+
 // Seam Type
 void Ast2SourceVisitor::VisitType(const Ptr<Type> type, const Ptr<Ty> ty)
 {
@@ -448,7 +467,7 @@ void Ast2SourceVisitor::VisitType(const Ptr<Type> type, const Ptr<Ty> ty)
         Logger::Get().Debug("Ast2SourceVisitor::VisitType", "For Type");
         PRT().PVal(": ");
         // For desugared node (only Type)
-        if (type->astKind == Cangjie::AST::ASTKind::TYPE && type->ty) {
+        if (type->astKind == AstKind::TYPE && type->ty) {
             VisitTy(*type->ty);
         } else {
             Traverse(*type, *this);

@@ -45,6 +45,7 @@ protected:
     EXPAND4(GEN_VISIT_OVERRIDE, RefExpr, BinaryExpr, CallExpr, ReturnExpr);
     EXPAND4(GEN_VISIT_OVERRIDE, LitConstExpr, ArrayLit, MemberAccess, LambdaExpr);
     EXPAND4(GEN_VISIT_OVERRIDE, MatchExpr, IsExpr, AsExpr, AssignExpr);
+    EXPAND1(GEN_VISIT_OVERRIDE, ThrowExpr);
 
 private:
     Printer& PRT();
