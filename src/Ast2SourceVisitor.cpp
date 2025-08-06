@@ -37,7 +37,11 @@ std::string GetFileNameWithoutSuffix(const std::string& fname)
 
 inline std::string Id(const Cangjie::Identifier& id)
 {
-    return id;
+    std::string res = id.Val();
+    if (res.find("$") == 0) {
+        res = res.substr(1);
+    }
+    return res;
 }
 
 inline std::string Tk2Str(Cangjie::TokenKind tk)
