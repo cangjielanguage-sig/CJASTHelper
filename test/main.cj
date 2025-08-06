@@ -43,6 +43,12 @@ func foo3() {
     }
 }
 
+func foo4(p0: Int64, p1: ?Int64, p2: Option<Int64>,
+    p3: (Int64), p4: (Int64, Int64),
+    p5: () -> Unit, p6: (Int64) -> Int64, p7: (Int64, Int64) -> Int64,
+    p8: VArray<Int64, $5>
+) {}
+
 unsafe main() {
     let res = foo(2, 3)
     println(res)
