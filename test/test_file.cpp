@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <cstdlib> // for getenv
@@ -9,9 +10,9 @@
 #include <stdexcept>
 
 namespace fs = std::filesystem;
-
+namespace {
 // 工具函数：读取文件内容为字符串
-std::string readFileToString(const std::string& filename)
+std::string ReadFileToString(const std::string& filename)
 {
     std::ifstream ifs(filename);
     if (!ifs.is_open()) {
@@ -23,7 +24,7 @@ std::string readFileToString(const std::string& filename)
 }
 
 // Helper function to read from a FILE* into a string
-std::string exec(const char* cmd)
+std::string ExecCmd(const char* cmd)
 {
     std::array<char, 128> buffer;
     std::string result;
@@ -37,29 +38,88 @@ std::string exec(const char* cmd)
     return result;
 }
 
-TEST(CJAHTest, OutputTest)
+bool ExecDumpDesugaredSema(const std::string& cjahPath, const std::string& src, const std::string& out)
+{
+    // 构建命令行字符串以运行你的应用
+    std::string command =
+        cjahPath + " --dump-source=desugared-sema " + src + " --output-type=dylib --output-dir " + out;
+    // 使用 popen 执行命令并捕获输出
+    std::string output = ExecCmd(command.c_str());
+    return !output.empty();
+}
+
+inline bool CheckExists(const std::vector<std::string>& files)
+{
+    return std::all_of(files.begin(), files.end(), [](const std::string& file) { return fs::exists(file); });
+}
+
+inline bool RemoveFiles(const std::vector<std::string>& files)
+{
+    return std::all_of(files.begin(), files.end(), [](const std::string& file) { return fs::remove(file); });
+}
+
+inline bool CompareFile(const std::string& actual, const std::string& expected)
+{
+    std::string content0 = ReadFileToString(actual);
+    std::string content1 = ReadFileToString(expected);
+    return content0 == content1;
+}
+
+inline std::string GetCJAH()
 {
     std::string cjahPath = "build/bin/cjah";
     const char* envPath = std::getenv("CJAH");
     if (envPath != nullptr) {
         cjahPath = std::string(envPath);
     }
-    // 构建命令行字符串以运行你的应用
-    std::string command = cjahPath + " --dump-source=parse test/main.cj";
+    return cjahPath;
+}
 
-    // 使用 popen 执行命令并捕获输出
-    std::string output = exec(command.c_str());
+inline std::string GetFileNameWithoutSuffix(const std::string& fname)
+{
+    size_t start = fname.find_last_of('/');
+    size_t end = fname.find_last_of('.');
+    if (start != std::string::npos) {
+        if (end != std::string::npos) {
+            return fname.substr(start + 1, end - start - 1);
+        }
+        return fname.substr(0, end);
+    }
+    return fname;
+}
 
-    // 检查输出是否符合预期
-    // EXPECT_EQ(output, "Hello, World!\n");
+inline std::pair<bool, std::vector<std::string>> IterateCjah(
+    const std::string& cjahPath, const std::string& src, const std::string& out)
+{
+    std::string fileName = GetFileNameWithoutSuffix(src);
+    std::string outPre = out + "/" + fileName;
+    std::string suffix = "_source";
+    std::string outFile0 = outPre + suffix + ".cj";
+    std::string outFile1 = outPre + suffix + suffix + ".cj";
+    std::string expectedFile = outPre + suffix + suffix + suffix + ".cj";
+    // cjah 测试源文件 经过 3 次迭代 源码维持不变
+    bool status = ExecDumpDesugaredSema(cjahPath, src, out);
+    status = ExecDumpDesugaredSema(cjahPath, outFile0, out);
+    status = status && ExecDumpDesugaredSema(cjahPath, outFile1, out);
+    return {status, {outFile0, outFile1, expectedFile}};
+}
+} // namespace
 
-    // 读取两个文件内容
-    std::string outputFilename = "test/main.cj";
+TEST(CJAHTest, GetFileNameWithoutSuffix)
+{
+    EXPECT_EQ(GetFileNameWithoutSuffix("test/main.cj"), "main");
+}
+
+TEST(CJAHTest, OutputTest)
+{
+    std::string cjahPath = GetCJAH();
+    std::string out = ".";
+    std::string src = "test/main.cj";
+    auto [status, tmpFiles] = IterateCjah(cjahPath, src, out);
+    EXPECT_TRUE(status);
     // 检查输出文件是否存在
-    EXPECT_TRUE(fs::exists(outputFilename)) << "Output file not found.";
-
-    std::string actual = readFileToString(outputFilename);
-    std::string expected = readFileToString("../tmp/test.cj");
-    // 比较内容
-    EXPECT_EQ(actual, expected) << "Actual output does not match expected.";
+    EXPECT_EQ(tmpFiles.size(), 3);
+    EXPECT_TRUE(CheckExists(tmpFiles)) << "Output file not found.";
+    EXPECT_TRUE(CompareFile(tmpFiles[1], tmpFiles[2])) << "Actual output does not match expected.";
+    EXPECT_TRUE(RemoveFiles(tmpFiles)) << "Remove tmpFiles Failed!.";
 }
