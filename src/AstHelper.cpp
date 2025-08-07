@@ -10,6 +10,44 @@
 
 using namespace Cangjie;
 
+namespace {
+void ShowHelperInfo()
+{
+    Printer p(std::cout, 4);
+    p.PVal("Welcome Using Cangjie AST Helper!").PNL().PNL();
+    p.PVal("Usage: cjah [options] [cjc-options]").PNL().PNL();
+    p.PVal("Options: ").PNL();
+    p.Indent();
+    constexpr int OPT_WIDTH = 28;
+    p << std::left << std::setfill(' ') << std::setw(OPT_WIDTH) << "--dump-source=<stage>"
+      << "Dump source after <stage>. Supported stages:";
+    p.PNL();
+    p.Indent();
+    p.PVal("<stage>=parse").PNL();
+    p.PVal("<stage>=desugared-parse").PNL();
+    p.PVal("<stage>=sema").PNL();
+    p.PVal("<stage>=desugared-sema").PNL();
+    p.Unindent();
+    p.Unindent();
+    p.PNL().PVal("CJC-Options: please refer to `cjc -h`.").PNL();
+}
+
+void PrintArgs(const std::vector<std::string>& args, const std::unordered_map<std::string, std::string>& env)
+{
+    Printer p(std::cout, 4);
+    p.Printc<std::string>(args, [](const std::string& v) { return "\"" + v + "\""; }, ", ", "[", "]", true).PNL();
+    p.Printc<std::pair<const std::string, std::string>>(
+         env,
+         [&p](const std::pair<const std::string, std::string>& kv) {
+             p.Indent();
+             p.PVal(kv.first).PVal(": ").PVal(kv.second).PNL();
+             p.Unindent();
+         },
+         "", "{\n", "}", true)
+        .PNL();
+}
+} // namespace
+
 AstHelper::AstHelper(const std::vector<std::string>& args, const std::unordered_map<std::string, std::string>& env)
 {
     ci.frontendOptions.ReadPathsFromEnvironmentVars(env);
@@ -24,6 +62,10 @@ std::string AstHelper::GetOutputDir() const
 
 void AstHelper::Run()
 {
+    if (ci.frontendOptions.showUsage) {
+        ShowHelperInfo();
+        return;
+    }
     for (int i = 0; i <= static_cast<int>(stage); i++) {
         if (i == static_cast<int>(SourceStage::DESUGARED_PARSE) && stage > SourceStage::DESUGARED_PARSE) {
             // Skip desugared parse stage when stage including sema.

@@ -48,6 +48,8 @@ protected:
     EXPAND4(GEN_VISIT_OVERRIDE, LitConstExpr, ArrayLit, MemberAccess, LambdaExpr);
     EXPAND4(GEN_VISIT_OVERRIDE, MatchExpr, IsExpr, AsExpr, AssignExpr);
     EXPAND1(GEN_VISIT_OVERRIDE, ThrowExpr);
+    // Generic
+    EXPAND3(GEN_VISIT_OVERRIDE, Generic, GenericParamDecl, GenericConstraint);
 
 private:
     Printer& PRT();
@@ -57,6 +59,8 @@ private:
     void VisitType(const Ptr<Type> type, const Ptr<Ty> ty = nullptr);
     void VisitTy(const Ty& ty);
     void VisitDecl(const Decl& node);
+    void VisitGenericParams(Ptr<Generic> generic);
+    void VisitGenericConstraints(Ptr<Generic> generic);
 
 private:
     std::string out;

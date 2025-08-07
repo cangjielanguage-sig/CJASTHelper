@@ -49,6 +49,24 @@ func foo4(p0: Int64, p1: ?Int64, p2: Option<Int64>,
     p8: VArray<Int64, $5>
 ) {}
 
+class MyArray<T> {
+    let data: Array<T>
+
+    public init() {
+        data = Array<T>()
+    }
+
+    // public operator func [](i: Int64): T {
+    //     data[i]
+    // }
+    // public operator func [](i: Int64, val: T): Unit {}
+
+}
+
+func foo4<T1, T2>(x: T1, y: T2): Unit where T1 <: A, T2 <: Object {
+
+}
+
 unsafe main() {
     let res = foo(2, 3)
     println(res)

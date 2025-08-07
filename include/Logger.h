@@ -53,7 +53,7 @@ public:
         if (this->level > level) {
             return;
         }
-        PLevel();
+        PLevel(level);
         PDomain(domain);
         p.PVals(std::forward<Args>(args)...);
         p.PNL();
@@ -69,7 +69,7 @@ private:
     Logger();
     Logger(const std::string& path);
 
-    void PLevel();
+    void PLevel(Level level);
     void PDomain(const std::string& domain);
 
 private:

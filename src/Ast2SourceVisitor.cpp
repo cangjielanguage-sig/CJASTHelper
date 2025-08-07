@@ -40,6 +40,8 @@ inline std::string Id(const Cangjie::Identifier& id)
     std::string res = id.Val();
     if (res.find("$") == 0) {
         res = res.substr(1);
+    } else if (res == "v-compiler") {
+        res = "tmp";
     }
     return res;
 }
@@ -61,14 +63,20 @@ inline Ptr<Cangjie::AST::Ty> TryGetRetTy(const FuncBody& funcBody)
     return static_cast<FuncTy*>(funcBody.ty.get())->retTy;
 }
 
-bool IsCallConstrctor(const CallExpr& node)
+inline std::string TryGetCallRef(const CallExpr& node)
 {
-    if (node.callKind == CallKind::CALL_STRUCT_CREATION || node.callKind == CallKind::CALL_OBJECT_CREATION) {
-        return true;
+    if (node.baseFunc->astKind == AstKind::REF_EXPR) {
+        return static_cast<RefExpr*>(node.baseFunc.get().get())->ref.identifier.Val();
     }
-    // 处理编译器生成的错误类型节点
-    if (node.callKind == CallKind::CALL_INVALID && node.baseFunc->astKind == AstKind::REF_EXPR) {
-        return static_cast<RefExpr*>(node.baseFunc.get().get())->ref.identifier.Val() == "init";
+    return "";
+}
+
+bool IsCallInit(const CallExpr& node)
+{
+    if (node.callKind == CallKind::CALL_STRUCT_CREATION || node.callKind == CallKind::CALL_OBJECT_CREATION ||
+        // 处理编译器生成的错误类型节点
+        node.callKind == CallKind::CALL_INVALID) {
+        return TryGetCallRef(node) == "init";
     }
     return false;
 }
@@ -143,6 +151,39 @@ void Ast2SourceVisitor::Visit(const FuncDecl& node, VisitResult& res)
     Visit(*node.funcBody, res);
 }
 
+void Ast2SourceVisitor::Visit(const FuncBody& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncBody");
+    VisitGenericParams(node.generic.get());
+    VisitNode(node.paramLists[0]);
+    Ptr<Ty> retTy = TryGetRetTy(node);
+    if (!node.funcDecl || (node.funcDecl && !node.funcDecl->TestAttr(Attribute::CONSTRUCTOR))) {
+        VisitType(node.retType, retTy);
+    }
+    VisitGenericConstraints(node.generic.get());
+    if (node.body) {
+        PRT().PVal(" {").PNL();
+        PRT().Indent();
+        VisitNode(node.body);
+        PRT().Unindent();
+        PRT().PVal("}");
+    }
+}
+
+void Ast2SourceVisitor::Visit(const FuncParamList& node, VisitResult& res)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncParamList: ", node.params.size());
+    PRT().Printc<FuncParam>(
+        node.params, [this, &res](const FuncParam& param) { Visit(param, res); }, ", ", "(", ")", true);
+}
+
+void Ast2SourceVisitor::Visit(const FuncParam& node, VisitResult& res)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncParam");
+    PRT().PVal(Id(node.identifier));
+    VisitType(node.type.get(), node.ty);
+}
+
 void Ast2SourceVisitor::Visit(const MainDecl& node, VisitResult& res)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For MainDecl");
@@ -180,7 +221,9 @@ void Ast2SourceVisitor::Visit(const ClassDecl& node, VisitResult& res)
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ClassDecl: ", node.identifier.Val());
     VisitDecl(node);
     PRT().PVals("class ", Id(node.identifier));
+    VisitGenericParams(node.generic);
     PRT().Printc<Type>(node.inheritedTypes, [this](const Type& ty) { Traverse(ty, *this); }, " & ", " <: ");
+    VisitGenericConstraints(node.generic.get());
     VisitNode(node.body);
 }
 
@@ -195,38 +238,6 @@ void Ast2SourceVisitor::Visit(const ClassBody& node, VisitResult& res)
     });
     PRT().Unindent();
     PRT().PVal("}");
-}
-
-void Ast2SourceVisitor::Visit(const FuncBody& node, VisitResult&)
-{
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncBody");
-    VisitNode(node.paramLists[0]);
-    VisitNode(node.generic);
-    Ptr<Ty> retTy = TryGetRetTy(node);
-    if (!node.funcDecl || (node.funcDecl && !node.funcDecl->TestAttr(Attribute::CONSTRUCTOR))) {
-        VisitType(node.retType, retTy);
-    }
-    if (node.body) {
-        PRT().PVal(" {").PNL();
-        PRT().Indent();
-        VisitNode(node.body);
-        PRT().Unindent();
-        PRT().PVal("}");
-    }
-}
-
-void Ast2SourceVisitor::Visit(const FuncParamList& node, VisitResult& res)
-{
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncParamList: ", node.params.size());
-    PRT().Printc<FuncParam>(
-        node.params, [this, &res](const FuncParam& param) { Visit(param, res); }, ", ", "(", ")", true);
-}
-
-void Ast2SourceVisitor::Visit(const FuncParam& node, VisitResult& res)
-{
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncParam");
-    PRT().PVal(Id(node.identifier));
-    VisitType(node.type.get(), node.ty);
 }
 
 // Type
@@ -365,7 +376,7 @@ void Ast2SourceVisitor::Visit(const Block& node, VisitResult&)
 
 void Ast2SourceVisitor::Visit(const RefExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For RefExpr");
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For RefExpr: ", node.ref.identifier.Val());
     PRT().PVal(Id(node.ref.identifier));
 }
 
@@ -386,9 +397,9 @@ void Ast2SourceVisitor::Visit(const FuncArg& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const CallExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For CallExpr");
-    if (IsCallConstrctor(node)) {
+    if (IsCallInit(node)) {
         AH_CHECK_NULL(node.ty);
-        // 构造函数调用
+        // 构造函数调用 init() -> A(), TODO: 应该缩小下范围， 构造函数内的init不需要替换
         VisitTy(*node.ty);
     } else {
         VisitNode(node.baseFunc);
@@ -524,6 +535,50 @@ void Ast2SourceVisitor::Visit(const ThrowExpr& node, VisitResult&)
     VisitNode(node.expr);
 }
 
+// Generic
+void Ast2SourceVisitor::Visit(const Generic& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For Generic");
+    PRT().Printc<GenericParamDecl>(
+        node.typeParameters, [this](const GenericParamDecl& gpd) { Traverse(gpd, *this); }, ", ", "<", ">");
+    PRT().Printc<GenericConstraint>(
+        node.genericConstraints, [this](const GenericConstraint& gc) { Traverse(gc, *this); }, ", ", " where ");
+}
+
+void Ast2SourceVisitor::VisitGenericParams(Ptr<Generic> generic)
+{
+    if (!generic) {
+        return;
+    }
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For GenericParams");
+    PRT().Printc<GenericParamDecl>(
+        generic->typeParameters, [this](const GenericParamDecl& gpd) { Traverse(gpd, *this); }, ", ", "<", ">");
+}
+
+void Ast2SourceVisitor::VisitGenericConstraints(Ptr<Generic> generic)
+{
+    if (!generic) {
+        return;
+    }
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For GenericConstraints");
+    PRT().Printc<GenericConstraint>(
+        generic->genericConstraints, [this](const GenericConstraint& gc) { Traverse(gc, *this); }, ", ", " where ");
+}
+
+void Ast2SourceVisitor::Visit(const GenericParamDecl& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For GenericParamDecl");
+    PRT().PVal(Id(node.identifier));
+}
+
+void Ast2SourceVisitor::Visit(const GenericConstraint& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For GenericConstraint");
+    VisitNode(node.type);
+    PRT().PVal(" <: ");
+    PRT().Printc<Type>(node.upperBounds, [this](const Type& tp) { Traverse(tp, *this); }, " & ");
+}
+
 // Seam Type
 void Ast2SourceVisitor::VisitType(const Ptr<Type> type, const Ptr<Ty> ty)
 {
@@ -572,7 +627,6 @@ void Ast2SourceVisitor::VisitDecl(const Decl& node)
     VisitNodes(node.annotations);
     VisitNode(node.annotationsArray);
     PRT().Printc<Modifier>(node.modifiers, [this](const Modifier& mod) { Traverse(mod, *this); }, " ", "", " ");
-    VisitNode(node.generic);
 }
 
 Printer& Ast2SourceVisitor::PRT()
