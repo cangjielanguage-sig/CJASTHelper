@@ -434,7 +434,8 @@ void Ast2SourceVisitor::Visit(const LambdaExpr& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const MatchCase& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For MatchCase");
-    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, *this); }, " | ", "case ");
+    PRT().PVal("case ");
+    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, *this); }, " | ");
     PRT().PPtr<Expr>(node.patternGuard, [this](const Expr& expr) { Traverse(expr, *this); }, " where ");
     PRT().PValNL(" =>").PWI([this, &node] { VisitNode(node.exprOrDecls); });
 }
