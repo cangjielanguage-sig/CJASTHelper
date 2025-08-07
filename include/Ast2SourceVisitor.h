@@ -25,9 +25,6 @@ public:
     Ast2SourceVisitor(const std::string& out, int indent = 2);
 
 protected:
-    VisitResult Before(const File& node) override;
-    void After(const File& node, const VisitResult& res) override;
-
 // 定义重写 Visit 声明的宏
 #define GEN_VISIT_OVERRIDE(N) void Visit(const N& node, VisitResult&) override
     // 递归展开需要重写的节点

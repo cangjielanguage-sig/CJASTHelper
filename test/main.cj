@@ -64,10 +64,10 @@ class MyArray<T> {
 }
 
 func foo4<T1, T2>(x: T1, y: T2): Unit where T1 <: A, T2 <: Object {
-
+    ()
 }
 
-unsafe main() {
+unsafe func entry() {
     let res = foo(2, 3)
     println(res)
     foo1(A())

@@ -114,18 +114,23 @@ public:
     // 增加缩进
     void Indent();
     // 输出换行并重置下一行前导空格
-    Printer& PNL();
+    Printer& PNL(int n = 1);
     // 减少缩进
     void Unindent();
     // 输出单个值
-    template <typename T> Printer& PVal(const T& value)
+    template <typename T> inline Printer& PVal(const T& value)
     {
         EnsureIndent();
         os_ << value;
         return *this;
     }
 
-    template <typename... Args> Printer& PVals(Args&&... args)
+    template <typename T> inline Printer& PValNL(const T& value)
+    {
+        return PVal(value).PNL();
+    }
+
+    template <typename... Args> inline Printer& PVals(Args&&... args)
     {
         EnsureIndent();
         // 使用折叠表达式展开参数包，对每个参数执行 os_ << arg
@@ -135,7 +140,7 @@ public:
         return *this;
     }
 
-    template <typename Sep, typename... Args> Printer& PSVals(Sep&& sep, Args&&... args)
+    template <typename Sep, typename... Args> inline Printer& PSVals(Sep&& sep, Args&&... args)
     {
         EnsureIndent();
         if constexpr (sizeof...(args) > 0) {
@@ -152,22 +157,32 @@ public:
 
     // 按指定分隔符输出容器
     template <typename T, typename C, typename CB>
-    std::enable_if_t<can_deref_vv<C, T>, Printer&> Printc(const C& con, const CB& cb, const std::string& sep = "",
+    inline std::enable_if_t<can_deref_vv<C, T>, Printer&> PVec(const C& con, const CB& cb, const std::string& sep = "",
         const std::string& pre = "", const std::string& suf = "", bool b = false)
     {
         printcc<T>(os_, con, cb, sep, pre, suf, b);
         return *this;
     }
 
-    template <typename T>
-    inline void Printp(
-        const T* t, const std::function<void(const T&)>& cb, const std::string& pre = "", const std::string& suf = "")
+    template <typename U, typename T>
+    inline std::enable_if_t<can_deref_to_v<T, U> && (count_deref_v<T> == 1), Printer&> PPtr(
+        const T& t, const std::function<void(const U&)>& cb, const std::string& pre = "", const std::string& suf = "")
     {
         if (t) {
             PVal(pre);
             cb(*t);
             PVal(suf);
         }
+        return *this;
+    }
+
+    // PrintWithIndent
+    inline Printer& PWI(const std::function<void()>& cb)
+    {
+        Indent();
+        cb();
+        Unindent();
+        return *this;
     }
 
 private:

@@ -93,10 +93,6 @@ if(CMAKE_ENABLE_ASSERT)
 endif()
 string(TOLOWER "${CMAKE_SYSTEM_NAME}" TARGET_OS)
 add_compile_definitions(__${TARGET_OS}__)
-if(CMAKE_ENABLE_TEST)
-    # For test macro
-    add_compile_definitions(ENABLE_TEST)
-endif()
 # Add source
 add_subdirectory(src)
 
