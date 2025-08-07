@@ -54,7 +54,7 @@ Logger::Logger(const std::string& path) : p(fs, 0)
     }
 }
 
-void Logger::PLevel()
+void Logger::PLevel(Level level)
 {
     switch (level) {
         case Level::DEBUG:

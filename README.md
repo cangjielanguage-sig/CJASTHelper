@@ -2,21 +2,45 @@
 
 Cangjie Abstract Syntax Tree Helper, 提供仓颉抽象语法树操作的扩展能力，包括打印源码（解糖后）等。
 
+> 注意：
+>
+> 该工具是基于 Cangjie 开源代码开发，处于试验阶段。
+
 ## 构建
 
 ### 依赖下载
 
+[Cangjie开源仓库](https://gitcode.com/Cangjie/cangjie_compiler)
+
+参考 [Cangjie SDK构建指导](https://gitcode.com/Cangjie/cangjie_build) 按需构建相关组件。
+
 ### 环境变量配置
+
+该工具构建依赖 Cangjie 开源仓源码中头文件 和 构建产物。 假设本地下载的 Cangjie 源码目录为 `${xxx}/cangjie_compiler/`, 构建好的 SDK 目录为 `${yyy}/cangjie/` 。
+
+```bash
+# 配置 Cangjie 源码路径
+export CANGJIE_SRC_HOME=${xxx}/cangjie_compiler
+# 配置 Cangjie 二进制环境 (CANGJIE_HOME, LD_LIBRARY_PATH 环境变量)
+source ${yyy}/cangjie/envsetup.sh
+```
 
 ### 构建命令
 
+相关依赖和环境设置成功后，使用 `build.sh` 构建本工具。
+
 ```bash
+# 假设当前工具源码路径为 CJASTHelper_SRC
+cd ${CJASTHelper_SRC}
+# 构建 debug 版本工具
 bash build.sh -t Debug -b
+# 构建 release 版本工具
+bash build.sh -t Release -b
 ```
 
 ## 功能列表
 
-### 打印解糖后源码
+### 打印源码
 
 提供 `--dump-source` 选项用来支持打印某个阶段后的源码，输出到指定目录，支持参数值：parser，deusgared-parser, sema，desugared-sema
 
@@ -26,5 +50,10 @@ bash build.sh -t Debug -b
 - desugared-sema 用来打印语义分析并解糖后的源码
 
 ```bash
-cjah --dump-source=desugar-sema --output-dir=out
+# 假设 构建好的工具 ${CJASTHelper_SRC}/build/bin/cjah 源码为 ${zzz}/main.cj 输出目录为 ${OUT_DIR}
+${CJASTHelper_SRC}/build/bin/cjah --dump-source=desugared-sema ${zzz}/main.cj --output-dir ${OUT_DIR}
 ```
+
+> 注意：
+> 
+> 该工具执行要依赖 Cangjie 构建的二进制环境，请确保 执行过 `source ${yyy}/cangjie/envsetup.sh`
