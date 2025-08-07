@@ -38,6 +38,12 @@ std::string GetFileNameWithoutSuffix(const std::string& fname)
 inline std::string Id(const Cangjie::Identifier& id)
 {
     std::string res = id.Val();
+#ifdef ENABLE_TEST
+    // For testing
+    if (res == "main") {
+        return "_main";
+    }
+#endif
     if (res.find("$") == 0) {
         res = res.substr(1);
     } else if (res == "v-compiler") {
@@ -189,6 +195,9 @@ void Ast2SourceVisitor::Visit(const MainDecl& node, VisitResult& res)
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For MainDecl");
     if (node.desugarDecl) {
         Logger::Get().Debug("Ast2SourceVisitor::Visit", "For Desugared Decl of MainDecl");
+        if (node.TestAttr(Attribute::UNSAFE)) {
+            PRT().PVal("unsafe ");
+        }
         VisitNode(node.desugarDecl);
     } else {
         VisitDecl(node);
@@ -342,7 +351,6 @@ void Ast2SourceVisitor::Visit(const EnumPattern& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const VarPattern& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For VarPattern");
-    // VisitNode(node.varDecl);
     PRT().PVal(Id(node.varDecl->identifier));
 }
 
@@ -488,7 +496,7 @@ void Ast2SourceVisitor::Visit(const MatchCaseOther& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const MatchExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For MatchExpr");
-    PRT().PVal("match");
+    PRT().PVal("match ");
     if (node.selector) {
         // match (cond)
         PRT().PVal("(");
