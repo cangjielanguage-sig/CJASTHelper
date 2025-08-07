@@ -57,3 +57,36 @@ ${CJASTHelper_SRC}/build/bin/cjah --dump-source=desugared-sema ${zzz}/main.cj --
 > 注意：
 > 
 > 该工具执行要依赖 Cangjie 构建的二进制环境，请确保 执行过 `source ${yyy}/cangjie/envsetup.sh`
+
+## 测试用例
+
+### 依赖下载
+
+[gtest依赖下载](https://github.com/google/googletest/archive/tags/v1.17.0.zip)
+
+> 注意：
+>
+> 下载后解压源码放到当前项目 `third_party/googletest-v1.17.0` 。
+> 
+
+### 构建
+
+```bash
+# -g 配置打开依赖 google-test 的测试构建
+bash build.sh -g -t Release -b
+```
+
+> 注意：
+>
+> 构建成功会在生成测试可执行文件 `build/bin/cjah_test`
+>
+
+### 执行
+
+```bash
+# 执行所有用例
+./build/bin/cjah_test
+
+# 执行 CI 用例
+./build/bin/cjah_test --gtest_filter="CJAHTest.Integration*"
+```

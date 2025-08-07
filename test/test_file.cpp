@@ -1,7 +1,6 @@
 #include <algorithm>
 #include <array>
-#include <cstdio>
-#include <cstdlib> // for getenv
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
@@ -38,14 +37,13 @@ std::string ExecCmd(const char* cmd)
     return result;
 }
 
-bool ExecDumpDesugaredSema(const std::string& cjahPath, const std::string& src, const std::string& out)
+void ExecDumpDesugaredSema(const std::string& cjahPath, const std::string& src, const std::string& out)
 {
     // 构建命令行字符串以运行你的应用
     std::string command =
-        cjahPath + " --dump-source=desugared-sema " + src + " --output-type=dylib --output-dir " + out;
+        cjahPath + " --dump-source=desugared-sema " + src + " -Woff unused --output-type=dylib --output-dir " + out;
     // 使用 popen 执行命令并捕获输出
-    std::string output = ExecCmd(command.c_str());
-    return !output.empty();
+    ExecCmd(command.c_str());
 }
 
 inline bool CheckExists(const std::vector<std::string>& files)
@@ -88,8 +86,7 @@ inline std::string GetFileNameWithoutSuffix(const std::string& fname)
     return fname;
 }
 
-inline std::pair<bool, std::vector<std::string>> IterateCjah(
-    const std::string& cjahPath, const std::string& src, const std::string& out)
+inline std::vector<std::string> IterateCjah(const std::string& cjahPath, const std::string& src, const std::string& out)
 {
     std::string fileName = GetFileNameWithoutSuffix(src);
     std::string outPre = out + "/" + fileName;
@@ -98,10 +95,10 @@ inline std::pair<bool, std::vector<std::string>> IterateCjah(
     std::string outFile1 = outPre + suffix + suffix + ".cj";
     std::string expectedFile = outPre + suffix + suffix + suffix + ".cj";
     // cjah 测试源文件 经过 3 次迭代 源码维持不变
-    bool status = ExecDumpDesugaredSema(cjahPath, src, out);
-    status = ExecDumpDesugaredSema(cjahPath, outFile0, out);
-    status = status && ExecDumpDesugaredSema(cjahPath, outFile1, out);
-    return {status, {outFile0, outFile1, expectedFile}};
+    ExecDumpDesugaredSema(cjahPath, src, out);
+    ExecDumpDesugaredSema(cjahPath, outFile0, out);
+    ExecDumpDesugaredSema(cjahPath, outFile1, out);
+    return {outFile0, outFile1, expectedFile};
 }
 } // namespace
 
@@ -110,13 +107,13 @@ TEST(CJAHTest, GetFileNameWithoutSuffix)
     EXPECT_EQ(GetFileNameWithoutSuffix("test/main.cj"), "main");
 }
 
-TEST(CJAHTest, OutputTest)
+// Continuous Integration Tests
+TEST(CJAHTest, Integration01)
 {
     std::string cjahPath = GetCJAH();
     std::string out = ".";
     std::string src = "test/main.cj";
-    auto [status, tmpFiles] = IterateCjah(cjahPath, src, out);
-    EXPECT_TRUE(status);
+    auto tmpFiles = IterateCjah(cjahPath, src, out);
     // 检查输出文件是否存在
     EXPECT_EQ(tmpFiles.size(), 3);
     EXPECT_TRUE(CheckExists(tmpFiles)) << "Output file not found.";

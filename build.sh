@@ -11,7 +11,7 @@ NINJA_BIN=ninja
 VERBOSE=
 EXT=
 CJH=$BUILD_DIR/bin/cjah$EXT
-TEST_RUNNER=$BUILD_DIR/bin/runner$EXT
+TEST_RUNNER=$BUILD_DIR/bin/cjah_test$EXT
 PRE=$PWD/output
 TEST=OFF
 
