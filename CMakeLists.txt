@@ -73,7 +73,7 @@ if (WIN32)
 endif()
 
 # Depend libraries in Cangjie Tools
-set(DEPEN_LIBS ${LIB_SEC} cangjie-frontend cangjie-lsp)
+set(DEPEN_LIBS ${LIB_SEC} cangjie-lsp)
 
 if(DEFINED ENV{CANGJIE_HOME})
     set(CANGJIE_TOOLS_LIB $ENV{CANGJIE_HOME}/tools/lib)

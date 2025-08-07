@@ -378,6 +378,7 @@ void Ast2SourceVisitor::Visit(const RefExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For RefExpr: ", node.ref.identifier.Val());
     PRT().PVal(Id(node.ref.identifier));
+    PRT().Printc<Type>(node.typeArguments, [this](const Type& tp) { Traverse(tp, *this); }, ", ", "<", ">");
 }
 
 void Ast2SourceVisitor::Visit(const BinaryExpr& node, VisitResult&)
@@ -439,6 +440,7 @@ void Ast2SourceVisitor::Visit(const MemberAccess& node, VisitResult&)
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For MemberAccess");
     VisitNode(node.baseExpr);
     PRT().PVals(".", Id(node.field));
+    PRT().Printc<Type>(node.typeArguments, [this](const Type& tp) { Traverse(tp, *this); }, ", ", "<", ">");
 }
 
 void Ast2SourceVisitor::Visit(const LambdaExpr& node, VisitResult&)
