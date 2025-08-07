@@ -14,29 +14,29 @@ namespace {
 void ShowHelperInfo()
 {
     Printer p(std::cout, 4);
-    p.PVal("Welcome Using Cangjie AST Helper!").PNL().PNL();
-    p.PVal("Usage: cjah [options] [cjc-options]").PNL().PNL();
-    p.PVal("Options: ").PNL();
+    p.PVal("Welcome Using Cangjie AST Helper!").PNL(2);
+    p.PVal("Usage: cjah [options] [cjc-options]").PNL(2);
+    p.PValNL("Options: ");
     p.Indent();
     constexpr int OPT_WIDTH = 28;
     p << std::left << std::setfill(' ') << std::setw(OPT_WIDTH) << "--dump-source=<stage>"
       << "Dump source after <stage>. Supported stages:";
     p.PNL();
     p.Indent();
-    p.PVal("<stage>=parse").PNL();
-    p.PVal("<stage>=desugared-parse").PNL();
-    p.PVal("<stage>=sema").PNL();
-    p.PVal("<stage>=desugared-sema").PNL();
+    p.PValNL("<stage>=parse");
+    p.PValNL("<stage>=desugared-parse");
+    p.PValNL("<stage>=sema");
+    p.PValNL("<stage>=desugared-sema");
     p.Unindent();
     p.Unindent();
-    p.PNL().PVal("CJC-Options: please refer to `cjc -h`.").PNL();
+    p.PNL().PValNL("CJC-Options: please refer to `cjc -h`.");
 }
 
 void PrintArgs(const std::vector<std::string>& args, const std::unordered_map<std::string, std::string>& env)
 {
     Printer p(std::cout, 4);
-    p.Printc<std::string>(args, [](const std::string& v) { return "\"" + v + "\""; }, ", ", "[", "]", true).PNL();
-    p.Printc<std::pair<const std::string, std::string>>(
+    p.PVec<std::string>(args, [](const std::string& v) { return "\"" + v + "\""; }, ", ", "[", "]", true).PNL();
+    p.PVec<std::pair<const std::string, std::string>>(
          env,
          [&p](const std::pair<const std::string, std::string>& kv) {
              p.Indent();
