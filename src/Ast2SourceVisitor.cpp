@@ -39,12 +39,6 @@ std::string GetFileNameWithoutSuffix(const std::string& fname)
 inline std::string Id(const Cangjie::Identifier& id)
 {
     std::string res = id.Val();
-#ifdef ENABLE_TEST
-    // For testing
-    if (res == "main") {
-        return "_main";
-    }
-#endif
     if (res.find("$") == 0) {
         res = res.substr(1);
     } else if (res == "v-compiler") {
