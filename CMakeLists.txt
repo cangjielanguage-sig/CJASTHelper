@@ -98,23 +98,26 @@ add_subdirectory(src)
 
 # For Testing
 if(CMAKE_ENABLE_TEST)
-    # 待测试是否可以下载成功
-    # 设置gtest的版本和URL等信息
-    set(GTEST_VERSION "v1.17.0")
-    set(GTEST_URL "https://github.com/google/googletest/archive/tags/${GTEST_VERSION}.zip")
+    # 如果有本地构建好的 gtest 库, 配置 GTEST_RELEASE_PATH google test 安装路径
+    if(DEFINED ENV{GTEST_RELEASE_PATH})
+        set(GTEST_LIB_PATH $ENV{GTEST_RELEASE_PATH}/lib)
+        set(GTEST_INCLUDE_PATH $ENV{GTEST_RELEASE_PATH}/include)
+    else()
+        # 依赖 gtest 源码构建 (需要自行下载源码)
+        set(GTEST_VERSION "v1.17.0")
+        set(GTEST_URL "https://github.com/google/googletest/archive/tags/${GTEST_VERSION}.zip")
 
-    # 设置第三方库目录
-    set(THIRD_PARTY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
-    set(GTEST_SOURCE_DIR "${THIRD_PARTY_DIR}/googletest-${GTEST_VERSION}")
+        # 设置第三方库目录
+        set(THIRD_PARTY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
+        set(GTEST_SOURCE_DIR "${THIRD_PARTY_DIR}/googletest-${GTEST_VERSION}")
 
-    # 检查third_party/gtest是否存在
-    if(NOT EXISTS "${GTEST_SOURCE_DIR}")
-        message(FATAL_ERROR "Please download gtest from ${GTEST_URL} firstly, and extract the source into ${GTEST_SOURCE_DIR}.")
+        # 检查third_party/gtest是否存在
+        if(NOT EXISTS "${GTEST_SOURCE_DIR}")
+            message(FATAL_ERROR "Please download gtest from ${GTEST_URL} firstly, and extract the source into ${GTEST_SOURCE_DIR}.")
+        endif()
+        # 添加gtest源码路径
+        add_subdirectory(${GTEST_SOURCE_DIR})
     endif()
-    
-    # 添加gtest源码路径
-    add_subdirectory(${GTEST_SOURCE_DIR})
-
     # 现在可以将gtest添加为可执行文件或测试的目标依赖
     enable_testing()
     add_subdirectory(test)
