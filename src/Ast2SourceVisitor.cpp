@@ -9,6 +9,7 @@
 
 namespace fs = std::filesystem;
 using AstKind = Cangjie::AST::ASTKind;
+using Cangjie::TokenKind;
 using Cangjie::AST::Attribute;
 using Cangjie::AST::CallKind;
 using Cangjie::AST::Expr;
@@ -72,7 +73,7 @@ inline std::string TryGetCallRef(const CallExpr& node)
     return "";
 }
 
-bool IsCallInit(const CallExpr& node)
+bool IsInitCall(const CallExpr& node)
 {
     if (node.callKind == CallKind::CALL_STRUCT_CREATION || node.callKind == CallKind::CALL_OBJECT_CREATION ||
         // 处理编译器生成的错误类型节点
@@ -80,6 +81,17 @@ bool IsCallInit(const CallExpr& node)
         return TryGetCallRef(node) == "init";
     }
     return false;
+}
+
+inline bool IsOverloadCall(const CallExpr& node)
+{
+    if (!node.resolvedFunction) {
+        return false;
+    }
+    if (node.resolvedFunction->op == TokenKind::ILLEGAL) {
+        return false;
+    }
+    return node.baseFunc->astKind == AstKind::MEMBER_ACCESS;
 }
 
 const std::string SUFFIX = "_source.cj";
@@ -320,14 +332,16 @@ void Ast2SourceVisitor::Visit(const EnumPattern& node, VisitResult&)
 
 void Ast2SourceVisitor::Visit(const VarPattern& node, VisitResult&)
 {
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For VarPattern");
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For VarPattern", node.varDecl->identifier.Val());
     PRT().PVal(Id(node.varDecl->identifier));
 }
 
 void Ast2SourceVisitor::Visit(const VarOrEnumPattern& node, VisitResult&)
 {
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For VarOrEnumPattern");
-    VisitNode(node.pattern);
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For VarOrEnumPattern: ", node.identifier.Val());
+    PRT().PVal(Id(node.identifier));
+    // pattern 是 解糖后才有的？
+    // VisitNode(node.pattern);
 }
 
 void Ast2SourceVisitor::Visit(const TypePattern& node, VisitResult&)
@@ -346,6 +360,9 @@ void Ast2SourceVisitor::Visit(const TuplePattern& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const Block& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For Block: ", node.body.size());
+    if (node.body.size() > 0) {
+        Logger::Get().Debug("Ast2SourceVisitor::Visit", "For Block body ", static_cast<int>(node.body[0]->astKind));
+    }
     PRT().PVec<AstNode>(node.body, [this](const AstNode& node) {
         Traverse(node, *this);
         PRT().PNL();
@@ -376,7 +393,15 @@ void Ast2SourceVisitor::Visit(const FuncArg& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const CallExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For CallExpr");
-    if (IsCallInit(node)) {
+    if (OpenDesugar() && OpenSema()) {
+        // CallExpr 可能是解糖的 操作重载调用 要恢复操作符调用源码
+        // 比如 a.[](i) -> a[i], a.+(b) -> a + b
+        if (IsOverloadCall(node)) {
+            PrintOverloadCallExpr(node);
+            return;
+        }
+    }
+    if (IsInitCall(node)) {
         AH_CHECK_NULL(node.ty);
         // 构造函数调用 init() -> A(), TODO: 应该缩小下范围， 构造函数内的init不需要替换
         VisitTy(*node.ty);
@@ -483,9 +508,13 @@ void Ast2SourceVisitor::Visit(const AsExpr& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const AssignExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For AssignExpr");
-    VisitNode(node.leftValue);
-    PRT().PVals(" ", Tk2Str(node.op), " ");
-    VisitNode(node.rightExpr);
+    if (OpenDesugar() && node.desugarExpr) {
+        Traverse(*node.desugarExpr, *this);
+    } else {
+        VisitNode(node.leftValue);
+        PRT().PVals(" ", Tk2Str(node.op), " ");
+        VisitNode(node.rightExpr);
+    }
 }
 
 void Ast2SourceVisitor::Visit(const ThrowExpr& node, VisitResult&)
@@ -493,6 +522,17 @@ void Ast2SourceVisitor::Visit(const ThrowExpr& node, VisitResult&)
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ThrowExpr");
     PRT().PVal("throw ");
     VisitNode(node.expr);
+}
+
+void Ast2SourceVisitor::Visit(const SubscriptExpr& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For SubscriptExpr");
+    if (OpenDesugar() && node.desugarExpr) {
+        Traverse(*node.desugarExpr, *this);
+    } else {
+        VisitNode(node.baseExpr);
+        PRT().PVec<Expr>(node.indexExprs, [this](const Expr& expr) { Traverse(expr, *this); }, ", ", "[", "]");
+    }
 }
 
 // Generic
@@ -587,6 +627,48 @@ void Ast2SourceVisitor::VisitDecl(const Decl& node)
     VisitNodes(node.annotations);
     VisitNode(node.annotationsArray);
     PRT().PVec<Modifier>(node.modifiers, [this](const Modifier& mod) { Traverse(mod, *this); }, " ", "", " ");
+}
+
+void Ast2SourceVisitor::PrintOverloadCallExpr(const CallExpr& node)
+{
+    auto fn = node.resolvedFunction;
+    auto op = fn->op;
+    Logger::Get().Debug("Ast2SourceVisitor::PrintOverloadCallExpr", "For Overload operator: ", Tk2Str(op));
+    AH_ASSERT(IsOverloadCall(node));
+    auto ma = static_cast<MemberAccess*>(node.baseFunc.get().get());
+    auto base = ma->baseExpr.get();
+    // 可以重载的操作符有
+    if (op == TokenKind::NOT) {
+        // 一元 !
+        PrintNode(base, "!");
+    } else if (op == TokenKind::LSQUARE) {
+        // []
+        Traverse(*base, *this);
+        AH_ASSERT(node.args.size() == 1 || node.args.size() == 2);
+        if (node.args.size() == 1) {
+            // x[i]
+            PrintNode(node.args[0].get(), "[", "]");
+        } else {
+            // x[i] = v
+            PrintNode(node.args[0].get(), "[", "]");
+            PRT().PVal(" = ");
+            VisitNode(node.args[1]);
+        }
+    } else if (op == TokenKind::LPAREN) {
+        // ()
+        Traverse(*base, *this);
+        PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, *this); }, ", ", "(", ")");
+    } else {
+        // 二元： + - * / % ** << >> < <= > >= == != & ^ |
+        Traverse(*base, *this);
+        AH_ASSERT(node.args.size() == 1);
+        PrintNode(node.args[0].get(), " " + Tk2Str(op) + " ");
+    }
+    // 打印个注释在这里
+    PRT().PVal(" /* Desugared ");
+    PrintNode(ma);
+    PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, *this); }, ", ", "(", ")", true);
+    PRT().PVal(" */ ");
 }
 
 inline void Ast2SourceVisitor::PrintNode(const Ptr<AstNode>& pnode, const std::string& pre, const std::string& suf)
