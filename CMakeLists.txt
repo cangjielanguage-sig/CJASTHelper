@@ -100,53 +100,20 @@ add_subdirectory(src)
 if(CMAKE_ENABLE_TEST)
     # 待测试是否可以下载成功
     # 设置gtest的版本和URL等信息
-    set(GTEST_VERSION "v1.17.0" CACHE STRING "Version of GoogleTest to download")
-    set(GTEST_URL "https://github.com/google/googletest/archive/tags/${GTEST_VERSION}.zip" CACHE STRING "URL for downloading GoogleTest")
+    set(GTEST_VERSION "v1.17.0")
+    set(GTEST_URL "https://github.com/google/googletest/archive/tags/${GTEST_VERSION}.zip")
 
     # 设置第三方库目录
     set(THIRD_PARTY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party)
-    set(GTEST_SOURCE_DIR "${CMAKE_BINARY_DIR}/gtest")
+    set(GTEST_SOURCE_DIR "${THIRD_PARTY_DIR}/googletest-${GTEST_VERSION}")
 
     # 检查third_party/gtest是否存在
-    if(EXISTS "${THIRD_PARTY_DIR}/googletest-${GTEST_VERSION}")
-        message(STATUS "Found local gtest installation in third_party.")
-    else()
-        # 如果不存在，则尝试下载并解压
-        message(STATUS "No local gtest found, attempting to download...")
-        # 使用ExternalProject_Add下载并安装gtest
-        include(ExternalProject)
-        ExternalProject_Add(
-            gtest
-            URL ${GTEST_URL}
-            DOWNLOAD_DIR ${CMAKE_BINARY_DIR}
-            SOURCE_DIR ${GTEST_SOURCE_DIR}
-            CONFIGURE_COMMAND ""
-            BUILD_COMMAND ""
-            INSTALL_COMMAND ""
-            TEST_COMMAND ""
-            UPDATE_COMMAND ""
-            PATCH_COMMAND ""
-        )
-    
-    # 添加一个自定义命令来移动解压后的文件到 third_party/gtest
-    add_custom_command(
-        TARGET gtest POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/third_party
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${GTEST_SOURCE_DIR}/googletest-release-${GTEST_VERSION} ${THIRD_PARTY_DIR}/googletest-${GTEST_VERSION}
-        )
-    # 添加一个自定义目标，确保 gtest 目标会被执行
-    add_custom_target(
-        fetch_gtest ALL
-        DEPENDS gtest
-        COMMENT "Fetching and extracting GTest..."
-        )
+    if(NOT EXISTS "${GTEST_SOURCE_DIR}")
+        message(FATAL_ERROR "Please download gtest from ${GTEST_URL} firstly, and extract the source into ${GTEST_SOURCE_DIR}.")
     endif()
-
-    # 添加gtest路径
-    include_directories(${THIRD_PARTY_DIR}/gtest/include)
-
+    
     # 添加gtest源码路径
-    add_subdirectory(${THIRD_PARTY_DIR}/googletest-v1.17.0)
+    add_subdirectory(${GTEST_SOURCE_DIR})
 
     # 现在可以将gtest添加为可执行文件或测试的目标依赖
     enable_testing()
