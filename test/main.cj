@@ -56,10 +56,12 @@ class MyArray<T> {
         data = Array<T>()
     }
 
-    // public operator func [](i: Int64): T {
-    //     data[i]
-    // }
-    // public operator func [](i: Int64, val: T): Unit {}
+    public operator func [](i: Int64): T {
+        data[i]
+    }
+    public operator func [](i: Int64, val: T): Unit {
+        data[i] = val
+    }
 
 }
 

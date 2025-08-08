@@ -58,7 +58,7 @@ protected:
     EXPAND4(GEN_VISIT_OVERRIDE, RefExpr, BinaryExpr, CallExpr, ReturnExpr);
     EXPAND4(GEN_VISIT_OVERRIDE, LitConstExpr, ArrayLit, MemberAccess, LambdaExpr);
     EXPAND4(GEN_VISIT_OVERRIDE, MatchExpr, IsExpr, AsExpr, AssignExpr);
-    EXPAND1(GEN_VISIT_OVERRIDE, ThrowExpr);
+    EXPAND2(GEN_VISIT_OVERRIDE, ThrowExpr, SubscriptExpr);
     // Generic
     EXPAND3(GEN_VISIT_OVERRIDE, Generic, GenericParamDecl, GenericConstraint);
 
@@ -73,6 +73,7 @@ private:
     void VisitGenericParams(Ptr<Generic> generic);
     void VisitGenericConstraints(Ptr<Generic> generic);
 
+    void PrintOverloadCallExpr(const CallExpr& node);
     void PrintNode(const Ptr<AstNode>& pnode, const std::string& pre = "", const std::string& suf = "");
 
     inline bool OpenDesugar() const
