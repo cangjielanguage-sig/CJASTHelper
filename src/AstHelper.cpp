@@ -78,6 +78,12 @@ void AstHelper::Run()
     auto pkgs = mci->GetSourcePackages();
     Logger::Get().Debug("AstHelper::Run", "Get pkgs: ", pkgs.size());
     Ast2SourceVisitor ast2SourceVisitor(GetOutputDir());
+    if (stage >= SourceStage::DESUGARED_PARSE) {
+        ast2SourceVisitor.EnableDusgar();
+    }
+    if (stage >= SourceStage::SEMA) {
+        ast2SourceVisitor.EnableSeam();
+    }
     for (auto pkg : pkgs) {
         Logger::Get().Debug("AstHelper::Run", "Traverse ", pkg->fullPackageName, " by Ast2SourceVisitor");
         Traverse(*pkg, ast2SourceVisitor);

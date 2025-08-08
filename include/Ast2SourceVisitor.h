@@ -20,9 +20,23 @@ public:
     const char* what() const noexcept override;
 };
 
+using Flag = unsigned char;
+constexpr Flag DESUGAR_FLAG = 0x1;
+constexpr Flag SEMA_FLAG = 0x2;
+
 class Ast2SourceVisitor : public AstVisitor {
 public:
-    Ast2SourceVisitor(const std::string& out, int indent = 2);
+    Ast2SourceVisitor(const std::string& out, int indent = 2, Flag flags = 0);
+
+    inline void EnableDusgar()
+    {
+        this->flags |= DESUGAR_FLAG;
+    }
+
+    inline void EnableSeam()
+    {
+        this->flags |= SEMA_FLAG;
+    }
 
 protected:
 // 定义重写 Visit 声明的宏
@@ -59,10 +73,23 @@ private:
     void VisitGenericParams(Ptr<Generic> generic);
     void VisitGenericConstraints(Ptr<Generic> generic);
 
+    void PrintNode(const Ptr<AstNode>& pnode, const std::string& pre = "", const std::string& suf = "");
+
+    inline bool OpenDesugar() const
+    {
+        return flags & DESUGAR_FLAG;
+    }
+
+    inline bool OpenSema() const
+    {
+        return flags & SEMA_FLAG;
+    }
+
 private:
     std::string out;
     std::fstream ofs;
     Printer prt;
+    Flag flags; // 开关配置 (解糖, 语义, ...)
 };
 
 #endif // AST_2_SOURCE_VISITOR_H
