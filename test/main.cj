@@ -5,7 +5,7 @@ import std.collection.*
 import std.io.InputStream as IS
 internal import std.{math.abs, binary.*, env.getCommandLine as getArgs}
 import std.fs.Directory
-
+import std.time
 
 @C
 @OverflowThrowing
@@ -88,6 +88,10 @@ func foo6(x: Int64, b: Bool) {
     var z = y ** 2
     z++
     z--
+}
+
+func foo7(): time.DayOfWeek {
+    time.DayOfWeek.Sunday
 }
 
 unsafe func entry() {
