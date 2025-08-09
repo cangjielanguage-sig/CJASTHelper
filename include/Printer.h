@@ -109,15 +109,36 @@ std::enable_if_t<can_deref_vv<C, T>, void> printcc(std::ostream& os, const C& co
 
 class Printer {
 public:
+    /**
+     * @brief 构造函数，初始化输出流和缩进级别。
+     *
+     * @param os 输出流，默认为标准输出。
+     * @param indent 每级缩进的空格数，默认为2。
+     */
     explicit Printer(std::ostream& os, int indent = 2);
-
-    // 增加缩进
+    /**
+     * @brief 增加当前缩进级别。
+     */
     void Indent();
-    // 输出换行并重置下一行前导空格
+    /**
+     * @brief 输出换行并重置下一行前导空格。
+     *
+     * @param n 要输出的换行符数量，默认为1。
+     * @return 当前对象的引用，支持链式调用。
+     */
     Printer& PNL(int n = 1);
-    // 减少缩进
+    /**
+     * @brief 减少当前缩进级别。
+     */
     void Unindent();
-    // 输出单个值
+
+    /**
+     * @brief 输出单个值。
+     *
+     * @tparam T 值的类型。
+     * @param value 要输出的值。
+     * @return 当前对象的引用，支持链式调用。
+     */
     template <typename T> inline Printer& PVal(const T& value)
     {
         EnsureIndent();
@@ -125,11 +146,37 @@ public:
         return *this;
     }
 
+    /**
+     * @brief 重载运算符<<，输出单个值。
+     *
+     * @tparam T 值的类型。
+     * @param value 要输出的值。
+     * @return 当前对象的引用，支持链式调用。
+     */
+    template <typename T> Printer& operator<<(const T& value)
+    {
+        return this->PVal(value);
+    }
+
+    /**
+     * @brief 输出单个值并换行。
+     *
+     * @tparam T 值的类型。
+     * @param value 要输出的值。
+     * @return 当前对象的引用，支持链式调用。
+     */
     template <typename T> inline Printer& PValNL(const T& value)
     {
         return PVal(value).PNL();
     }
 
+    /**
+     * @brief 输出多个值。
+     *
+     * @tparam Args 参数包中的类型。
+     * @param args 要输出的值。
+     * @return 当前对象的引用，支持链式调用。
+     */
     template <typename... Args> inline Printer& PVals(Args&&... args)
     {
         EnsureIndent();
@@ -140,6 +187,15 @@ public:
         return *this;
     }
 
+    /**
+     * @brief 按指定分隔符输出多个值。
+     *
+     * @tparam Sep 分隔符的类型。
+     * @tparam Args 参数包中的类型。
+     * @param sep 分隔符。
+     * @param args 要输出的值。
+     * @return 当前对象的引用，支持链式调用。
+     */
     template <typename Sep, typename... Args> inline Printer& PSVals(Sep&& sep, Args&&... args)
     {
         EnsureIndent();
@@ -150,12 +206,22 @@ public:
         return *this;
     }
 
-    template <typename T> Printer& operator<<(const T& value)
-    {
-        return this->PVal(value);
-    }
-
-    // 按指定分隔符输出容器
+    /**
+     * @brief 按指定分隔符输出容器。
+     *
+     * 注意: 容器为指针时， 要保证没有空指针。
+     *
+     * @tparam T 容器元素的类型。
+     * @tparam C 容器的类型。
+     * @tparam CB 回调函数的类型。
+     * @param con 容器。
+     * @param cb 回调函数，用于处理每个元素。
+     * @param sep 分隔符。
+     * @param pre 前缀字符串。
+     * @param suf 后缀字符串。
+     * @param b 是否强制打印 pre, suf。
+     * @return 当前对象的引用，支持链式调用。
+     */
     template <typename T, typename C, typename CB>
     inline std::enable_if_t<can_deref_vv<C, T>, Printer&> PVec(const C& con, const CB& cb, const std::string& sep = "",
         const std::string& pre = "", const std::string& suf = "", bool b = false)
@@ -164,6 +230,17 @@ public:
         return *this;
     }
 
+    /**
+     * @brief 输出指针指向的值。
+     *
+     * @tparam U 指针所指向的类型。
+     * @tparam T 指针的类型。
+     * @param t 指针。
+     * @param cb 回调函数，用于处理指针所指向的值。
+     * @param pre 前缀字符串。
+     * @param suf 后缀字符串。
+     * @return 当前对象的引用，支持链式调用。
+     */
     template <typename U, typename T>
     inline std::enable_if_t<can_deref_to_v<T, U> && (count_deref_v<T> == 1), Printer&> PPtr(
         const T& t, const std::function<void(const U&)>& cb, const std::string& pre = "", const std::string& suf = "")
@@ -176,22 +253,31 @@ public:
         return *this;
     }
 
-    // PrintWithIndent
-    inline Printer& PWI(const std::function<void()>& cb)
+    /**
+     * @brief 打印带有缩进的回调内容。
+     *
+     * @param cb 回调函数，包含要打印的内容。
+     * @param pre 可选的前缀字符串，默认为空字符串。
+     * @param suf 可选的后缀字符串，默认为空字符串。
+     * @return 当前对象的引用，支持链式调用。
+     */
+    inline Printer& PWI(const std::function<void()>& cb, const std::string& pre = "", const std::string& suf = "")
     {
+        PValNL(pre);
         Indent();
         cb();
         Unindent();
+        PVal(suf);
         return *this;
     }
 
 private:
     void EnsureIndent();
 
-    std::ostream& os_;
-    int indent_;
-    int currentIndent_;
-    bool needIndent_;
+    std::ostream& os_;  // 输出流
+    int indent_;        // 每级缩进的空格数
+    int currentIndent_; // 当前缩进级别
+    bool needIndent_;   // 标记是否需要进行缩进
 };
 
 #endif // PRINTER_H

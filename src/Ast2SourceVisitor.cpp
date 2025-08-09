@@ -164,8 +164,8 @@ void Ast2SourceVisitor::Visit(const FuncBody& node, VisitResult&)
         VisitType(node.retType, retTy);
     }
     VisitGenericConstraints(node.generic.get());
-    PRT().PPtr<Block>(node.body,
-        [this](const Block& block) { PRT().PValNL(" {").PWI([this, &block] { Traverse(block, *this); }).PVal("}"); });
+    PRT().PPtr<Block>(
+        node.body, [this](const Block& block) { PRT().PWI([this, &block] { Traverse(block, *this); }, " {", "}"); });
 }
 
 void Ast2SourceVisitor::Visit(const FuncParamList& node, VisitResult&)
@@ -454,7 +454,7 @@ void Ast2SourceVisitor::Visit(const LambdaExpr& node, VisitResult&)
     AH_ASSERT(body.paramLists.size() == 1);
     auto& params = body.paramLists[0]->params;
     PRT().PVec<FuncParam>(params, [this](const FuncParam& param) { Traverse(param, *this); }, ", ", " ");
-    PRT().PValNL(" =>").PWI([this, &body] { VisitNode(body.body); }).PVal("}");
+    PRT().PWI([this, &body] { VisitNode(body.body); }, " =>", "}");
 }
 
 void Ast2SourceVisitor::Visit(const MatchCase& node, VisitResult&)
@@ -463,14 +463,14 @@ void Ast2SourceVisitor::Visit(const MatchCase& node, VisitResult&)
     PRT().PVal("case ");
     PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, *this); }, " | ");
     PrintNode(node.patternGuard.get(), " where ");
-    PRT().PValNL(" =>").PWI([this, &node] { VisitNode(node.exprOrDecls); });
+    PRT().PWI([this, &node] { VisitNode(node.exprOrDecls); }, " =>");
 }
 
 void Ast2SourceVisitor::Visit(const MatchCaseOther& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For MatchCaseOther");
-    PrintNode(node.matchExpr.get(), "case ", " =>");
-    PRT().PWI([this, &node] { VisitNode(node.exprOrDecls); });
+    PrintNode(node.matchExpr.get(), "case ");
+    PRT().PWI([this, &node] { VisitNode(node.exprOrDecls); }, " =>");
 }
 
 void Ast2SourceVisitor::Visit(const MatchExpr& node, VisitResult&)
@@ -481,10 +481,7 @@ void Ast2SourceVisitor::Visit(const MatchExpr& node, VisitResult&)
     PrintNode(node.selector.get(), "(", ")");
     PRT().PValNL(" {").Indent();
     PRT().PVec<MatchCase>(node.matchCases, [this](const MatchCase& mc) { Traverse(mc, *this); });
-    PRT().PVec<MatchCaseOther>(node.matchCaseOthers, [this](const MatchCaseOther& mco) {
-        PRT().PNL();
-        Traverse(mco, *this);
-    });
+    PRT().PVec<MatchCaseOther>(node.matchCaseOthers, [this](const MatchCaseOther& mco) { Traverse(mco, *this); });
     PRT().Unindent();
     PRT().PVal("}");
 }
