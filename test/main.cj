@@ -65,8 +65,20 @@ class MyArray<T> {
 
 }
 
-func foo4<T1, T2>(x: T1, y: T2): Unit where T1 <: A, T2 <: Object {
+func foo5<T1, T2>(x: T1, y: T2): Unit where T1 <: A, T2 <: Object {
     ()
+}
+
+func foo6(x: Int64, b: Bool) {
+    let y = x
+    x + y
+    !b
+    x - y
+    x << 1
+    x > y
+    var z = y ** 2
+    z++
+    z--
 }
 
 unsafe func entry() {
