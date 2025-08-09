@@ -144,7 +144,7 @@ void Ast2SourceVisitor::Visit(const File& node, VisitResult&)
     // package declaration
     PrintNode(node.package.get());
     // import statements
-    PRT().PVec<ImportSpec>(node.imports, [this](const ImportSpec& imp) { Traverse(imp, *this); });
+    PRT().PVec<ImportSpec>(node.imports, [this](const ImportSpec& imp) { Traverse(imp, *this); }, "", "", "\n");
     // toplevel decls
     PRT().PVec<Decl>(node.decls, [this](const Decl& decl) {
         Traverse(decl, *this);
