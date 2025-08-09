@@ -364,8 +364,10 @@ void Ast2SourceVisitor::Visit(const Block& node, VisitResult&)
         Logger::Get().Debug("Ast2SourceVisitor::Visit", "For Block body ", static_cast<int>(node.body[0]->astKind));
     }
     PRT().PVec<AstNode>(node.body, [this](const AstNode& node) {
-        Traverse(node, *this);
-        PRT().PNL();
+        auto res = Traverse(node, *this);
+        if (res.status) {
+            PRT().PNL();
+        }
     });
 }
 
@@ -403,12 +405,13 @@ void Ast2SourceVisitor::Visit(const CallExpr& node, VisitResult&)
     PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, *this); }, ", ", "(", ")", true);
 }
 
-void Ast2SourceVisitor::Visit(const ReturnExpr& node, VisitResult&)
+void Ast2SourceVisitor::Visit(const ReturnExpr& node, VisitResult& res)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ReturnExpr");
     // return in init, skip
     auto body = node.refFuncBody;
     if (body && body->funcDecl && body->funcDecl->TestAttr(Attribute::CONSTRUCTOR)) {
+        res.status = false;
         return;
     }
     PRT().PVal("return");
