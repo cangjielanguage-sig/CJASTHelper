@@ -79,6 +79,8 @@ protected:
     // 递归展开需要重写的节点
     EXPAND2(GEN_VISIT_OVERRIDE, Annotation, Modifier);
     EXPAND1(GEN_VISIT_OVERRIDE, File);
+    EXPAND3(GEN_VISIT_OVERRIDE, PackageSpec, ImportSpec, ImportContent);
+    // Decl
     EXPAND4(GEN_VISIT_OVERRIDE, FuncDecl, FuncBody, FuncParamList, FuncParam);
     EXPAND4(GEN_VISIT_OVERRIDE, MainDecl, VarDecl, ClassDecl, ClassBody);
     // Type

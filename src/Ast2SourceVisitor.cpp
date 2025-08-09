@@ -13,6 +13,7 @@ using Cangjie::TokenKind;
 using Cangjie::AST::Attribute;
 using Cangjie::AST::CallKind;
 using Cangjie::AST::Expr;
+using Cangjie::AST::ImportKind;
 using Cangjie::AST::Pattern;
 
 namespace {
@@ -94,6 +95,26 @@ inline bool IsOverloadCall(const CallExpr& node)
     return node.baseFunc->astKind == AstKind::MEMBER_ACCESS;
 }
 
+inline bool IsImportStdCore(const ImportContent& ic)
+{
+    // std.core.*
+    auto& paths = ic.prefixPaths;
+    return ic.kind == ImportKind::IMPORT_ALL && paths.size() == 2 && paths[0] == "std" && paths[1] == "core";
+}
+
+inline bool NeedHidden(const ImportSpec& node)
+{
+    if (node.content.kind == ImportKind::IMPORT_MULTI) {
+        // Import multi-packages is desugared as serveral import single-packages
+        return true;
+    }
+    if (IsImportStdCore(node.content)) {
+        // import std.core.*
+        return true;
+    }
+    return false;
+}
+
 const std::string SUFFIX = "_source.cj";
 } // namespace
 
@@ -114,17 +135,61 @@ Ast2SourceVisitor::Ast2SourceVisitor(const std::string& out, int indent, Flag fl
 
 void Ast2SourceVisitor::Visit(const File& node, VisitResult&)
 {
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For File");
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For File imports: ", node.imports.size());
     std::string fp = out + "/" + GetFileNameWithoutSuffix(node.fileName) + SUFFIX;
     ofs.open(fp, std::ios::out);
     if (!ofs.is_open()) {
         throw Ast2SourceException("Failed to open file: " + fp);
     }
+    // package declaration
+    PrintNode(node.package.get());
+    // import statements
+    PRT().PVec<ImportSpec>(node.imports, [this](const ImportSpec& imp) { Traverse(imp, *this); });
+    // toplevel decls
     PRT().PVec<Decl>(node.decls, [this](const Decl& decl) {
         Traverse(decl, *this);
         PRT().PNL(2);
     });
     ofs.close();
+}
+
+void Ast2SourceVisitor::Visit(const PackageSpec& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For PackageSpec: ", node.packageName.Val());
+    PrintNode(node.modifier.get(), "", " ");
+    PRT().PVal("package ");
+    PRT().PVec<std::string>(node.prefixPaths, [this](const std::string& pre) { PRT().PVal(pre); }, ".", "", ".");
+    PRT().PVal(Id(node.packageName));
+    PRT().PNL(2);
+}
+
+void Ast2SourceVisitor::Visit(const ImportSpec& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ImportSpec");
+    if (NeedHidden(node)) {
+        // Import multi-packages is desugared as serveral import single-packages, import std.core.* is implicit import!
+        return;
+    }
+    VisitNodes(node.annotations);
+    PrintNode(node.modifier.get(), "", " ");
+    PRT().PVal("import ");
+    Traverse(node.content, *this);
+    PRT().PNL();
+}
+
+void Ast2SourceVisitor::Visit(const ImportContent& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ImportContent");
+    PRT().PVec<std::string>(node.prefixPaths, [this](const std::string& pre) { PRT().PVal(pre); }, ".", "", ".");
+    if (node.kind == ImportKind::IMPORT_SINGLE) {
+        // import xxx.a
+        PRT().PVal(Id(node.identifier));
+    } else if (node.kind == ImportKind::IMPORT_ALL) {
+        PRT().PVal("*");
+    } else if (node.kind == ImportKind::IMPORT_ALIAS) {
+        // import xxx.a as b
+        PRT().PSVals(" ", Id(node.identifier), "as", Id(node.aliasName));
+    }
 }
 
 void Ast2SourceVisitor::Visit(const Annotation& node, VisitResult&)

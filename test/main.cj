@@ -1,3 +1,12 @@
+package a.b.c
+
+import std.fs.File
+import std.collection.*
+import std.io.InputStream as IS
+internal import std.{math.abs, binary.*, env.getCommandLine as getArgs}
+import std.fs.Directory
+
+
 @C
 @OverflowThrowing
 public unsafe func foo(x: Int64, y: Int64): Int64 {
