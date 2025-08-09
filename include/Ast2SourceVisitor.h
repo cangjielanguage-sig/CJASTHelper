@@ -74,10 +74,6 @@ public:
     }
 
 protected:
-    /**
-     * @brief 定义重写 `Visit` 方法的宏。
-     * @param N 节点类型。
-     */
 #define GEN_VISIT_OVERRIDE(N) void Visit(const N& node, VisitResult&) override
 
     // 递归展开需要重写的节点
@@ -94,10 +90,11 @@ protected:
     EXPAND3(GEN_VISIT_OVERRIDE, TypePattern, VarOrEnumPattern, TuplePattern);
     // Expr
     EXPAND4(GEN_VISIT_OVERRIDE, Block, FuncArg, MatchCase, MatchCaseOther);
-    EXPAND4(GEN_VISIT_OVERRIDE, RefExpr, BinaryExpr, CallExpr, ReturnExpr);
-    EXPAND4(GEN_VISIT_OVERRIDE, LitConstExpr, ArrayLit, MemberAccess, LambdaExpr);
-    EXPAND4(GEN_VISIT_OVERRIDE, MatchExpr, IsExpr, AsExpr, AssignExpr);
-    EXPAND2(GEN_VISIT_OVERRIDE, ThrowExpr, SubscriptExpr);
+    EXPAND3(GEN_VISIT_OVERRIDE, RefExpr, MemberAccess, CallExpr);
+    EXPAND4(GEN_VISIT_OVERRIDE, LitConstExpr, ArrayLit, ReturnExpr, LambdaExpr);
+    EXPAND4(GEN_VISIT_OVERRIDE, MatchExpr, IsExpr, AsExpr, ThrowExpr);
+    EXPAND4(GEN_VISIT_OVERRIDE, AssignExpr, UnaryExpr, IncOrDecExpr, BinaryExpr);
+    EXPAND1(GEN_VISIT_OVERRIDE, SubscriptExpr);
     // Generic
     EXPAND3(GEN_VISIT_OVERRIDE, Generic, GenericParamDecl, GenericConstraint);
 

@@ -376,14 +376,6 @@ void Ast2SourceVisitor::Visit(const RefExpr& node, VisitResult&)
     PRT().PVec<Type>(node.typeArguments, [this](const Type& tp) { Traverse(tp, *this); }, ", ", "<", ">");
 }
 
-void Ast2SourceVisitor::Visit(const BinaryExpr& node, VisitResult&)
-{
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For BinaryExpr");
-    VisitNode(node.leftExpr);
-    PRT().PVals(" ", Tk2Str(node.op), " ");
-    VisitNode(node.rightExpr);
-}
-
 void Ast2SourceVisitor::Visit(const FuncArg& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncArg");
@@ -512,6 +504,26 @@ void Ast2SourceVisitor::Visit(const AssignExpr& node, VisitResult&)
         PRT().PVals(" ", Tk2Str(node.op), " ");
         VisitNode(node.rightExpr);
     }
+}
+
+void Ast2SourceVisitor::Visit(const IncOrDecExpr& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For IncOrDecExpr");
+    PrintNode(node.expr.get(), "", Tk2Str(node.op));
+}
+
+void Ast2SourceVisitor::Visit(const UnaryExpr& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For UnaryExpr");
+    PrintNode(node.expr.get(), Tk2Str(node.op));
+}
+
+void Ast2SourceVisitor::Visit(const BinaryExpr& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For BinaryExpr");
+    VisitNode(node.leftExpr);
+    PRT().PVals(" ", Tk2Str(node.op), " ");
+    VisitNode(node.rightExpr);
 }
 
 void Ast2SourceVisitor::Visit(const ThrowExpr& node, VisitResult&)
