@@ -96,7 +96,8 @@ protected:
     EXPAND4(GEN_VISIT_OVERRIDE, LitConstExpr, ArrayLit, ReturnExpr, LambdaExpr);
     EXPAND4(GEN_VISIT_OVERRIDE, MatchExpr, IsExpr, AsExpr, ThrowExpr);
     EXPAND4(GEN_VISIT_OVERRIDE, AssignExpr, UnaryExpr, IncOrDecExpr, BinaryExpr);
-    EXPAND1(GEN_VISIT_OVERRIDE, SubscriptExpr);
+    EXPAND4(GEN_VISIT_OVERRIDE, SubscriptExpr, JumpExpr, RangeExpr, LetPatternDestructor);
+    EXPAND4(GEN_VISIT_OVERRIDE, IfExpr, DoWhileExpr, WhileExpr, ForInExpr);
     // Generic
     EXPAND3(GEN_VISIT_OVERRIDE, Generic, GenericParamDecl, GenericConstraint);
 
@@ -152,8 +153,28 @@ private:
      * @param pnode 节点指针。
      * @param pre 前缀字符串。
      * @param suf 后缀字符串。
+     * @param withNL 是否追加空行。
      */
-    void PrintNode(const Ptr<AstNode>& pnode, const std::string& pre = "", const std::string& suf = "");
+    void PrintNode(
+        const Ptr<AstNode> pnode, const std::string& pre = "", const std::string& suf = "", bool withNL = false);
+
+    /**
+     * @brief 打印解糖后的 For-In 表达式（范围形式）。
+     * @param node For-In 表达式节点的引用。
+     */
+    void PrintDesugaredForInRange(const ForInExpr& node);
+
+    /**
+     * @brief 打印解糖后的 For-In 表达式（迭代器形式）。
+     * @param node For-In 表达式节点的引用。
+     */
+    void PrintDesugaredForInIterator(const ForInExpr& node);
+
+    /**
+     * @brief 打印解糖后的 For-In 表达式（字符串形式）。
+     * @param node For-In 表达式节点的引用。
+     */
+    void PrintDesugaredForInString(const ForInExpr& node);
 
     /**
      * @brief 检查是否启用解糖功能。
@@ -174,10 +195,11 @@ private:
     }
 
 private:
-    std::string out;  /**< 输出文件路径 */
-    std::fstream ofs; /**< 输出文件流 */
-    Printer prt;      /**< 打印器实例 */
-    Flag flags;       /**< 功能开关标志（解糖、语义等） */
+    std::string out;                                                 /**< 输出文件路径 */
+    std::fstream ofs;                                                /**< 输出文件流 */
+    Printer prt;                                                     /**< 打印器实例 */
+    Flag flags;                                                      /**< 功能开关标志（解糖、语义等） */
+    std::unordered_map<Ptr<const Decl>, std::string> desugaredVarId; /**< 解糖变量名字表 */
 };
 
 #endif // AST_2_SOURCE_VISITOR_H

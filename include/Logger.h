@@ -85,6 +85,18 @@ public:
     }
 
     /**
+     * @brief 记录错误级别的日志。
+     *
+     * @tparam Args 参数包中的类型。
+     * @param domain 日志域。
+     * @param args 要记录的日志内容。
+     */
+    template <typename... Args> inline void Error(const std::string& domain, Args&&... args)
+    {
+        Log(Level::ERROR, domain, std::forward<Args>(args)...);
+    }
+
+    /**
      * @brief 记录指定级别的日志。
      *
      * @tparam Args 参数包中的类型。
