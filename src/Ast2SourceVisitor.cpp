@@ -38,14 +38,38 @@ std::string GetFileNameWithoutSuffix(const std::string& fname)
     }
 }
 
+void replaceAll(std::string& str, const std::string& from, const std::string& to)
+{
+    if (from.empty()) {
+        return;
+    }
+    size_t start_pos = 0;
+    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+        str.replace(start_pos, from.length(), to);
+        // 这里+to.length()是为了防止to中有重叠部分，例如从"aa"替换成"a"
+        start_pos += to.length();
+    }
+}
+
+inline void UpdateIterVar(std::string& id)
+{
+    static int counter = 0; // 全局id
+    static std::vector<std::string> keys{"$iter-", "$stop-compiler"};
+    for (auto& key : keys) {
+        if (id.find(key) != std::string::npos) {
+            id += std::to_string(counter++);
+            break;
+        }
+    }
+}
+
 inline std::string Id(const Cangjie::Identifier& id)
 {
+
     std::string res = id.Val();
-    if (res.find("$") == 0) {
-        res = res.substr(1);
-    } else if (res == "v-compiler") {
-        res = "tmp";
-    }
+    UpdateIterVar(res);
+    replaceAll(res, "$", "");
+    replaceAll(res, "-", "_");
     return res;
 }
 
@@ -264,7 +288,7 @@ void Ast2SourceVisitor::Visit(const MainDecl& node, VisitResult& res)
     }
 }
 
-void Ast2SourceVisitor::Visit(const VarDecl& node, VisitResult& res)
+void Ast2SourceVisitor::Visit(const VarDecl& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For VarDecl: ", node.identifier.Val());
     VisitDecl(node);
@@ -274,7 +298,12 @@ void Ast2SourceVisitor::Visit(const VarDecl& node, VisitResult& res)
     } else if (node.isVar) {
         pre = "var";
     }
-    PRT().PVals(pre, " ", Id(node.identifier));
+    auto id = Id(node.identifier);
+    // Desugared variable id
+    if (node.identifier.Val().find("$") == 0) {
+        desugaredVarId.emplace(&node, id);
+    }
+    PRT().PVals(pre, " ", id);
     VisitType(node.type.get(), node.ty);
     PrintNode(node.initializer.get(), " = ");
 }
@@ -419,6 +448,7 @@ void Ast2SourceVisitor::Visit(const TypePattern& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const TuplePattern& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For TuplePattern");
+    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, *this); }, ", ", "(", ")");
 }
 
 // Expr
@@ -439,6 +469,13 @@ void Ast2SourceVisitor::Visit(const Block& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const RefExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For RefExpr: ", node.ref.identifier.Val());
+    if (OpenDesugar() && OpenSema()) {
+        auto target = node.ref.target;
+        if (auto it = desugaredVarId.find(target); it != desugaredVarId.end()) {
+            PRT().PVal(it->second);
+            return;
+        }
+    }
     PRT().PVal(Id(node.ref.identifier));
     PRT().PVec<Type>(node.typeArguments, [this](const Type& tp) { Traverse(tp, *this); }, ", ", "<", ">");
 }
@@ -612,6 +649,80 @@ void Ast2SourceVisitor::Visit(const SubscriptExpr& node, VisitResult&)
     }
 }
 
+void Ast2SourceVisitor::Visit(const JumpExpr& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For JumpExpr");
+    if (node.isBreak) {
+        PRT().PVal("break");
+    } else {
+        PRT().PVal("continue");
+    }
+}
+
+void Ast2SourceVisitor::Visit(const RangeExpr& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For RangeExpr");
+    PrintNode(node.startExpr.get());
+    PRT().PVal("..");
+    PrintNode(node.stopExpr.get());
+    PrintNode(node.stepExpr.get(), " : ");
+}
+
+void Ast2SourceVisitor::Visit(const LetPatternDestructor& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For LetPatternDestructor");
+    PRT().PVal("let ");
+    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, *this); }, " | ");
+    PrintNode(node.initializer, " <- ");
+}
+
+void Ast2SourceVisitor::Visit(const IfExpr& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For IfExpr");
+    PRT().PVal("if ");
+    PrintNode(node.condExpr.get(), "(", ")");
+    PRT().PWI([this, &node] { VisitNode(node.thenBody); }, " {", "}");
+    PrintNode(node.elseBody.get(), " else ");
+}
+
+void Ast2SourceVisitor::Visit(const WhileExpr& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For WhileExpr");
+    PRT().PVal("while ");
+    PrintNode(node.condExpr.get(), "(", ")");
+    PRT().PWI([this, &node] { VisitNode(node.body); }, " {", "}");
+}
+
+void Ast2SourceVisitor::Visit(const DoWhileExpr& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For DoWhileExpr");
+    PRT().PWI([this, &node] { VisitNode(node.body); }, "do {", "} while ");
+    PrintNode(node.condExpr.get(), "(", ")");
+    PRT().PNL();
+}
+
+void Ast2SourceVisitor::Visit(const ForInExpr& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ForInExpr");
+    if (OpenDesugar() && OpenSema()) {
+        using ForInKind = Cangjie::AST::ForInKind;
+        if (node.forInKind == ForInKind::FORIN_RANGE) {
+            PrintDesugaredForInRange(node);
+        } else if (node.forInKind == ForInKind::FORIN_ITER) {
+            PrintDesugaredForInIterator(node);
+        } else if (node.forInKind == ForInKind::FORIN_STRING) {
+            PrintDesugaredForInString(node);
+        } else {
+            Logger::Get().Error("Ast2SourceVisitor::Visit", "Unknown ForInKind: ", static_cast<int>(node.forInKind));
+        }
+    } else {
+        PrintNode(node.pattern.get(), "for (", " in ");
+        PrintNode(node.inExpression.get());
+        PrintNode(node.patternGuard.get());
+        PRT().PWI([this, &node] { VisitNode(node.body); }, ") {", "}");
+    }
+}
+
 // Generic
 void Ast2SourceVisitor::Visit(const Generic& node, VisitResult&)
 {
@@ -748,13 +859,60 @@ void Ast2SourceVisitor::PrintOverloadCallExpr(const CallExpr& node)
     PRT().PVal(" */ ");
 }
 
-inline void Ast2SourceVisitor::PrintNode(const Ptr<AstNode>& pnode, const std::string& pre, const std::string& suf)
+inline void Ast2SourceVisitor::PrintNode(
+    const Ptr<AstNode> pnode, const std::string& pre, const std::string& suf, bool withNL)
 {
     if (pnode) {
         PRT().PVal(pre);
         Traverse(*pnode, *this);
         PRT().PVal(suf);
+        if (withNL) {
+            PRT().PNL();
+        }
     }
+}
+
+/**
+ * for (x in start..stop:step)
+ * ============================
+ * var $iter-i = startExpr
+ * var $stop-compiler = stopExpr
+ * while ($iter-i < $stop-compiler) {
+ *     let i = $iter-i
+ *     foo(i)
+ *     $iter-i += stepExpr
+ * }
+ */
+void Ast2SourceVisitor::PrintDesugaredForInRange(const ForInExpr& node)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::PrintDesugaredForInRange", "For ForInExpr with Range");
+    // ASSERT
+    AH_CHECK_NULL(node.pattern);
+    AH_ASSERT(node.pattern->astKind == AstKind::VAR_PATTERN);
+    Ptr<VarPattern> varPat = static_cast<VarPattern*>(node.pattern.get().get());
+    Ptr<Expr> inExpr = node.inExpression.get();
+    AH_CHECK_NULL(inExpr);
+    AH_ASSERT(inExpr->astKind == AstKind::BLOCK);
+    Ptr<Block> block = static_cast<Block*>(inExpr.get());
+    AH_ASSERT(block->body.size() == 4);
+
+    PrintNode(block->body[0].get(), "", "", true); // var $iter-i = startExpr
+    PrintNode(block->body[1].get(), "", "", true); // var $stop-compiler = stopExpr
+    PrintNode(block->body[3].get(), "while (", ") {", true);
+    PRT().Indent();
+    PrintNode(varPat->varDecl.get(), "", "", true); // let i = $iter-i;
+    Traverse(*node.body, *this);                    // foo(i);
+    PrintNode(block->body[2].get(), "", "", true);  // $iter-i += stepExpr;
+    PRT().Unindent();
+    PRT().PVal("}");
+}
+
+void Ast2SourceVisitor::PrintDesugaredForInIterator(const ForInExpr& node)
+{
+}
+
+void Ast2SourceVisitor::PrintDesugaredForInString(const ForInExpr& node)
+{
 }
 
 Printer& Ast2SourceVisitor::PRT()

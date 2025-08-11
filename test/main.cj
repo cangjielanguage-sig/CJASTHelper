@@ -94,6 +94,72 @@ func foo7(): time.DayOfWeek {
     time.DayOfWeek.Sunday
 }
 
+func foo8(): Unit {
+    var i = 0
+    while (i < 10) {
+        if (i == 0) {
+            continue
+        }
+        if (i == 9) {
+            break
+        }
+        i = i + 1
+    }
+    i = 0
+    do {
+        if (i % 2 == 0) {
+            i = i + 1
+            continue
+        } else if (i > 7) {
+            break
+        }
+    } while (i < 10)
+
+    let v0: ?Int64 = 10
+    if (let Some(v) <- v0) {
+        println(v)
+    }
+
+    while (let Some(v) <- v0) {
+        println(v)
+        if (v == 10) {
+            break
+        }
+    }
+
+    do {
+        if (let Some(v) <- v0) {
+            println(v)
+            if (v == 10) {
+                break
+            }
+        }
+    } while (true)
+}
+
+func foo(x: Int64) { x }
+
+func foo9() {
+
+    for (i in 0..10) {
+        foo(i)
+    }
+    
+    let size = 10
+    let s = 1
+    for (j in s..size) {
+        foo(j)
+    }
+
+    // for (val in [0, 1, 2, 3]) {
+    //     foo(val)
+    // }
+    // let mp = HashMap<Int64, String>()
+    // for ((k, v) in mp) {
+    //     foo(k)
+    // }
+}
+
 unsafe func entry() {
     let res = foo(2, 3)
     println(res)
