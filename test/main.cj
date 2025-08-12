@@ -151,13 +151,14 @@ func foo9() {
         foo(j)
     }
 
-    // for (val in [0, 1, 2, 3]) {
-    //     foo(val)
-    // }
-    // let mp = HashMap<Int64, String>()
-    // for ((k, v) in mp) {
-    //     foo(k)
-    // }
+    for (val in [0, 1, 2, 3]) {
+        foo(val)
+    }
+
+    let mp = HashMap<Int64, String>()
+    for ((k, v) in mp) {
+        foo(k)
+    }
 }
 
 unsafe func entry() {

@@ -51,15 +51,22 @@ void replaceAll(std::string& str, const std::string& from, const std::string& to
     }
 }
 
+inline bool IsIterVar(const std::string& id)
+{
+    static std::vector<std::string> keys{"$iter-", "$stop-compiler", "iter-compiler"};
+    for (auto& key : keys) {
+        if (id.find(key) != std::string::npos) {
+            return true;
+        }
+    }
+    return false;
+}
+
 inline void UpdateIterVar(std::string& id)
 {
     static int counter = 0; // 全局id
-    static std::vector<std::string> keys{"$iter-", "$stop-compiler"};
-    for (auto& key : keys) {
-        if (id.find(key) != std::string::npos) {
-            id += std::to_string(counter++);
-            break;
-        }
+    if (IsIterVar(id)) {
+        id += std::to_string(counter++);
     }
 }
 
@@ -300,7 +307,7 @@ void Ast2SourceVisitor::Visit(const VarDecl& node, VisitResult&)
     }
     auto id = Id(node.identifier);
     // Desugared variable id
-    if (node.identifier.Val().find("$") == 0) {
+    if (IsIterVar(node.identifier.Val())) {
         desugaredVarId.emplace(&node, id);
     }
     PRT().PVals(pre, " ", id);
@@ -708,12 +715,12 @@ void Ast2SourceVisitor::Visit(const ForInExpr& node, VisitResult&)
         using ForInKind = Cangjie::AST::ForInKind;
         if (node.forInKind == ForInKind::FORIN_RANGE) {
             PrintDesugaredForInRange(node);
-        } else if (node.forInKind == ForInKind::FORIN_ITER) {
-            PrintDesugaredForInIterator(node);
         } else if (node.forInKind == ForInKind::FORIN_STRING) {
             PrintDesugaredForInString(node);
         } else {
-            Logger::Get().Error("Ast2SourceVisitor::Visit", "Unknown ForInKind: ", static_cast<int>(node.forInKind));
+            // Default: ForInKind::FORIN_ITER
+            PrintDesugaredForInIterator(node);
+            Logger::Get().Warn("Ast2SourceVisitor::Visit", "Unknown ForInKind: ", static_cast<int>(node.forInKind));
         }
     } else {
         PrintNode(node.pattern.get(), "for (", " in ");
@@ -803,6 +810,7 @@ void Ast2SourceVisitor::VisitTy(const Ty& ty)
         case TyKind::TYPE_STRUCT:
         case TyKind::TYPE_ENUM:
             PRT().PVal(ty.name);
+            PRT().PVec<Ty>(ty.typeArgs, [this](const Ty& argTy) { VisitTy(argTy); }, ", ", "<", ">");
             return;
         default:
             break;
@@ -907,8 +915,29 @@ void Ast2SourceVisitor::PrintDesugaredForInRange(const ForInExpr& node)
     PRT().PVal("}");
 }
 
+/**
+ * for (x in expr)
+ * ============================
+ * var $iter-compiler = expr.iterator()
+ * while (true) {
+ *    match (iter-compiler.next()) {
+ *         case None: => break
+ *         case Some(v-compiler): => match (v-compiler) {
+ *            case v: Int64 => foo(v)
+ *            case _ => continue
+ *         }
+ *    }
+ * }
+ */
 void Ast2SourceVisitor::PrintDesugaredForInIterator(const ForInExpr& node)
 {
+    Logger::Get().Debug("Ast2SourceVisitor::PrintDesugaredForInIterator", "For ForInExpr with Iterator");
+    AH_CHECK_NULL(node.desugarExpr);
+    AH_ASSERT(node.desugarExpr->astKind == AstKind::BLOCK);
+    Ptr<Block> block = static_cast<Block*>(node.desugarExpr.get().get());
+    AH_ASSERT(block->body.size() == 2);
+    // TODO: 确认迭代变量的唯一性
+    Traverse(*block, *this);
 }
 
 void Ast2SourceVisitor::PrintDesugaredForInString(const ForInExpr& node)
