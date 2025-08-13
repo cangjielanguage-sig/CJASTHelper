@@ -178,6 +178,9 @@ void Ast2SourceVisitor::Visit(const File& node, VisitResult&)
     PRT().PVec<ImportSpec>(node.imports, [this](const ImportSpec& imp) { Traverse(imp, *this); }, "", "", "\n");
     // toplevel decls
     PRT().PVec<Decl>(node.decls, [this](const Decl& decl) {
+        if (!IsFocused(decl)) {
+            return;
+        }
         Traverse(decl, *this);
         PRT().PNL(2);
     });
@@ -947,4 +950,12 @@ void Ast2SourceVisitor::PrintDesugaredForInString(const ForInExpr& node)
 Printer& Ast2SourceVisitor::PRT()
 {
     return prt;
+}
+
+bool Ast2SourceVisitor::IsFocused(const Decl& decl) const
+{
+    if (focusDecls.empty()) {
+        return true;
+    }
+    return focusDecls.find(decl.astKind) != focusDecls.end();
 }

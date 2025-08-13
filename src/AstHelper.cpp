@@ -4,6 +4,7 @@
  * This file implements the AstHelper.
  */
 #include "AstHelper.h"
+#include "ArgumentParser.h"
 #include "Ast2SourceVisitor.h"
 #include "Logger.h"
 #include "cangjie/Sema/Desugar.h"
@@ -28,6 +29,18 @@ void ShowHelperInfo()
     p.PValNL("<stage>=sema");
     p.PValNL("<stage>=desugared-sema");
     p.Unindent();
+    p.PNL();
+    p << std::left << std::setfill(' ') << std::setw(OPT_WIDTH) << "--filter-decls=<kinds>"
+      << "Filter top-level decls of <kinds>. Supported <kinds>: func, class, interface, struct, enum, var";
+    p.PNL();
+    p.Indent();
+    p << std::left << std::setfill(' ') << std::setw(OPT_WIDTH) << "<kinds>=func" << "Dump functions.";
+    p.PNL();
+    p << std::left << std::setfill(' ') << std::setw(OPT_WIDTH) << "<kinds>=func,class"
+      << "Dump functions and classes.";
+    p.PNL();
+    p << std::left << std::setfill(' ') << std::setw(OPT_WIDTH) << "...";
+    p.PNL();
     p.Unindent();
     p.PNL().PValNL("CJC-Options: please refer to `cjc -h`.");
 }
@@ -46,6 +59,20 @@ void PrintArgs(const std::vector<std::string>& args, const std::unordered_map<st
          "", "{\n", "}", true)
         .PNL();
 }
+
+/**
+ * @brief 将字符串键映射到AstKind
+ */
+const std::unordered_map<std::string, AstKind> key2DeclKind{{"func", AstKind::FUNC_DECL},
+    {"class", AstKind::CLASS_DECL}, {"interface", AstKind::INTERFACE_DECL}, {"struct", AstKind::STRUCT_DECL},
+    {"var", AstKind::VAR_DECL}};
+/**
+ * @brief 将字符串键映射到SourceStage值
+ */
+const std::unordered_map<std::string, AstHelper::SourceStage> key2Stage{{"parse", AstHelper::SourceStage::PARSE},
+    {"desugared-parse", AstHelper::SourceStage::DESUGARED_PARSE}, {"sema", AstHelper::SourceStage::SEMA},
+    {"desugared-sema", AstHelper::SourceStage::DESUGARED_SEMA}};
+
 } // namespace
 
 AstHelper::AstHelper(const std::vector<std::string>& args, const std::unordered_map<std::string, std::string>& env)
@@ -84,6 +111,10 @@ void AstHelper::Run()
     if (stage >= SourceStage::SEMA) {
         ast2SourceVisitor.EnableSeam();
     }
+    for (auto& decl : filterDecls) {
+        Logger::Get().Debug("AstHelper::Run", "Focus Decl: ", decl);
+        ast2SourceVisitor.Focus(key2DeclKind.at(decl));
+    }
     for (auto pkg : pkgs) {
         Logger::Get().Debug("AstHelper::Run", "Traverse ", pkg->fullPackageName, " by Ast2SourceVisitor");
         Traverse(*pkg, ast2SourceVisitor);
@@ -92,21 +123,30 @@ void AstHelper::Run()
 
 void AstHelper::ParseArgs(const std::vector<std::string>& args)
 {
+    ArgumentParser ap({{"dump-source", {"parse", "desugared-parse", "sema", "desugared-sema"}},
+        {"filter-decls", {"func", "class", "interface", "struct", "enum", "var"}}});
     const std::string& DS_KEY = "--dump-source=";
+    std::vector<std::string> filterKeys{"--dump-source=", "--filter-decls"};
+    std::vector<std::string> filterArgs;
     std::vector<std::string> ciArgs;
+    auto isFilter = [&filterKeys](const std::string& arg) {
+        return std::any_of(filterKeys.begin(), filterKeys.end(),
+            [&arg](const std::string& k) { return arg.find(k) != std::string::npos; });
+    };
     for (auto arg : args) {
-        if (arg.find(DS_KEY) != std::string::npos) {
-            // parse the value
-            auto val = arg.substr(DS_KEY.size());
-            Logger::Get().Debug("AstHelper::ParseArgs", "Get Stage: ", val);
-            if (auto it = key2Stage.find(val); it != key2Stage.end()) {
-                stage = it->second;
-            } else {
-                Logger::Get().Warn("AstHelper::ParseArgs", "not supported stage: ", val);
-            }
+        if (isFilter(arg)) {
+            filterArgs.push_back(arg);
         } else {
             ciArgs.push_back(arg);
         }
+    }
+    try {
+        ap.Parse(filterArgs);
+        auto stage = ap.GetSingleValue("dump-source");
+        this->stage = key2Stage.at(stage);
+        this->filterDecls = ap.GetMultiValue("filter-decls");
+    } catch (InvalidArgumentException& iae) {
+        Logger::Get().Error("AstHelper::ParseArgs", iae.what(), ", dump all decls!");
     }
     Logger::Get().Debug("AstHelper::ParseArgs", "args: ", ciArgs.size());
     ci.ParseArgs(ciArgs);
