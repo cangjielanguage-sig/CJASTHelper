@@ -12,37 +12,79 @@
 using namespace Cangjie;
 
 namespace {
+/**
+ * @brief 用于打印帮助信息的类
+ */
+class HelperInfoPrinter {
+public:
+    HelperInfoPrinter(int width = 32) : p(std::cout, 4), width(width)
+    {
+    }
+
+    inline void PL(const std::string& line, int blanks = 1)
+    {
+        p << std::left << std::setfill(' ') << std::setw(width) << line;
+        p.PNL(blanks);
+    }
+
+    inline void PL(const std::string& opt, const std::string& detail, int blanks = 1)
+    {
+        p << std::left << std::setfill(' ') << std::setw(width) << opt << detail;
+        p.PNL(blanks);
+    }
+
+    inline void PWILines(const std::vector<std::string>& lines)
+    {
+        p.Indent();
+        for (const auto& line : lines) {
+            PL(line);
+        }
+        p.Unindent();
+    }
+
+    inline void PWILines(const std::vector<std::pair<std::string, std::string>>& lines)
+    {
+        p.Indent();
+        for (const auto& pair : lines) {
+            PL(pair.first, pair.second);
+        }
+        p.Unindent();
+    }
+
+    inline void Indent()
+    {
+        p.Indent();
+    }
+
+    inline void Unindent()
+    {
+        p.Unindent();
+    }
+
+private:
+    Printer p;
+    int width; // 对齐宽度
+};
+
 void ShowHelperInfo()
 {
-    Printer p(std::cout, 4);
-    p.PVal("Welcome Using Cangjie AST Helper!").PNL(2);
-    p.PVal("Usage: cjah [options] [cjc-options]").PNL(2);
-    p.PValNL("Options: ");
-    p.Indent();
-    constexpr int OPT_WIDTH = 28;
-    p << std::left << std::setfill(' ') << std::setw(OPT_WIDTH) << "--dump-source=<stage>"
-      << "Dump source after <stage>. Supported stages:";
-    p.PNL();
-    p.Indent();
-    p.PValNL("<stage>=parse");
-    p.PValNL("<stage>=desugared-parse");
-    p.PValNL("<stage>=sema");
-    p.PValNL("<stage>=desugared-sema");
-    p.Unindent();
-    p.PNL();
-    p << std::left << std::setfill(' ') << std::setw(OPT_WIDTH) << "--filter-decls=<kinds>"
-      << "Filter top-level decls of <kinds>. Supported <kinds>: func, class, interface, struct, enum, var";
-    p.PNL();
-    p.Indent();
-    p << std::left << std::setfill(' ') << std::setw(OPT_WIDTH) << "<kinds>=func" << "Dump functions.";
-    p.PNL();
-    p << std::left << std::setfill(' ') << std::setw(OPT_WIDTH) << "<kinds>=func,class"
-      << "Dump functions and classes.";
-    p.PNL();
-    p << std::left << std::setfill(' ') << std::setw(OPT_WIDTH) << "...";
-    p.PNL();
-    p.Unindent();
-    p.PNL().PValNL("CJC-Options: please refer to `cjc -h`.");
+    HelperInfoPrinter hip;
+    hip.PL("Welcome Using Cangjie AST Helper!", 2);
+    hip.PL("Usage: cjah [options] [cjc-options]", 2);
+    hip.PL("Options: ");
+    hip.Indent();
+    hip.PL("--dump-source=<stage>", "Dump source after <stage>. Supported stages:");
+
+    hip.PWILines({"<stage>=parse", "<stage>=desugared-parse", "<stage>=sema", "<stage>=desugared-sema"});
+    hip.PL("");
+    hip.PL("--filter-decls=<kinds>",
+        "Filter top-level decls of <kinds>. Supported <kinds>: func, class, interface, struct, enum, var");
+    std::vector<std::pair<std::string, std::string>> filterInfos{
+        {"<kinds>=func", "Dump functions."}, {"<kinds>=func,class", "Dump functions and classes."}, {"...", ""}};
+    hip.PWILines(filterInfos);
+    hip.Unindent();
+    hip.PL("");
+    hip.PL("CJC-Options: please refer to `cjc -h`.");
 }
 
 void PrintArgs(const std::vector<std::string>& args, const std::unordered_map<std::string, std::string>& env)
