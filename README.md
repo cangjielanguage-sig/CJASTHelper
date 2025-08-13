@@ -58,6 +58,18 @@ ${CJASTHelper_SRC}/build/bin/cjah --dump-source=desugared-sema ${zzz}/main.cj --
 > 
 > 该工具执行要依赖 Cangjie 构建的二进制环境，请确保 执行过 `source ${yyy}/cangjie/envsetup.sh`
 
+### 配置关注声明列表
+
+提供 `--filter-decls` 选项用来配置打印的顶层声明种类列表，支持配置多个，支持参数值：func，class, interface，struct, enum, var
+
+- 默认不过滤， 打印所有声明
+- 配置多个值，例如 `--filter-decls=class,func` 仅打印顶层类、顶层函数。
+
+```bash
+# 假设 构建好的工具 ${CJASTHelper_SRC}/build/bin/cjah 源码为 ${zzz}/main.cj 输出目录为 ${OUT_DIR}
+${CJASTHelper_SRC}/build/bin/cjah --dump-source=desugared-sema --filter-decls=class,func ${zzz}/main.cj --output-dir ${OUT_DIR}
+```
+
 ## 测试用例
 
 ### 依赖下载

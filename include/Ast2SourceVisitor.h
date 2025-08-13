@@ -73,6 +73,11 @@ public:
         this->flags |= SEMA_FLAG;
     }
 
+    inline void Focus(AstKind kind)
+    {
+        focusDecls.insert(kind);
+    }
+
 protected:
 #define GEN_VISIT_OVERRIDE(N) void Visit(const N& node, VisitResult&) override
 
@@ -194,11 +199,14 @@ private:
         return flags & SEMA_FLAG;
     }
 
+    bool IsFocused(const Decl& decl) const;
+
 private:
     std::string out;                                                 /**< 输出文件路径 */
     std::fstream ofs;                                                /**< 输出文件流 */
     Printer prt;                                                     /**< 打印器实例 */
     Flag flags;                                                      /**< 功能开关标志（解糖、语义等） */
+    std::unordered_set<AstKind> focusDecls;                          /**< 关注的顶层声明类型 */
     std::unordered_map<Ptr<const Decl>, std::string> desugaredVarId; /**< 解糖变量名字表 */
 };
 

@@ -108,14 +108,7 @@ private:
     std::unique_ptr<CompilerInstance> mci; /**< 编译器实例的智能指针 */
 
     SourceStage stage = SourceStage::DEFAULT; /**< 当前的源代码阶段 */
-
-    /**
-     * @brief 将字符串键映射到SourceStage值
-     */
-    static inline const std::unordered_map<std::string, SourceStage> key2Stage{{"parse", SourceStage::PARSE},
-        {"desugared-parse", SourceStage::DESUGARED_PARSE}, {"sema", SourceStage::SEMA},
-        {"desugared-sema", SourceStage::DESUGARED_SEMA}};
-
+    std::vector<std::string> filterDecls;     /**< 过滤打印decl配置 */
     /**
      * @brief 将SourceStage值映射到对应的执行函数
      */
