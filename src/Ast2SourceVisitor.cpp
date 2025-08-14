@@ -261,6 +261,9 @@ void Ast2SourceVisitor::Visit(const FuncDecl& node, VisitResult& res)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncDecl: ", node.identifier.Val());
     VisitDecl(node);
+    if (TryPrintEnumConstructor(node)) {
+        return;
+    }
     if (node.isGetter) {
         PRT().PVal("get");
     } else if (node.isSetter) {
@@ -307,11 +310,25 @@ void Ast2SourceVisitor::Visit(const FuncParamList& node, VisitResult&)
         node.params, [this](const FuncParam& param) { Traverse(param, *this); }, ", ", "(", ")", true);
 }
 
-void Ast2SourceVisitor::Visit(const FuncParam& node, VisitResult& res)
+void Ast2SourceVisitor::Visit(const FuncParam& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncParam");
+    VisitDecl(node);
+    if (node.hasLetOrVar) {
+        if (node.isConst) {
+            PRT().PVal("const ");
+        } else if (node.isVar) {
+            PRT().PVal("var ");
+        } else {
+            PRT().PVal("let ");
+        }
+    }
     PRT().PVal(Id(node.identifier));
+    if (node.isNamedParam) {
+        PRT().PVal("!");
+    }
     VisitType(node.type.get(), node.ty);
+    PrintNode(node.initializer.get(), " = ");
 }
 
 void Ast2SourceVisitor::Visit(const MainDecl& node, VisitResult& res)
@@ -335,6 +352,9 @@ void Ast2SourceVisitor::Visit(const VarDecl& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For VarDecl: ", node.identifier.Val());
     VisitDecl(node);
+    if (TryPrintEnumConstructor(node)) {
+        return;
+    }
     std::string pre = "let";
     if (node.isConst) {
         pre = "const";
@@ -381,16 +401,142 @@ void Ast2SourceVisitor::Visit(const PropDecl& node, VisitResult&)
     PRT().PVal("prop ");
     PRT().PVal(Id(node.identifier));
     VisitType(node.type.get(), node.ty);
-    if (!node.getters.empty()) {
-        PRT().PValNL(" {");
-        PRT().Indent();
-        PrintNode(node.getters[0].get(), "", "", true);
-        if (!node.setters.empty()) {
-            PrintNode(node.setters[0].get(), "", "", true);
-        }
-        PRT().Unindent();
-        PRT().PVal("}");
+    if (!HasBody(node)) {
+        return;
     }
+    PRT().PValNL(" {");
+    PRT().Indent();
+    PrintNode(node.getters[0].get(), "", "", true);
+    if (!node.setters.empty()) {
+        PrintNode(node.setters[0].get(), "", "", true);
+    }
+    PRT().Unindent();
+    PRT().PVal("}");
+}
+
+void Ast2SourceVisitor::Visit(const EnumDecl& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For EnumDecl: ", node.identifier.Val());
+    VisitDecl(node);
+    PRT().PVal("enum ");
+    PRT().PVal(Id(node.identifier));
+    PRT().PVec<Type>(node.inheritedTypes, [this](const Type& ty) { Traverse(ty, *this); }, " & ", " <: ");
+    VisitGenericParams(node.generic.get());
+    VisitGenericConstraints(node.generic.get());
+    PRT().PValNL(" {").Indent();
+
+    PRT().PVec<Decl>(node.constructors, [this](const Decl& decl) {
+        PRT().PVal("| ");
+        Traverse(decl, *this);
+        PRT().PNL();
+    });
+    PRT().PNL();
+    PRT().PVec<Decl>(node.members, [this](const Decl& decl) {
+        Traverse(decl, *this);
+        PRT().PNL(2);
+    });
+    PRT().Unindent();
+    PRT().PVal("}");
+}
+
+void Ast2SourceVisitor::Visit(const ExtendDecl& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ExtendDecl: ", node.identifier.Val());
+    VisitDecl(node);
+    PRT().PVal("extend");
+    VisitGenericParams(node.generic.get());
+    PrintNode(node.extendedType.get(), " ");
+    PRT().PVec<Type>(node.inheritedTypes, [this](const Type& ty) { Traverse(ty, *this); }, " & ", " <: ");
+    VisitGenericConstraints(node.generic.get());
+    PRT().PValNL(" {").Indent();
+    PRT().PVec<Decl>(node.members, [this](const Decl& decl) {
+        Traverse(decl, *this);
+        PRT().PNL(2);
+    });
+    PRT().Unindent();
+    PRT().PVal("}");
+}
+
+void Ast2SourceVisitor::Visit(const PrimaryCtorDecl& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For PrimaryCtorDecl: ", node.identifier.Val());
+    if (OpenSema()) {
+        return; // PrimaryCtorDecl is desugared in Sema
+    }
+    VisitDecl(node);
+    PRT().PVal(Id(node.identifier));
+    AH_CHECK_NULL(node.funcBody);
+    PrintNode(node.funcBody.get());
+}
+
+void Ast2SourceVisitor::Visit(const InterfaceDecl& node, VisitResult& res)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For InterfaceDecl: ", node.identifier.Val());
+    VisitDecl(node);
+    PRT().PVals("interface ", Id(node.identifier));
+    VisitGenericParams(node.generic);
+    PRT().PVec<Type>(node.inheritedTypes, [this](const Type& ty) { Traverse(ty, *this); }, " & ", " <: ");
+    VisitGenericConstraints(node.generic.get());
+    VisitNode(node.body);
+}
+
+void Ast2SourceVisitor::Visit(const InterfaceBody& node, VisitResult& res)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For InterfaceBody");
+    PRT().PValNL(" {").Indent();
+    PRT().PVec<Decl>(node.decls, [this](const Decl& decl) {
+        Traverse(decl, *this);
+        PRT().PNL(2);
+    });
+    PRT().Unindent();
+    PRT().PVal("}");
+}
+
+void Ast2SourceVisitor::Visit(const StructDecl& node, VisitResult& res)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For StructDecl: ", node.identifier.Val());
+    VisitDecl(node);
+    PRT().PVals("struct ", Id(node.identifier));
+    VisitGenericParams(node.generic.get());
+    PRT().PVec<Type>(node.inheritedTypes, [this](const Type& ty) { Traverse(ty, *this); }, " & ", " <: ");
+    VisitGenericConstraints(node.generic.get());
+    VisitNode(node.body);
+}
+
+void Ast2SourceVisitor::Visit(const StructBody& node, VisitResult& res)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For StructBody");
+    PRT().PValNL(" {").Indent();
+    PRT().PVec<Decl>(node.decls, [this](const Decl& decl) {
+        Traverse(decl, *this);
+        PRT().PNL(2);
+    });
+    PRT().Unindent();
+    PRT().PVal("}");
+}
+
+void Ast2SourceVisitor::Visit(const TypeAliasDecl& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For TypeAliasDecl: ", node.identifier.Val());
+    VisitDecl(node);
+    PRT().PVal("type ");
+    PRT().PVal(Id(node.identifier));
+    PrintNode(node.type.get(), " = ");
+}
+
+void Ast2SourceVisitor::Visit(const VarWithPatternDecl& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For VarWithPatternDecl: ", node.identifier.Val());
+    VisitDecl(node);
+    std::string pre = "let ";
+    if (node.isConst) {
+        pre = "const ";
+    } else if (node.isVar) {
+        pre = "var ";
+    }
+    PrintNode(node.irrefutablePattern.get(), pre);
+    VisitType(node.type.get(), node.ty);
+    PrintNode(node.initializer.get(), " = ");
 }
 
 // Type
@@ -599,6 +745,12 @@ void Ast2SourceVisitor::Visit(const ArrayLit& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ArrayLit");
     PRT().PVec<AstNode>(node.children, [this](const AstNode& expr) { Traverse(expr, *this); }, ", ", "[", "]", true);
+}
+
+void Ast2SourceVisitor::Visit(const TupleLit& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For TupleLit");
+    PRT().PVec<AstNode>(node.children, [this](const AstNode& expr) { Traverse(expr, *this); }, ", ", "(", ")", true);
 }
 
 void Ast2SourceVisitor::Visit(const MemberAccess& node, VisitResult&)
@@ -871,6 +1023,12 @@ void Ast2SourceVisitor::VisitTy(const Ty& ty)
             PRT().PVal(ty.name);
             PRT().PVec<Ty>(ty.typeArgs, [this](const Ty& argTy) { VisitTy(argTy); }, ", ", "<", ">");
             return;
+        case TyKind::TYPE_TUPLE:
+            PRT().PVec<Ty>(ty.typeArgs, [this](const Ty& argTy) { VisitTy(argTy); }, ", ", "(", ")");
+            return;
+        case TyKind::TYPE_GENERICS:
+            PRT().PVal(ty.name);
+            return;
         default:
             break;
     };
@@ -944,6 +1102,29 @@ void Ast2SourceVisitor::PrintPropCallExpr(const CallExpr& node)
         AH_ASSERT(node.args.size() == 1);
         PrintNode(node.args[0], " = ");
     }
+}
+
+bool Ast2SourceVisitor::TryPrintEnumConstructor(const VarDecl& decl)
+{
+    if (!decl.TestAttr(Attribute::ENUM_CONSTRUCTOR)) {
+        return false;
+    }
+    PRT().PVal(decl.identifier.Val());
+    return true;
+}
+
+bool Ast2SourceVisitor::TryPrintEnumConstructor(const FuncDecl& decl)
+{
+    if (!decl.TestAttr(Attribute::ENUM_CONSTRUCTOR)) {
+        return false;
+    }
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncBody of Enum Constructor");
+    PRT().PVal(Id(decl.identifier));
+    AH_ASSERT(decl.funcBody->paramLists[0]->params.size() > 0);
+    auto& params = decl.funcBody->paramLists[0]->params;
+    PRT().PVec<FuncParam>(
+        params, [this](const FuncParam& param) { PrintNode(param.type.get()); }, ", ", "(", ")", true);
+    return true;
 }
 
 inline void Ast2SourceVisitor::PrintNode(
@@ -1068,4 +1249,10 @@ bool Ast2SourceVisitor::IsFocused(const Decl& decl) const
         return true;
     }
     return focusDecls.find(decl.astKind) != focusDecls.end();
+}
+
+bool Ast2SourceVisitor::HasBody(const PropDecl& propDecl) const
+{
+    // 语义分析后可能会有 空的 getter
+    return !propDecl.getters.empty() && !propDecl.getters[0]->TestAttr(Attribute::ABSTRACT);
 }
