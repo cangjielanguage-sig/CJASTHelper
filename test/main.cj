@@ -184,7 +184,11 @@ interface I0 {
     prop bar: Int64
 }
 
-struct S <: I0 {
+struct S {
+    public S(private let x: Int64) {}
+}
+
+extend S <: I0 {
     public func foo(): Unit {
         println("S.foo()")
     }
@@ -201,6 +205,14 @@ struct S <: I0 {
         }
     }
 }
+
+extend S  {
+    func goo() {}
+}
+
+type MS = S
+
+var (a, b) = (1, 2)
 
 enum E <: I0 {
     | A

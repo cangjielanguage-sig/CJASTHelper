@@ -310,11 +310,25 @@ void Ast2SourceVisitor::Visit(const FuncParamList& node, VisitResult&)
         node.params, [this](const FuncParam& param) { Traverse(param, *this); }, ", ", "(", ")", true);
 }
 
-void Ast2SourceVisitor::Visit(const FuncParam& node, VisitResult& res)
+void Ast2SourceVisitor::Visit(const FuncParam& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncParam");
+    VisitDecl(node);
+    if (node.hasLetOrVar) {
+        if (node.isConst) {
+            PRT().PVal("const ");
+        } else if (node.isVar) {
+            PRT().PVal("var ");
+        } else {
+            PRT().PVal("let ");
+        }
+    }
     PRT().PVal(Id(node.identifier));
+    if (node.isNamedParam) {
+        PRT().PVal("!");
+    }
     VisitType(node.type.get(), node.ty);
+    PrintNode(node.initializer.get(), " = ");
 }
 
 void Ast2SourceVisitor::Visit(const MainDecl& node, VisitResult& res)
@@ -429,9 +443,9 @@ void Ast2SourceVisitor::Visit(const ExtendDecl& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ExtendDecl: ", node.identifier.Val());
     VisitDecl(node);
-    PRT().PVal("extend ");
+    PRT().PVal("extend");
     VisitGenericParams(node.generic.get());
-    PRT().PVal(Id(node.identifier));
+    PrintNode(node.extendedType.get(), " ");
     PRT().PVec<Type>(node.inheritedTypes, [this](const Type& ty) { Traverse(ty, *this); }, " & ", " <: ");
     VisitGenericConstraints(node.generic.get());
     PRT().PValNL(" {").Indent();
@@ -446,11 +460,13 @@ void Ast2SourceVisitor::Visit(const ExtendDecl& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const PrimaryCtorDecl& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For PrimaryCtorDecl: ", node.identifier.Val());
+    if (OpenSema()) {
+        return; // PrimaryCtorDecl is desugared in Sema
+    }
     VisitDecl(node);
-    PRT().PVal("primary ctor ");
     PRT().PVal(Id(node.identifier));
-    VisitGenericParams(node.generic.get());
-    VisitGenericConstraints(node.generic.get());
+    AH_CHECK_NULL(node.funcBody);
+    PrintNode(node.funcBody.get());
 }
 
 void Ast2SourceVisitor::Visit(const InterfaceDecl& node, VisitResult& res)
@@ -505,16 +521,22 @@ void Ast2SourceVisitor::Visit(const TypeAliasDecl& node, VisitResult&)
     VisitDecl(node);
     PRT().PVal("type ");
     PRT().PVal(Id(node.identifier));
-    VisitType(node.type.get(), node.ty);
+    PrintNode(node.type.get(), " = ");
 }
 
 void Ast2SourceVisitor::Visit(const VarWithPatternDecl& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For VarWithPatternDecl: ", node.identifier.Val());
     VisitDecl(node);
-    PRT().PVal("let ");
-    PRT().PVal(Id(node.identifier));
+    std::string pre = "let ";
+    if (node.isConst) {
+        pre = "const ";
+    } else if (node.isVar) {
+        pre = "var ";
+    }
+    PrintNode(node.irrefutablePattern.get(), pre);
     VisitType(node.type.get(), node.ty);
+    PrintNode(node.initializer.get(), " = ");
 }
 
 // Type
@@ -723,6 +745,12 @@ void Ast2SourceVisitor::Visit(const ArrayLit& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ArrayLit");
     PRT().PVec<AstNode>(node.children, [this](const AstNode& expr) { Traverse(expr, *this); }, ", ", "[", "]", true);
+}
+
+void Ast2SourceVisitor::Visit(const TupleLit& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For TupleLit");
+    PRT().PVec<AstNode>(node.children, [this](const AstNode& expr) { Traverse(expr, *this); }, ", ", "(", ")", true);
 }
 
 void Ast2SourceVisitor::Visit(const MemberAccess& node, VisitResult&)
@@ -994,6 +1022,12 @@ void Ast2SourceVisitor::VisitTy(const Ty& ty)
         case TyKind::TYPE_ENUM:
             PRT().PVal(ty.name);
             PRT().PVec<Ty>(ty.typeArgs, [this](const Ty& argTy) { VisitTy(argTy); }, ", ", "<", ">");
+            return;
+        case TyKind::TYPE_TUPLE:
+            PRT().PVec<Ty>(ty.typeArgs, [this](const Ty& argTy) { VisitTy(argTy); }, ", ", "(", ")");
+            return;
+        case TyKind::TYPE_GENERICS:
+            PRT().PVal(ty.name);
             return;
         default:
             break;
