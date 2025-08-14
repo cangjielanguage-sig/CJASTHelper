@@ -159,6 +159,10 @@ func foo9() {
     for ((k, v) in mp) {
         foo(k)
     }
+
+    for (x in "hello world") {
+        println(x)
+    }
 }
 
 unsafe func entry() {

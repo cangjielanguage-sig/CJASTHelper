@@ -152,6 +152,11 @@ private:
      * @param node 调用表达式节点的引用。
      */
     void PrintOverloadCallExpr(const CallExpr& node);
+    /**
+     * @brief 打印属性调用表达式。
+     * @param node 调用表达式节点的引用。
+     */
+    void PrintPropCallExpr(const CallExpr& node);
 
     /**
      * @brief 打印节点。

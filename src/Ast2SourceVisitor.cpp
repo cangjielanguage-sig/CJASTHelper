@@ -126,6 +126,17 @@ inline bool IsOverloadCall(const CallExpr& node)
     return node.baseFunc->astKind == AstKind::MEMBER_ACCESS;
 }
 
+/**
+ * Check whether the call is a prop call.
+ */
+inline bool IsPropCall(const CallExpr& node)
+{
+    if (!node.resolvedFunction) {
+        return false;
+    }
+    return node.resolvedFunction->isGetter || node.resolvedFunction->isSetter;
+}
+
 inline bool IsImportStdCore(const ImportContent& ic)
 {
     // std.core.*
@@ -505,6 +516,10 @@ void Ast2SourceVisitor::Visit(const CallExpr& node, VisitResult&)
         if (IsOverloadCall(node)) {
             PrintOverloadCallExpr(node);
             return;
+        } else if (IsPropCall(node)) {
+            // 属性调用
+            PrintPropCallExpr(node);
+            return;
         }
     }
     if (IsInitCall(node)) {
@@ -870,6 +885,26 @@ void Ast2SourceVisitor::PrintOverloadCallExpr(const CallExpr& node)
     PRT().PVal(" */ ");
 }
 
+void Ast2SourceVisitor::PrintPropCallExpr(const CallExpr& node)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::PrintPropCallExpr", "For Property CallExpr");
+    // TODO: 测试特殊的 prop call, 比如静态属性调用
+    auto fn = node.resolvedFunction;
+    auto propDecl = fn->propDecl;
+    AH_CHECK_NULL(propDecl);
+    bool isMem = node.baseFunc->astKind == AstKind::MEMBER_ACCESS;
+    if (isMem) {
+        auto ma = static_cast<MemberAccess*>(node.baseFunc.get().get());
+        PrintNode(ma->baseExpr.get(), "", ".");
+    }
+    PRT().PVal(Id(propDecl->identifier));
+    if (fn->isSetter) {
+        // setter
+        AH_ASSERT(node.args.size() == 1);
+        PrintNode(node.args[0], " = ");
+    }
+}
+
 inline void Ast2SourceVisitor::PrintNode(
     const Ptr<AstNode> pnode, const std::string& pre, const std::string& suf, bool withNL)
 {
@@ -939,12 +974,46 @@ void Ast2SourceVisitor::PrintDesugaredForInIterator(const ForInExpr& node)
     AH_ASSERT(node.desugarExpr->astKind == AstKind::BLOCK);
     Ptr<Block> block = static_cast<Block*>(node.desugarExpr.get().get());
     AH_ASSERT(block->body.size() == 2);
-    // TODO: 确认迭代变量的唯一性
     Traverse(*block, *this);
 }
 
+/**
+ * for (x in "hello")
+ * ============================
+ * var $iter-compiler = 0
+ * let tmp1 = "hello"
+ * let tmp2 = tmp1.$sizeget()
+ * while ($iter-compiler < $tmp2) {
+ *     let x = $tmp1[$iter-compiler]
+ *     println(x)
+ *     $iter-compiler = $iter-compiler + 1
+ * }
+ */
 void Ast2SourceVisitor::PrintDesugaredForInString(const ForInExpr& node)
 {
+    Logger::Get().Debug("Ast2SourceVisitor::PrintDesugaredForInString", "For ForInExpr with String");
+    AH_CHECK_NULL(node.pattern);
+    AH_ASSERT(node.pattern->astKind == AstKind::VAR_PATTERN);
+    Ptr<VarPattern> varPat = static_cast<VarPattern*>(node.pattern.get().get());
+    Ptr<Expr> inExpr = node.inExpression.get();
+    AH_CHECK_NULL(inExpr);
+    AH_ASSERT(inExpr->astKind == AstKind::BLOCK);
+    Ptr<Block> block = static_cast<Block*>(inExpr.get());
+    AH_ASSERT(block->body.size() == 3);
+
+    PrintNode(block->body[0].get(), "", "", true); // var $iter-compiler = 0
+    PrintNode(block->body[1].get(), "", "", true); // let tmp1 = "hello"
+    PrintNode(block->body[2].get(), "", "", true); // let tmp2 = tmp1.$sizeget()
+
+    auto loopVar = desugaredVarId.at(static_cast<VarDecl*>(block->body[0].get().get()));
+    auto stopVar = static_cast<VarDecl*>(block->body[2].get().get());
+    PRT().PVals("while (", loopVar, " < ", Id(stopVar->identifier), ") {").PNL();
+    PRT().Indent();
+    PrintNode(varPat->varDecl.get(), "", "", true); // let i = $iter-i;
+    Traverse(*node.body, *this);                    // foo(i);
+    PRT().PVals(loopVar, " = ", loopVar, " + 1").PNL();
+    PRT().Unindent();
+    PRT().PVal("}");
 }
 
 Printer& Ast2SourceVisitor::PRT()
