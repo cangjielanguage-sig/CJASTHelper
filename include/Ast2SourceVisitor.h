@@ -48,36 +48,6 @@ constexpr Flag SEMA_FLAG = 0x2;
  * @brief 继承自 `AstVisitor`，用于将AST转换为源代码。
  */
 class Ast2SourceVisitor : public AstVisitor {
-public:
-    /**
-     * @brief 构造函数，初始化输出文件、缩进和标志。
-     * @param out 输出文件路径。
-     * @param indent 缩进大小，默认为2。
-     * @param flags 功能开关标志，默认为0。
-     */
-    Ast2SourceVisitor(const std::string& out, int indent = 2, Flag flags = 0);
-
-    /**
-     * @brief 启用解糖功能。
-     */
-    inline void EnableDusgar()
-    {
-        this->flags |= DESUGAR_FLAG;
-    }
-
-    /**
-     * @brief 启用语义分析功能。
-     */
-    inline void EnableSeam()
-    {
-        this->flags |= SEMA_FLAG;
-    }
-
-    inline void Focus(AstKind kind)
-    {
-        focusDecls.insert(kind);
-    }
-
 protected:
 #define GEN_VISIT_OVERRIDE(N) void Visit(const N& node, VisitResult&) override
 
@@ -111,126 +81,181 @@ protected:
     EXPAND3(GEN_VISIT_OVERRIDE, Generic, GenericParamDecl, GenericConstraint);
 
 private:
+    friend class Ast2SourceVisitorBuilder;
+    /**
+     * @brief 构造函数，初始化输出文件、缩进和标志。
+     * @param out 输出文件路径。
+     * @param suffix 输出文件后缀。
+     * @param indent 缩进大小。
+     * @param flags 功能开关标志。
+     * @param focusDecls 关注的顶层声明类型集合。
+     */
+    Ast2SourceVisitor(const std::string& out, const std::string& suffix, int indent, Flag flags,
+        std::unordered_set<AstKind>&& focusDecls);
+
+private:
+    /// 辅助打印函数
+    /**
+     * @brief 辅助打印节点。
+     */
+    void TryPrintNode(
+        const Ptr<AstNode> pnode, const std::string& pre = "", const std::string& suf = "", bool withNL = false);
+    /**
+     * @brief 辅助打印声明节点。
+     */
+    void PrintDecl(const Decl& node);
+    /**
+     * @brief 辅助打印block。
+     */
+    void PrintBlock(const Ptr<Block> pnode);
+    /**
+     * @brief 尝试作为构造函数打印。
+     */
+    bool TryPrintConstructor(const FuncDecl& node);
+    /**
+     * @brief 尝试作为getter or setter打印。
+     */
+    bool TryPrintGetter(const FuncDecl& node);
+    bool TryPrintSetter(const FuncDecl& node);
+    /**
+     * @brief 尝试作为Enum构造器打印。
+     */
+    bool TryPrintEnumConstructor(const VarDecl& node);
+    bool TryPrintEnumConstructor(const FuncDecl& node);
+
+    /**
+     * @brief 辅助打印泛型参数。
+     */
+    void TryPrintGenericParams(Ptr<Generic> generic);
+    /**
+     * @brief 辅助打印泛型约束。
+     */
+    void TryPrintGenericConstraints(Ptr<Generic> generic);
+    /**
+     * @brief 辅助打印 Type 节点。
+     */
+    void TryPrintType(const Ptr<Cangjie::AST::Type> type);
+    /**
+     * @brief 辅助打印 Ty 语义信息。
+     */
+    void PrintTy(const Cangjie::AST::Ty& ty);
+    /**
+     * @brief 尝试还原解糖后的调用表达式。
+     */
+    bool TryRecoverCallExpr(const CallExpr& node);
+    /**
+     * @brief 尝试还原构造函数调用表达式。
+     */
+    bool TryPrintInitCall(const CallExpr& node);
+    /**
+     * @brief 尝试还原重载调用表达式。
+     */
+    bool TryRecoverOverloadCallExpr(const CallExpr& node);
+    /**
+     * @brief 尝试还原解糖后属性调用表达式。
+     */
+    bool TryRecoverPropCallExpr(const CallExpr& node);
+    /**
+     * @brief 尝试打印解糖后的for-in表达式。
+     */
+    bool TryDesugaredPrintForInExpr(const ForInExpr& node);
+    /**
+     * @brief 打印解糖后的 For-In 表达式（范围形式）。
+     */
+    void PrintDesugaredForInRange(const ForInExpr& node);
+    /**
+     * @brief 打印解糖后的 For-In 表达式（迭代器形式）。
+     */
+    void PrintDesugaredForInIterator(const ForInExpr& node);
+    /**
+     * @brief 打印解糖后的 For-In 表达式（字符串形式）。
+     */
+    void PrintDesugaredForInString(const ForInExpr& node);
+
+    /// 辅助 Flag 判断函数
+    /**
+     * @brief 检查是否启用解糖功能。
+     * @return 如果启用返回true，否则返回false。
+     */
+    bool OpenDesugar() const;
+    /**
+     * @brief 检查是否启用语义分析功能。
+     * @return 如果启用返回true，否则返回false。
+     */
+    bool OpenSema() const;
+    /**
+     * @brief 检查是否关注特定的声明类型。
+     * @param decl 声明。
+     * @return 如果关注返回true，否则返回false。
+     */
+    bool IsFocused(const Decl& decl) const;
+
     /**
      * @brief 获取 `Printer` 实例。
      * @return `Printer` 的引用。
      */
     Printer& PRT();
 
-    using Ty = Cangjie::AST::Ty;     /**< 类型别名，表示AST中的Ty节点。 */
-    using Type = Cangjie::AST::Type; /**< 类型别名，表示AST中的Type节点。 */
-
-    /**
-     * @brief 访问类型节点。
-     * @param type 类型节点指针。
-     * @param ty 可选的Ty节点指针。
-     */
-    void VisitType(const Ptr<Type> type, const Ptr<Ty> ty = nullptr);
-
-    /**
-     * @brief 访问Ty节点。
-     * @param ty Ty节点的引用。
-     */
-    void VisitTy(const Ty& ty);
-
-    /**
-     * @brief 访问声明节点。
-     * @param node 声明节点的引用。
-     */
-    void VisitDecl(const Decl& node);
-
-    /**
-     * @brief 访问泛型参数。
-     * @param generic 泛型节点指针。
-     */
-    void VisitGenericParams(Ptr<Generic> generic);
-
-    /**
-     * @brief 访问泛型约束。
-     * @param generic 泛型节点指针。
-     */
-    void VisitGenericConstraints(Ptr<Generic> generic);
-
-    /**
-     * @brief 打印重载调用表达式。
-     * @param node 调用表达式节点的引用。
-     */
-    void PrintOverloadCallExpr(const CallExpr& node);
-    /**
-     * @brief 打印属性调用表达式。
-     * @param node 调用表达式节点的引用。
-     */
-    void PrintPropCallExpr(const CallExpr& node);
-
-    /**
-     * @brief 尝试作为Enum构造器打印。
-     * @param decl 枚举声明的引用: 可能是VarDecl、FuncDecl。
-     * @return 如果打印成功返回true，否则返回false。
-     */
-    bool TryPrintEnumConstructor(const VarDecl& decl);
-    bool TryPrintEnumConstructor(const FuncDecl& decl);
-
-    /**
-     * @brief 打印节点。
-     * @param pnode 节点指针。
-     * @param pre 前缀字符串。
-     * @param suf 后缀字符串。
-     * @param withNL 是否追加空行。
-     */
-    void PrintNode(
-        const Ptr<AstNode> pnode, const std::string& pre = "", const std::string& suf = "", bool withNL = false);
-
-    /**
-     * @brief 打印解糖后的 For-In 表达式（范围形式）。
-     * @param node For-In 表达式节点的引用。
-     */
-    void PrintDesugaredForInRange(const ForInExpr& node);
-
-    /**
-     * @brief 打印解糖后的 For-In 表达式（迭代器形式）。
-     * @param node For-In 表达式节点的引用。
-     */
-    void PrintDesugaredForInIterator(const ForInExpr& node);
-
-    /**
-     * @brief 打印解糖后的 For-In 表达式（字符串形式）。
-     * @param node For-In 表达式节点的引用。
-     */
-    void PrintDesugaredForInString(const ForInExpr& node);
-
-    /**
-     * @brief 检查是否启用解糖功能。
-     * @return 如果启用返回true，否则返回false。
-     */
-    inline bool OpenDesugar() const
-    {
-        return flags & DESUGAR_FLAG;
-    }
-
-    /**
-     * @brief 检查是否启用语义分析功能。
-     * @return 如果启用返回true，否则返回false。
-     */
-    inline bool OpenSema() const
-    {
-        return flags & SEMA_FLAG;
-    }
-
-    bool IsFocused(const Decl& decl) const;
-
-    /**
-     * @brief prop是否有body。
-     * @return 有返回 true，否则返回 false。
-     */
-    bool HasBody(const PropDecl& propDecl) const;
-
 private:
     std::string out;                                                 /**< 输出文件路径 */
     std::fstream ofs;                                                /**< 输出文件流 */
     Printer prt;                                                     /**< 打印器实例 */
+    std::string suffix;                                              /**< 输出文件后缀 */
     Flag flags;                                                      /**< 功能开关标志（解糖、语义等） */
     std::unordered_set<AstKind> focusDecls;                          /**< 关注的顶层声明类型 */
     std::unordered_map<Ptr<const Decl>, std::string> desugaredVarId; /**< 解糖变量名字表 */
+};
+
+/**
+ * @class Ast2SourceVisitorBuilder
+ * @brief 构建 `Ast2SourceVisitor` 的辅助类。
+ */
+class Ast2SourceVisitorBuilder {
+public:
+    Ast2SourceVisitorBuilder() = default;
+    /**
+     * @brief 设置输出文件路径。
+     * @param out 输出文件路径。
+     * @return 返回当前构建器实例的引用，支持链式调用。
+     */
+    Ast2SourceVisitorBuilder& Output(const std::string& out);
+    /**
+     * @brief 设置输出文件后缀。
+     * @param suffix 输出文件后缀名。
+     * @return 返回当前构建器实例的引用，支持链式调用。
+     */
+    Ast2SourceVisitorBuilder& Suffix(const std::string& suffix);
+    /**
+     * @brief 设置输出缩进大小。
+     * @param indent 缩进大小。
+     * @return 返回当前构建器实例的引用，支持链式调用。
+     */
+    Ast2SourceVisitorBuilder& Indent(int indent);
+    /**
+     * @brief 启用解糖功能。
+     */
+    Ast2SourceVisitorBuilder& EnableDusgar();
+    /**
+     * @brief 启用语义分析功能。
+     */
+    Ast2SourceVisitorBuilder& EnableSeam();
+    /**
+     * @brief 设置关注的顶层声明类型。
+     * @param kinds 关注的声明类型名称列表。
+     */
+    Ast2SourceVisitorBuilder& Focus(const std::vector<std::string>& kinds);
+    /**
+     * @brief 构建 `Ast2SourceVisitor` 实例。
+     * @return 返回构建好的 `Ast2SourceVisitor` 实例。
+     */
+    Ast2SourceVisitor Build();
+
+private:
+    std::string out = ".";                  /**< 输出文件路径 */
+    std::string suffix = "_source.cj";      /**< 文件后缀名 */
+    int indent = 2;                         /**< 缩进大小 */
+    Flag flags = 0;                         /**< 功能开关标志 */
+    std::unordered_set<AstKind> focusDecls; /**< 关注的声明类型集合 */
 };
 
 #endif // AST_2_SOURCE_VISITOR_H

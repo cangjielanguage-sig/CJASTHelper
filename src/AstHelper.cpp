@@ -103,12 +103,6 @@ void PrintArgs(const std::vector<std::string>& args, const std::unordered_map<st
 }
 
 /**
- * @brief 将字符串键映射到AstKind
- */
-const std::unordered_map<std::string, AstKind> key2DeclKind{{"func", AstKind::FUNC_DECL},
-    {"class", AstKind::CLASS_DECL}, {"interface", AstKind::INTERFACE_DECL}, {"struct", AstKind::STRUCT_DECL},
-    {"var", AstKind::VAR_DECL}};
-/**
  * @brief 将字符串键映射到SourceStage值
  */
 const std::unordered_map<std::string, AstHelper::SourceStage> key2Stage{{"parse", AstHelper::SourceStage::PARSE},
@@ -146,17 +140,16 @@ void AstHelper::Run()
     }
     auto pkgs = mci->GetSourcePackages();
     Logger::Get().Debug("AstHelper::Run", "Get pkgs: ", pkgs.size());
-    Ast2SourceVisitor ast2SourceVisitor(GetOutputDir());
+    Ast2SourceVisitorBuilder asvBuilder;
+    asvBuilder.Output(GetOutputDir()).Suffix("_source.cj").Indent(4);
     if (stage >= SourceStage::DESUGARED_PARSE) {
-        ast2SourceVisitor.EnableDusgar();
+        asvBuilder.EnableDusgar();
     }
     if (stage >= SourceStage::SEMA) {
-        ast2SourceVisitor.EnableSeam();
+        asvBuilder.EnableSeam();
     }
-    for (auto& decl : filterDecls) {
-        Logger::Get().Debug("AstHelper::Run", "Focus Decl: ", decl);
-        ast2SourceVisitor.Focus(key2DeclKind.at(decl));
-    }
+    asvBuilder.Focus(filterDecls);
+    Ast2SourceVisitor ast2SourceVisitor = asvBuilder.Build();
     for (auto pkg : pkgs) {
         Logger::Get().Debug("AstHelper::Run", "Traverse ", pkg->fullPackageName, " by Ast2SourceVisitor");
         Traverse(*pkg, ast2SourceVisitor);
