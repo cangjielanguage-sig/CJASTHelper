@@ -992,6 +992,7 @@ void Ast2SourceVisitor::VisitType(const Ptr<Type> type, const Ptr<Ty> ty)
         Logger::Get().Debug("Ast2SourceVisitor::VisitType", "For Type");
         // For desugared node (only Type)
         if (OpenSema() && OpenDesugar() && type->astKind == AstKind::TYPE && type->ty) {
+            PRT().PVal(": ");
             VisitTy(*type->ty);
         } else {
             PRT().PVal(": ");
