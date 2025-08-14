@@ -48,36 +48,6 @@ constexpr Flag SEMA_FLAG = 0x2;
  * @brief 继承自 `AstVisitor`，用于将AST转换为源代码。
  */
 class Ast2SourceVisitor : public AstVisitor {
-public:
-    /**
-     * @brief 构造函数，初始化输出文件、缩进和标志。
-     * @param out 输出文件路径。
-     * @param indent 缩进大小，默认为2。
-     * @param flags 功能开关标志，默认为0。
-     */
-    Ast2SourceVisitor(const std::string& out, int indent = 2, Flag flags = 0);
-
-    /**
-     * @brief 启用解糖功能。
-     */
-    inline void EnableDusgar()
-    {
-        this->flags |= DESUGAR_FLAG;
-    }
-
-    /**
-     * @brief 启用语义分析功能。
-     */
-    inline void EnableSeam()
-    {
-        this->flags |= SEMA_FLAG;
-    }
-
-    inline void Focus(AstKind kind)
-    {
-        focusDecls.insert(kind);
-    }
-
 protected:
 #define GEN_VISIT_OVERRIDE(N) void Visit(const N& node, VisitResult&) override
 
@@ -111,12 +81,19 @@ protected:
     EXPAND3(GEN_VISIT_OVERRIDE, Generic, GenericParamDecl, GenericConstraint);
 
 private:
+    friend class Ast2SourceVisitorBuilder;
     /**
-     * @brief 获取 `Printer` 实例。
-     * @return `Printer` 的引用。
+     * @brief 构造函数，初始化输出文件、缩进和标志。
+     * @param out 输出文件路径。
+     * @param suffix 输出文件后缀。
+     * @param indent 缩进大小。
+     * @param flags 功能开关标志。
+     * @param focusDecls 关注的顶层声明类型集合。
      */
-    Printer& PRT();
+    Ast2SourceVisitor(const std::string& out, const std::string& suffix, int indent, Flag flags,
+        std::unordered_set<AstKind>&& focusDecls);
 
+private:
     using Ty = Cangjie::AST::Ty;     /**< 类型别名，表示AST中的Ty节点。 */
     using Type = Cangjie::AST::Type; /**< 类型别名，表示AST中的Type节点。 */
 
@@ -151,6 +128,7 @@ private:
      */
     void VisitGenericConstraints(Ptr<Generic> generic);
 
+    /// 辅助打印函数
     /**
      * @brief 打印重载调用表达式。
      * @param node 调用表达式节点的引用。
@@ -198,39 +176,90 @@ private:
      */
     void PrintDesugaredForInString(const ForInExpr& node);
 
+    /// 辅助 Flag 判断函数
     /**
      * @brief 检查是否启用解糖功能。
      * @return 如果启用返回true，否则返回false。
      */
-    inline bool OpenDesugar() const
-    {
-        return flags & DESUGAR_FLAG;
-    }
-
+    inline bool OpenDesugar() const;
     /**
      * @brief 检查是否启用语义分析功能。
      * @return 如果启用返回true，否则返回false。
      */
-    inline bool OpenSema() const
-    {
-        return flags & SEMA_FLAG;
-    }
-
+    inline bool OpenSema() const;
+    /**
+     * @brief 检查是否关注特定的声明类型。
+     * @param decl 声明。
+     * @return 如果关注返回true，否则返回false。
+     */
     bool IsFocused(const Decl& decl) const;
 
     /**
-     * @brief prop是否有body。
-     * @return 有返回 true，否则返回 false。
+     * @brief 获取 `Printer` 实例。
+     * @return `Printer` 的引用。
      */
-    bool HasBody(const PropDecl& propDecl) const;
+    Printer& PRT();
 
 private:
     std::string out;                                                 /**< 输出文件路径 */
     std::fstream ofs;                                                /**< 输出文件流 */
     Printer prt;                                                     /**< 打印器实例 */
+    std::string suffix;                                              /**< 输出文件后缀 */
     Flag flags;                                                      /**< 功能开关标志（解糖、语义等） */
     std::unordered_set<AstKind> focusDecls;                          /**< 关注的顶层声明类型 */
     std::unordered_map<Ptr<const Decl>, std::string> desugaredVarId; /**< 解糖变量名字表 */
+};
+
+/**
+ * @class Ast2SourceVisitorBuilder
+ * @brief 构建 `Ast2SourceVisitor` 的辅助类。
+ */
+class Ast2SourceVisitorBuilder {
+public:
+    Ast2SourceVisitorBuilder() = default;
+    /**
+     * @brief 设置输出文件路径。
+     * @param out 输出文件路径。
+     * @return 返回当前构建器实例的引用，支持链式调用。
+     */
+    Ast2SourceVisitorBuilder& Output(const std::string& out);
+    /**
+     * @brief 设置输出文件后缀。
+     * @param suffix 输出文件后缀名。
+     * @return 返回当前构建器实例的引用，支持链式调用。
+     */
+    Ast2SourceVisitorBuilder& Suffix(const std::string& suffix);
+    /**
+     * @brief 设置输出缩进大小。
+     * @param indent 缩进大小。
+     * @return 返回当前构建器实例的引用，支持链式调用。
+     */
+    Ast2SourceVisitorBuilder& Indent(int indent);
+    /**
+     * @brief 启用解糖功能。
+     */
+    Ast2SourceVisitorBuilder& EnableDusgar();
+    /**
+     * @brief 启用语义分析功能。
+     */
+    Ast2SourceVisitorBuilder& EnableSeam();
+    /**
+     * @brief 设置关注的顶层声明类型。
+     * @param kinds 关注的声明类型名称列表。
+     */
+    Ast2SourceVisitorBuilder& Focus(const std::vector<std::string>& kinds);
+    /**
+     * @brief 构建 `Ast2SourceVisitor` 实例。
+     * @return 返回构建好的 `Ast2SourceVisitor` 实例。
+     */
+    Ast2SourceVisitor Build();
+
+private:
+    std::string out = ".";                  /**< 输出文件路径 */
+    std::string suffix = "_source.cj";      /**< 文件后缀名 */
+    int indent = 2;                         /**< 缩进大小 */
+    Flag flags = 0;                         /**< 功能开关标志 */
+    std::unordered_set<AstKind> focusDecls; /**< 关注的声明类型集合 */
 };
 
 #endif // AST_2_SOURCE_VISITOR_H

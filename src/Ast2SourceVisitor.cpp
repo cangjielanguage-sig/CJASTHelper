@@ -17,6 +17,7 @@ using Cangjie::AST::ImportKind;
 using Cangjie::AST::Pattern;
 
 namespace {
+// 私有辅助函数
 void CreateDirIfNotExists(const std::string& path)
 {
     if (fs::exists(path)) {
@@ -142,6 +143,21 @@ inline bool IsGetterOrSetter(const Ptr<FuncDecl> node)
     return node && (node->isGetter || node->isSetter);
 }
 
+/**
+ * @brief prop是否有body。
+ * @return 有返回 true，否则返回 false。
+ */
+inline bool HasBody(const PropDecl& propDecl)
+{
+    // 语义分析后可能会有 空的 getter
+    return !propDecl.getters.empty() && !propDecl.getters[0]->TestAttr(Attribute::ABSTRACT);
+}
+
+/**
+ * Check if the import is std.core.*.
+ * @param ic ImportContent to check.
+ * @return true if it is std.core.*, false otherwise.
+ */
 inline bool IsImportStdCore(const ImportContent& ic)
 {
     // std.core.*
@@ -161,9 +177,9 @@ inline bool NeedHidden(const ImportSpec& node)
     }
     return false;
 }
-
-const std::string SUFFIX = "_source.cj";
 } // namespace
+
+///  Ast2SourceException 实现函数
 
 Ast2SourceException::Ast2SourceException(const std::string& msg) noexcept : message(msg)
 {
@@ -174,16 +190,11 @@ const char* Ast2SourceException::what() const noexcept
     return message.c_str();
 }
 
-Ast2SourceVisitor::Ast2SourceVisitor(const std::string& out, int indent, Flag flags)
-    : out(out), prt(ofs, indent), flags(flags)
-{
-    CreateDirIfNotExists(out);
-}
-
+/// Ast2SourceVisitor 实现函数
 void Ast2SourceVisitor::Visit(const File& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For File imports: ", node.imports.size());
-    std::string fp = out + "/" + GetFileNameWithoutSuffix(node.fileName) + SUFFIX;
+    std::string fp = out + "/" + GetFileNameWithoutSuffix(node.fileName) + suffix;
     ofs.open(fp, std::ios::out);
     if (!ofs.is_open()) {
         throw Ast2SourceException("Failed to open file: " + fp);
@@ -985,7 +996,15 @@ void Ast2SourceVisitor::Visit(const GenericConstraint& node, VisitResult&)
     PRT().PVec<Type>(node.upperBounds, [this](const Type& tp) { Traverse(tp, *this); }, " & ");
 }
 
-// Seam Type
+/// 私有实现函数
+Ast2SourceVisitor::Ast2SourceVisitor(
+    const std::string& out, const std::string& suffix, int indent, Flag flags, std::unordered_set<AstKind>&& focusDecls)
+    : out(out), prt(ofs, indent), suffix(suffix), flags(flags), focusDecls(std::move(focusDecls))
+{
+    CreateDirIfNotExists(out);
+}
+
+// 辅助打印函数 (重命名 PrintXXX)
 void Ast2SourceVisitor::VisitType(const Ptr<Type> type, const Ptr<Ty> ty)
 {
     if (type) {
@@ -1239,9 +1258,14 @@ void Ast2SourceVisitor::PrintDesugaredForInString(const ForInExpr& node)
     PRT().PVal("}");
 }
 
-Printer& Ast2SourceVisitor::PRT()
+inline bool Ast2SourceVisitor::OpenDesugar() const
 {
-    return prt;
+    return flags & DESUGAR_FLAG;
+}
+
+inline bool Ast2SourceVisitor::OpenSema() const
+{
+    return flags & SEMA_FLAG;
 }
 
 bool Ast2SourceVisitor::IsFocused(const Decl& decl) const
@@ -1252,8 +1276,60 @@ bool Ast2SourceVisitor::IsFocused(const Decl& decl) const
     return focusDecls.find(decl.astKind) != focusDecls.end();
 }
 
-bool Ast2SourceVisitor::HasBody(const PropDecl& propDecl) const
+Printer& Ast2SourceVisitor::PRT()
 {
-    // 语义分析后可能会有 空的 getter
-    return !propDecl.getters.empty() && !propDecl.getters[0]->TestAttr(Attribute::ABSTRACT);
+    return prt;
+}
+
+/// Ast2SourceVisitorBuilder 实现方法
+Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::Output(const std::string& out)
+{
+    this->out = out;
+    return *this;
+}
+
+Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::Suffix(const std::string& suffix)
+{
+    this->suffix = suffix;
+    return *this;
+}
+
+Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::Indent(int indent)
+{
+    this->indent = indent;
+    return *this;
+}
+
+Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::EnableDusgar()
+{
+    this->flags |= DESUGAR_FLAG;
+    return *this;
+}
+
+Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::EnableSeam()
+{
+    this->flags |= SEMA_FLAG;
+    return *this;
+}
+
+namespace {
+/**
+ * @brief 将字符串键映射到AstKind
+ */
+const std::unordered_map<std::string, AstKind> key2DeclKind{{"func", AstKind::FUNC_DECL},
+    {"class", AstKind::CLASS_DECL}, {"interface", AstKind::INTERFACE_DECL}, {"struct", AstKind::STRUCT_DECL},
+    {"var", AstKind::VAR_DECL}};
+} // namespace
+
+Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::Focus(const std::vector<std::string>& kinds)
+{
+    for (auto& kind : kinds) {
+        focusDecls.insert(key2DeclKind.at(kind));
+    }
+    return *this;
+}
+
+Ast2SourceVisitor Ast2SourceVisitorBuilder::Build()
+{
+    return Ast2SourceVisitor(out, suffix, indent, flags, std::move(focusDecls));
 }
