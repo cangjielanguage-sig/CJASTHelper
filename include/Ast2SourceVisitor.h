@@ -88,7 +88,9 @@ protected:
     // Decl
     EXPAND4(GEN_VISIT_OVERRIDE, FuncDecl, FuncBody, FuncParamList, FuncParam);
     EXPAND4(GEN_VISIT_OVERRIDE, MainDecl, VarDecl, ClassDecl, ClassBody);
-    EXPAND1(GEN_VISIT_OVERRIDE, PropDecl);
+    EXPAND4(GEN_VISIT_OVERRIDE, InterfaceDecl, InterfaceBody, StructDecl, StructBody);
+    EXPAND4(GEN_VISIT_OVERRIDE, PropDecl, EnumDecl, ExtendDecl, PrimaryCtorDecl);
+    EXPAND2(GEN_VISIT_OVERRIDE, VarWithPatternDecl, TypeAliasDecl);
     // Type
     EXPAND4(GEN_VISIT_OVERRIDE, PrimitiveType, RefType, OptionType, TupleType);
     EXPAND4(GEN_VISIT_OVERRIDE, QualifiedType, ThisType, VArrayType, ParenType);
@@ -160,6 +162,14 @@ private:
     void PrintPropCallExpr(const CallExpr& node);
 
     /**
+     * @brief 尝试作为Enum构造器打印。
+     * @param decl 枚举声明的引用: 可能是VarDecl、FuncDecl。
+     * @return 如果打印成功返回true，否则返回false。
+     */
+    bool TryPrintEnumConstructor(const VarDecl& decl);
+    bool TryPrintEnumConstructor(const FuncDecl& decl);
+
+    /**
      * @brief 打印节点。
      * @param pnode 节点指针。
      * @param pre 前缀字符串。
@@ -206,6 +216,12 @@ private:
     }
 
     bool IsFocused(const Decl& decl) const;
+
+    /**
+     * @brief prop是否有body。
+     * @return 有返回 true，否则返回 false。
+     */
+    bool HasBody(const PropDecl& propDecl) const;
 
 private:
     std::string out;                                                 /**< 输出文件路径 */

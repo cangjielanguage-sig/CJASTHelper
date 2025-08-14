@@ -177,6 +177,54 @@ class B {
     }
 }
 
+interface I0 {
+    func foo(): Unit
+    func foo(x: Int64): Int64
+
+    prop bar: Int64
+}
+
+struct S <: I0 {
+    public func foo(): Unit {
+        println("S.foo()")
+    }
+
+    public func foo(x: Int64): Int64 {
+        println("S.foo(x)")
+        return x
+    }
+
+    public prop bar: Int64 {
+        get() {
+            println("S.bar.get()")
+            return 42
+        }
+    }
+}
+
+enum E <: I0 {
+    | A
+    | B
+    | C(Int64)
+    | D(Int64, S)
+
+    public func foo(): Unit {
+        println("E.foo()")
+    }
+
+    public func foo(x: Int64): Int64 {
+        println("E.foo(x)")
+        return x
+    }
+
+    public prop bar: Int64 {
+        get() {
+            println("E.bar.get()")
+            return 42
+        }
+    }
+}
+
 unsafe func entry() {
     let res = foo(2, 3)
     println(res)
