@@ -101,9 +101,13 @@ private:
     void TryPrintNode(
         const Ptr<AstNode> pnode, const std::string& pre = "", const std::string& suf = "", bool withNL = false);
     /**
-     * @brief 访问声明节点。
+     * @brief 辅助打印声明节点。
      */
     void PrintDecl(const Decl& node);
+    /**
+     * @brief 辅助打印block。
+     */
+    void PrintBlock(const Ptr<Block> pnode);
     /**
      * @brief 尝试作为构造函数打印。
      */
@@ -151,6 +155,10 @@ private:
      * @brief 尝试还原解糖后属性调用表达式。
      */
     bool TryRecoverPropCallExpr(const CallExpr& node);
+    /**
+     * @brief 尝试打印解糖后的for-in表达式。
+     */
+    bool TryDesugaredPrintForInExpr(const ForInExpr& node);
     /**
      * @brief 打印解糖后的 For-In 表达式（范围形式）。
      */

@@ -209,7 +209,7 @@ void Ast2SourceVisitor::Visit(const Modifier& node, VisitResult&)
 }
 
 // Decls
-void Ast2SourceVisitor::Visit(const FuncDecl& node, VisitResult& res)
+void Ast2SourceVisitor::Visit(const FuncDecl& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncDecl: ", node.identifier.Val());
     PrintDecl(node);
@@ -218,8 +218,7 @@ void Ast2SourceVisitor::Visit(const FuncDecl& node, VisitResult& res)
     }
     // General func.
     PRT().PVals("func ", Id(node.identifier));
-    AH_CHECK_NULL(node.funcBody);
-    Visit(*node.funcBody, res);
+    TryPrintNode(node.funcBody);
 }
 
 void Ast2SourceVisitor::Visit(const FuncBody& node, VisitResult&)
@@ -227,12 +226,9 @@ void Ast2SourceVisitor::Visit(const FuncBody& node, VisitResult&)
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncBody");
     TryPrintGenericParams(node.generic.get());
     VisitNode(node.paramLists[0]);
-    if (!node.funcDecl || (node.funcDecl && !node.funcDecl->TestAttr(Attribute::CONSTRUCTOR))) {
-        TryPrintType(node.retType);
-    }
+    TryPrintType(node.retType);
     TryPrintGenericConstraints(node.generic.get());
-    PRT().PPtr<Block>(
-        node.body, [this](const Block& block) { PRT().PWI([this, &block] { Traverse(block, *this); }, " {", "}"); });
+    PrintBlock(node.body);
 }
 
 void Ast2SourceVisitor::Visit(const FuncParamList& node, VisitResult&)
@@ -603,9 +599,6 @@ void Ast2SourceVisitor::Visit(const TuplePattern& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const Block& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For Block: ", node.body.size());
-    if (node.body.size() > 0) {
-        Logger::Get().Debug("Ast2SourceVisitor::Visit", "For Block body ", static_cast<int>(node.body[0]->astKind));
-    }
     PRT().PVec<AstNode>(node.body, [this](const AstNode& node) {
         auto res = Traverse(node, *this);
         if (res.status) {
@@ -848,23 +841,13 @@ void Ast2SourceVisitor::Visit(const DoWhileExpr& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const ForInExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ForInExpr");
-    if (OpenDesugar() && OpenSema()) {
-        using ForInKind = Cangjie::AST::ForInKind;
-        if (node.forInKind == ForInKind::FORIN_RANGE) {
-            PrintDesugaredForInRange(node);
-        } else if (node.forInKind == ForInKind::FORIN_STRING) {
-            PrintDesugaredForInString(node);
-        } else {
-            // Default: ForInKind::FORIN_ITER
-            PrintDesugaredForInIterator(node);
-            Logger::Get().Warn("Ast2SourceVisitor::Visit", "Unknown ForInKind: ", static_cast<int>(node.forInKind));
-        }
-    } else {
-        TryPrintNode(node.pattern.get(), "for (", " in ");
-        TryPrintNode(node.inExpression.get());
-        TryPrintNode(node.patternGuard.get());
-        PRT().PWI([this, &node] { VisitNode(node.body); }, ") {", "}");
+    if (TryDesugaredPrintForInExpr(node)) {
+        return;
     }
+    TryPrintNode(node.pattern.get(), "for (", " in ");
+    TryPrintNode(node.inExpression.get());
+    TryPrintNode(node.patternGuard.get());
+    PRT().PWI([this, &node] { VisitNode(node.body); }, ") {", "}");
 }
 
 // Generic
@@ -923,13 +906,14 @@ Ast2SourceVisitor::Ast2SourceVisitor(
 inline void Ast2SourceVisitor::TryPrintNode(
     const Ptr<AstNode> pnode, const std::string& pre, const std::string& suf, bool withNL)
 {
-    if (pnode) {
-        PRT().PVal(pre);
-        Traverse(*pnode, *this);
-        PRT().PVal(suf);
-        if (withNL) {
-            PRT().PNL();
-        }
+    if (!pnode) {
+        return;
+    }
+    PRT().PVal(pre);
+    Traverse(*pnode, *this);
+    PRT().PVal(suf);
+    if (withNL) {
+        PRT().PNL();
     }
 }
 
@@ -945,8 +929,21 @@ void Ast2SourceVisitor::PrintDecl(const Decl& node)
 }
 
 /**
+ * @brief 辅助打印代码块。
+ * @param pnode : VarDecl。
+ * @return 如果打印成功返回true，否则返回false。
+ */
+inline void Ast2SourceVisitor::PrintBlock(const Ptr<Block> pnode)
+{
+    if (!pnode) {
+        return;
+    }
+    PRT().PWI([this, pnode] { Traverse(*pnode, *this); }, " {", "}");
+}
+
+/**
  * @brief 尝试作为构造函数打印。
- * @param decl 枚举声明的引用: VarDecl。
+ * @param decl 声明的引用: FuncDecl。
  * @return 如果打印成功返回true，否则返回false。
  */
 bool Ast2SourceVisitor::TryPrintConstructor(const FuncDecl& node)
@@ -954,9 +951,10 @@ bool Ast2SourceVisitor::TryPrintConstructor(const FuncDecl& node)
     if (!node.TestAttr(Attribute::CONSTRUCTOR)) {
         return false;
     }
+    Logger::Get().Debug("Ast2SourceVisitor::TryPrintConstructor", "For FuncDecl is constructor");
     PRT().PVal(Id(node.identifier));
-    AH_CHECK_NULL(node.funcBody);
-    TryPrintNode(node.funcBody.get());
+    VisitNode(node.funcBody->paramLists[0]);
+    PrintBlock(node.funcBody->body);
     return true;
 }
 /**
@@ -969,9 +967,9 @@ bool Ast2SourceVisitor::TryPrintGetter(const FuncDecl& node)
     if (!node.isGetter) {
         return false;
     }
+    Logger::Get().Debug("Ast2SourceVisitor::TryPrintGetter", "For FuncDecl is getter");
     PRT().PVal("get()");
-    PRT().PPtr<Block>(node.funcBody->body,
-        [this](const Block& block) { PRT().PWI([this, &block] { Traverse(block, *this); }, " {", "}"); });
+    PrintBlock(node.funcBody->body);
     return true;
 }
 /**
@@ -984,10 +982,10 @@ bool Ast2SourceVisitor::TryPrintSetter(const FuncDecl& node)
     if (!node.isSetter) {
         return false;
     }
+    Logger::Get().Debug("Ast2SourceVisitor::TryPrintSetter", "For FuncDecl is setter");
     AH_ASSERT(node.funcBody->paramLists[0]->params.size() == 1);
     PRT().PVals("set(", Id(node.funcBody->paramLists[0]->params[0]->identifier), ")");
-    PRT().PPtr<Block>(node.funcBody->body,
-        [this](const Block& block) { PRT().PWI([this, &block] { Traverse(block, *this); }, " {", "}"); });
+    PrintBlock(node.funcBody->body);
     return true;
 }
 
@@ -996,12 +994,13 @@ bool Ast2SourceVisitor::TryPrintSetter(const FuncDecl& node)
  * @param decl 枚举声明的引用: VarDecl。
  * @return 如果打印成功返回true，否则返回false。
  */
-bool Ast2SourceVisitor::TryPrintEnumConstructor(const VarDecl& decl)
+bool Ast2SourceVisitor::TryPrintEnumConstructor(const VarDecl& node)
 {
-    if (!decl.TestAttr(Attribute::ENUM_CONSTRUCTOR)) {
+    if (!node.TestAttr(Attribute::ENUM_CONSTRUCTOR)) {
         return false;
     }
-    PRT().PVal(decl.identifier.Val());
+    Logger::Get().Debug("Ast2SourceVisitor::TryPrintEnumConstructor", "For VarDecl as EnumConstructor");
+    PRT().PVal(node.identifier.Val());
     return true;
 }
 
@@ -1010,15 +1009,15 @@ bool Ast2SourceVisitor::TryPrintEnumConstructor(const VarDecl& decl)
  * @param decl 枚举声明的引用: FuncDecl。
  * @return 如果打印成功返回true，否则返回false。
  */
-bool Ast2SourceVisitor::TryPrintEnumConstructor(const FuncDecl& decl)
+bool Ast2SourceVisitor::TryPrintEnumConstructor(const FuncDecl& node)
 {
-    if (!decl.TestAttr(Attribute::ENUM_CONSTRUCTOR)) {
+    if (!node.TestAttr(Attribute::ENUM_CONSTRUCTOR)) {
         return false;
     }
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncBody of Enum Constructor");
-    PRT().PVal(Id(decl.identifier));
-    AH_ASSERT(decl.funcBody->paramLists[0]->params.size() > 0);
-    auto& params = decl.funcBody->paramLists[0]->params;
+    Logger::Get().Debug("Ast2SourceVisitor::TryPrintEnumConstructor", "For FuncDecl as EnumConstructor");
+    PRT().PVal(Id(node.identifier));
+    AH_ASSERT(node.funcBody->paramLists[0]->params.size() > 0);
+    auto& params = node.funcBody->paramLists[0]->params;
     PRT().PVec<FuncParam>(
         params, [this](const FuncParam& param) { TryPrintNode(param.type.get()); }, ", ", "(", ")", true);
     return true;
@@ -1265,6 +1264,38 @@ bool Ast2SourceVisitor::TryRecoverPropCallExpr(const CallExpr& node)
         // setter
         AH_ASSERT(node.args.size() == 1);
         TryPrintNode(node.args[0], " = ");
+    }
+    return true;
+}
+
+/**
+ * @brief 打印解糖后的 For-In 表达式（范围形式）。
+ *
+ * for (x in start..stop:step)
+ * ============================
+ * var $iter-i = startExpr
+ * var $stop-compiler = stopExpr
+ * while ($iter-i < $stop-compiler) {
+ *     let i = $iter-i
+ *     foo(i)
+ *     $iter-i += stepExpr
+ * }
+ *
+ * @param node For-In 表达式节点的引用。
+ */
+bool Ast2SourceVisitor::TryDesugaredPrintForInExpr(const ForInExpr& node)
+{
+    if (!OpenSema()) {
+        return false;
+    }
+    using Cangjie::AST::ForInKind;
+    if (node.forInKind == ForInKind::FORIN_RANGE) {
+        PrintDesugaredForInRange(node);
+    } else if (node.forInKind == ForInKind::FORIN_STRING) {
+        PrintDesugaredForInString(node);
+    } else {
+        // Default: ForInKind::FORIN_ITER
+        PrintDesugaredForInIterator(node);
     }
     return true;
 }
