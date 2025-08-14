@@ -165,6 +165,18 @@ func foo9() {
     }
 }
 
+class B {
+    var data: Int64 = 0
+    public prop a: Int64 {
+        get() {1}
+    }
+
+    public mut prop b: Int64 {
+        get() { data + 1}
+        set(v) { this.data = v + 1 }
+    }
+}
+
 unsafe func entry() {
     let res = foo(2, 3)
     println(res)

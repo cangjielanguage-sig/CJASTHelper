@@ -137,6 +137,11 @@ inline bool IsPropCall(const CallExpr& node)
     return node.resolvedFunction->isGetter || node.resolvedFunction->isSetter;
 }
 
+inline bool IsGetterOrSetter(const Ptr<FuncDecl> node)
+{
+    return node && (node->isGetter || node->isSetter);
+}
+
 inline bool IsImportStdCore(const ImportContent& ic)
 {
     // std.core.*
@@ -256,10 +261,16 @@ void Ast2SourceVisitor::Visit(const FuncDecl& node, VisitResult& res)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncDecl: ", node.identifier.Val());
     VisitDecl(node);
-    if (!node.TestAttr(Attribute::CONSTRUCTOR)) {
-        PRT().PVal("func ");
+    if (node.isGetter) {
+        PRT().PVal("get");
+    } else if (node.isSetter) {
+        PRT().PVal("set");
+    } else {
+        if (!node.TestAttr(Attribute::CONSTRUCTOR)) {
+            PRT().PVal("func ");
+        }
+        PRT().PVal(Id(node.identifier));
     }
-    PRT().PVal(Id(node.identifier));
     AH_CHECK_NULL(node.funcBody);
     Visit(*node.funcBody, res);
 }
@@ -267,13 +278,24 @@ void Ast2SourceVisitor::Visit(const FuncDecl& node, VisitResult& res)
 void Ast2SourceVisitor::Visit(const FuncBody& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncBody");
-    VisitGenericParams(node.generic.get());
-    VisitNode(node.paramLists[0]);
-    Ptr<Ty> retTy = TryGetRetTy(node);
-    if (!node.funcDecl || (node.funcDecl && !node.funcDecl->TestAttr(Attribute::CONSTRUCTOR))) {
-        VisitType(node.retType, retTy);
+    auto funcDecl = node.funcDecl;
+    if (IsGetterOrSetter(funcDecl)) {
+        if (funcDecl->isSetter) {
+            AH_ASSERT(node.paramLists[0]->params.size() == 1);
+            PRT().PVals("(", Id(node.paramLists[0]->params[0]->identifier), ")");
+        } else {
+            PRT().PVal("()");
+        }
+    } else {
+        VisitGenericParams(node.generic.get());
+        VisitNode(node.paramLists[0]);
+        Ptr<Ty> retTy = TryGetRetTy(node);
+        if (!node.funcDecl || (node.funcDecl && !node.funcDecl->TestAttr(Attribute::CONSTRUCTOR))) {
+            VisitType(node.retType, retTy);
+        }
+        VisitGenericConstraints(node.generic.get());
     }
-    VisitGenericConstraints(node.generic.get());
+
     PRT().PPtr<Block>(
         node.body, [this](const Block& block) { PRT().PWI([this, &block] { Traverse(block, *this); }, " {", "}"); });
 }
@@ -350,6 +372,25 @@ void Ast2SourceVisitor::Visit(const ClassBody& node, VisitResult& res)
     });
     PRT().Unindent();
     PRT().PVal("}");
+}
+
+void Ast2SourceVisitor::Visit(const PropDecl& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For PropDecl: ", node.identifier.Val());
+    VisitDecl(node);
+    PRT().PVal("prop ");
+    PRT().PVal(Id(node.identifier));
+    VisitType(node.type.get(), node.ty);
+    if (!node.getters.empty()) {
+        PRT().PValNL(" {");
+        PRT().Indent();
+        PrintNode(node.getters[0].get(), "", "", true);
+        if (!node.setters.empty()) {
+            PrintNode(node.setters[0].get(), "", "", true);
+        }
+        PRT().Unindent();
+        PRT().PVal("}");
+    }
 }
 
 // Type
