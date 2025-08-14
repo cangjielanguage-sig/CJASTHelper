@@ -94,85 +94,73 @@ private:
         std::unordered_set<AstKind>&& focusDecls);
 
 private:
-    using Ty = Cangjie::AST::Ty;     /**< 类型别名，表示AST中的Ty节点。 */
-    using Type = Cangjie::AST::Type; /**< 类型别名，表示AST中的Type节点。 */
-
-    /**
-     * @brief 访问类型节点。
-     * @param type 类型节点指针。
-     * @param ty 可选的Ty节点指针。
-     */
-    void VisitType(const Ptr<Type> type, const Ptr<Ty> ty = nullptr);
-
-    /**
-     * @brief 访问Ty节点。
-     * @param ty Ty节点的引用。
-     */
-    void VisitTy(const Ty& ty);
-
-    /**
-     * @brief 访问声明节点。
-     * @param node 声明节点的引用。
-     */
-    void VisitDecl(const Decl& node);
-
-    /**
-     * @brief 访问泛型参数。
-     * @param generic 泛型节点指针。
-     */
-    void VisitGenericParams(Ptr<Generic> generic);
-
-    /**
-     * @brief 访问泛型约束。
-     * @param generic 泛型节点指针。
-     */
-    void VisitGenericConstraints(Ptr<Generic> generic);
-
     /// 辅助打印函数
     /**
-     * @brief 打印重载调用表达式。
-     * @param node 调用表达式节点的引用。
+     * @brief 辅助打印节点。
      */
-    void PrintOverloadCallExpr(const CallExpr& node);
+    void TryPrintNode(
+        const Ptr<AstNode> pnode, const std::string& pre = "", const std::string& suf = "", bool withNL = false);
     /**
-     * @brief 打印属性调用表达式。
-     * @param node 调用表达式节点的引用。
+     * @brief 访问声明节点。
      */
-    void PrintPropCallExpr(const CallExpr& node);
-
+    void PrintDecl(const Decl& node);
+    /**
+     * @brief 尝试作为构造函数打印。
+     */
+    bool TryPrintConstructor(const FuncDecl& node);
+    /**
+     * @brief 尝试作为getter or setter打印。
+     */
+    bool TryPrintGetter(const FuncDecl& node);
+    bool TryPrintSetter(const FuncDecl& node);
     /**
      * @brief 尝试作为Enum构造器打印。
-     * @param decl 枚举声明的引用: 可能是VarDecl、FuncDecl。
-     * @return 如果打印成功返回true，否则返回false。
      */
-    bool TryPrintEnumConstructor(const VarDecl& decl);
-    bool TryPrintEnumConstructor(const FuncDecl& decl);
+    bool TryPrintEnumConstructor(const VarDecl& node);
+    bool TryPrintEnumConstructor(const FuncDecl& node);
 
     /**
-     * @brief 打印节点。
-     * @param pnode 节点指针。
-     * @param pre 前缀字符串。
-     * @param suf 后缀字符串。
-     * @param withNL 是否追加空行。
+     * @brief 辅助打印泛型参数。
      */
-    void PrintNode(
-        const Ptr<AstNode> pnode, const std::string& pre = "", const std::string& suf = "", bool withNL = false);
-
+    void TryPrintGenericParams(Ptr<Generic> generic);
+    /**
+     * @brief 辅助打印泛型约束。
+     */
+    void TryPrintGenericConstraints(Ptr<Generic> generic);
+    /**
+     * @brief 辅助打印 Type 节点。
+     */
+    void TryPrintType(const Ptr<Cangjie::AST::Type> type);
+    /**
+     * @brief 辅助打印 Ty 语义信息。
+     */
+    void PrintTy(const Cangjie::AST::Ty& ty);
+    /**
+     * @brief 尝试还原解糖后的调用表达式。
+     */
+    bool TryRecoverCallExpr(const CallExpr& node);
+    /**
+     * @brief 尝试还原构造函数调用表达式。
+     */
+    bool TryPrintInitCall(const CallExpr& node);
+    /**
+     * @brief 尝试还原重载调用表达式。
+     */
+    bool TryRecoverOverloadCallExpr(const CallExpr& node);
+    /**
+     * @brief 尝试还原解糖后属性调用表达式。
+     */
+    bool TryRecoverPropCallExpr(const CallExpr& node);
     /**
      * @brief 打印解糖后的 For-In 表达式（范围形式）。
-     * @param node For-In 表达式节点的引用。
      */
     void PrintDesugaredForInRange(const ForInExpr& node);
-
     /**
      * @brief 打印解糖后的 For-In 表达式（迭代器形式）。
-     * @param node For-In 表达式节点的引用。
      */
     void PrintDesugaredForInIterator(const ForInExpr& node);
-
     /**
      * @brief 打印解糖后的 For-In 表达式（字符串形式）。
-     * @param node For-In 表达式节点的引用。
      */
     void PrintDesugaredForInString(const ForInExpr& node);
 
@@ -181,12 +169,12 @@ private:
      * @brief 检查是否启用解糖功能。
      * @return 如果启用返回true，否则返回false。
      */
-    inline bool OpenDesugar() const;
+    bool OpenDesugar() const;
     /**
      * @brief 检查是否启用语义分析功能。
      * @return 如果启用返回true，否则返回false。
      */
-    inline bool OpenSema() const;
+    bool OpenSema() const;
     /**
      * @brief 检查是否关注特定的声明类型。
      * @param decl 声明。
