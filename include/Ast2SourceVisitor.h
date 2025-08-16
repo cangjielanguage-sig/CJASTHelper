@@ -56,11 +56,10 @@ protected:
     EXPAND1(GEN_VISIT_OVERRIDE, File);
     EXPAND3(GEN_VISIT_OVERRIDE, PackageSpec, ImportSpec, ImportContent);
     // Decl
-    EXPAND4(GEN_VISIT_OVERRIDE, FuncDecl, FuncBody, FuncParamList, FuncParam);
-    EXPAND4(GEN_VISIT_OVERRIDE, MainDecl, VarDecl, ClassDecl, ClassBody);
-    EXPAND4(GEN_VISIT_OVERRIDE, InterfaceDecl, InterfaceBody, StructDecl, StructBody);
-    EXPAND4(GEN_VISIT_OVERRIDE, PropDecl, EnumDecl, ExtendDecl, PrimaryCtorDecl);
-    EXPAND2(GEN_VISIT_OVERRIDE, VarWithPatternDecl, TypeAliasDecl);
+    EXPAND4(GEN_VISIT_OVERRIDE, VarDecl, VarWithPatternDecl, PropDecl, FuncParam);
+    EXPAND4(GEN_VISIT_OVERRIDE, FuncParamList, FuncBody, FuncDecl, MainDecl);
+    EXPAND4(GEN_VISIT_OVERRIDE, PrimaryCtorDecl, ClassDecl, InterfaceDecl, StructDecl);
+    EXPAND3(GEN_VISIT_OVERRIDE, EnumDecl, ExtendDecl, TypeAliasDecl);
     // Type
     EXPAND4(GEN_VISIT_OVERRIDE, PrimitiveType, RefType, OptionType, TupleType);
     EXPAND4(GEN_VISIT_OVERRIDE, QualifiedType, ThisType, VArrayType, ParenType);
@@ -122,6 +121,25 @@ private:
      */
     bool TryPrintEnumConstructor(const VarDecl& node);
     bool TryPrintEnumConstructor(const FuncDecl& node);
+
+    /**
+     * @brief 辅助打印继承类型。
+     */
+    void PrintInheritedTypes(const std::vector<OwnedPtr<Cangjie::AST::Type>>& types);
+    /**
+     * @brief 辅助打印可继承类型头部。
+     */
+    void PrintInheritableDeclHeader(const Cangjie::AST::InheritableDecl& node, const std::string& keyword);
+
+    /**
+     * @brief 辅助打印一组声明。
+     */
+    void PrintDecls(const std::vector<OwnedPtr<Decl>>& decls);
+
+    /**
+     * @brief 辅助打印可继承类型定义体。
+     */
+    void PrintInheritableDeclBody(const std::vector<OwnedPtr<Decl>>& members);
 
     /**
      * @brief 辅助打印泛型参数。
