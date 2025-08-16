@@ -15,6 +15,7 @@ using Cangjie::AST::Attribute;
 using Cangjie::AST::CallKind;
 using Cangjie::AST::Expr;
 using Cangjie::AST::ImportKind;
+using Cangjie::AST::InheritableDecl;
 using Cangjie::AST::Pattern;
 using Cangjie::AST::Ty;
 using Cangjie::AST::Type;
@@ -209,35 +210,6 @@ void Ast2SourceVisitor::Visit(const Modifier& node, VisitResult&)
 }
 
 // Decls
-void Ast2SourceVisitor::Visit(const FuncDecl& node, VisitResult&)
-{
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncDecl: ", node.identifier.Val());
-    PrintDecl(node);
-    if (TryPrintEnumConstructor(node) || TryPrintConstructor(node) || TryPrintGetter(node) || TryPrintSetter(node)) {
-        return;
-    }
-    // General func.
-    PRT().PVals("func ", Id(node.identifier));
-    TryPrintNode(node.funcBody);
-}
-
-void Ast2SourceVisitor::Visit(const FuncBody& node, VisitResult&)
-{
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncBody");
-    TryPrintGenericParams(node.generic.get());
-    VisitNode(node.paramLists[0]);
-    TryPrintType(node.retType);
-    TryPrintGenericConstraints(node.generic.get());
-    PrintBlock(node.body);
-}
-
-void Ast2SourceVisitor::Visit(const FuncParamList& node, VisitResult&)
-{
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncParamList: ", node.params.size());
-    PRT().PVec<FuncParam>(
-        node.params, [this](const FuncParam& param) { Traverse(param, *this); }, ", ", "(", ")", true);
-}
-
 namespace {
 using Cangjie::AST::VarDeclAbstract;
 inline std::string GetVarKeyword(const VarDeclAbstract& node)
@@ -250,39 +222,17 @@ inline std::string GetVarKeyword(const VarDeclAbstract& node)
         return "let";
     }
 }
+
+/**
+ * @brief prop是否有body。
+ * @return 有返回 true，否则返回 false。
+ */
+inline bool HasBody(const PropDecl& propDecl)
+{
+    // 语义分析后可能会有空的 getter
+    return !propDecl.getters.empty() && !propDecl.getters[0]->TestAttr(Attribute::ABSTRACT);
+}
 } // namespace
-
-void Ast2SourceVisitor::Visit(const FuncParam& node, VisitResult&)
-{
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncParam");
-    PrintDecl(node);
-    if (node.hasLetOrVar) {
-        PRT().PVals(GetVarKeyword(node), " ");
-    }
-    PRT().PVal(Id(node.identifier));
-    if (node.isNamedParam) {
-        PRT().PVal("!");
-    }
-    TryPrintType(node.type.get());
-    TryPrintNode(node.initializer.get(), " = ");
-}
-
-void Ast2SourceVisitor::Visit(const MainDecl& node, VisitResult& res)
-{
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For MainDecl");
-    if (OpenDesugar() && node.desugarDecl) {
-        Logger::Get().Debug("Ast2SourceVisitor::Visit", "For Desugared Decl of MainDecl");
-        if (node.TestAttr(Attribute::UNSAFE)) {
-            PRT().PVal("unsafe ");
-        }
-        VisitNode(node.desugarDecl);
-    } else {
-        PrintDecl(node);
-        PRT().PVal("main");
-        AH_CHECK_NULL(node.funcBody);
-        Visit(*node.funcBody, res);
-    }
-}
 
 void Ast2SourceVisitor::Visit(const VarDecl& node, VisitResult&)
 {
@@ -301,40 +251,14 @@ void Ast2SourceVisitor::Visit(const VarDecl& node, VisitResult&)
     TryPrintNode(node.initializer.get(), " = ");
 }
 
-void Ast2SourceVisitor::Visit(const ClassDecl& node, VisitResult& res)
+void Ast2SourceVisitor::Visit(const VarWithPatternDecl& node, VisitResult&)
 {
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ClassDecl: ", node.identifier.Val());
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For VarWithPatternDecl: ", node.identifier.Val());
     PrintDecl(node);
-    PRT().PVals("class ", Id(node.identifier));
-    TryPrintGenericParams(node.generic);
-    PRT().PVec<Type>(node.inheritedTypes, [this](const Type& ty) { Traverse(ty, *this); }, " & ", " <: ");
-    TryPrintGenericConstraints(node.generic.get());
-    VisitNode(node.body);
+    TryPrintNode(node.irrefutablePattern.get(), GetVarKeyword(node) + " ");
+    TryPrintType(node.type.get());
+    TryPrintNode(node.initializer.get(), " = ");
 }
-
-void Ast2SourceVisitor::Visit(const ClassBody& node, VisitResult& res)
-{
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ClassBody");
-    PRT().PValNL(" {").Indent();
-    PRT().PVec<Decl>(node.decls, [this](const Decl& decl) {
-        Traverse(decl, *this);
-        PRT().PNL(2);
-    });
-    PRT().Unindent();
-    PRT().PVal("}");
-}
-
-namespace {
-/**
- * @brief prop是否有body。
- * @return 有返回 true，否则返回 false。
- */
-inline bool HasBody(const PropDecl& propDecl)
-{
-    // 语义分析后可能会有空的 getter
-    return !propDecl.getters.empty() && !propDecl.getters[0]->TestAttr(Attribute::ABSTRACT);
-}
-} // namespace
 
 void Ast2SourceVisitor::Visit(const PropDecl& node, VisitResult&)
 {
@@ -356,47 +280,65 @@ void Ast2SourceVisitor::Visit(const PropDecl& node, VisitResult&)
     PRT().PVal("}");
 }
 
-void Ast2SourceVisitor::Visit(const EnumDecl& node, VisitResult&)
+void Ast2SourceVisitor::Visit(const FuncParam& node, VisitResult&)
 {
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For EnumDecl: ", node.identifier.Val());
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncParam");
     PrintDecl(node);
-    PRT().PVal("enum ");
+    if (node.hasLetOrVar) {
+        PRT().PVals(GetVarKeyword(node), " ");
+    }
     PRT().PVal(Id(node.identifier));
-    PRT().PVec<Type>(node.inheritedTypes, [this](const Type& ty) { Traverse(ty, *this); }, " & ", " <: ");
-    TryPrintGenericParams(node.generic.get());
-    TryPrintGenericConstraints(node.generic.get());
-    PRT().PValNL(" {").Indent();
-
-    PRT().PVec<Decl>(node.constructors, [this](const Decl& decl) {
-        PRT().PVal("| ");
-        Traverse(decl, *this);
-        PRT().PNL();
-    });
-    PRT().PNL();
-    PRT().PVec<Decl>(node.members, [this](const Decl& decl) {
-        Traverse(decl, *this);
-        PRT().PNL(2);
-    });
-    PRT().Unindent();
-    PRT().PVal("}");
+    if (node.isNamedParam) {
+        PRT().PVal("!");
+    }
+    TryPrintType(node.type.get());
+    TryPrintNode(node.initializer.get(), " = ");
 }
 
-void Ast2SourceVisitor::Visit(const ExtendDecl& node, VisitResult&)
+void Ast2SourceVisitor::Visit(const FuncParamList& node, VisitResult&)
 {
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ExtendDecl: ", node.identifier.Val());
-    PrintDecl(node);
-    PRT().PVal("extend");
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncParamList: ", node.params.size());
+    PRT().PVec<FuncParam>(
+        node.params, [this](const FuncParam& param) { Traverse(param, *this); }, ", ", "(", ")", true);
+}
+
+void Ast2SourceVisitor::Visit(const FuncBody& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncBody");
     TryPrintGenericParams(node.generic.get());
-    TryPrintNode(node.extendedType.get(), " ");
-    PRT().PVec<Type>(node.inheritedTypes, [this](const Type& ty) { Traverse(ty, *this); }, " & ", " <: ");
+    VisitNode(node.paramLists[0]);
+    TryPrintType(node.retType);
     TryPrintGenericConstraints(node.generic.get());
-    PRT().PValNL(" {").Indent();
-    PRT().PVec<Decl>(node.members, [this](const Decl& decl) {
-        Traverse(decl, *this);
-        PRT().PNL(2);
-    });
-    PRT().Unindent();
-    PRT().PVal("}");
+    PrintBlock(node.body);
+}
+
+void Ast2SourceVisitor::Visit(const FuncDecl& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncDecl: ", node.identifier.Val());
+    PrintDecl(node);
+    if (TryPrintEnumConstructor(node) || TryPrintConstructor(node) || TryPrintGetter(node) || TryPrintSetter(node)) {
+        return;
+    }
+    // General func.
+    PRT().PVals("func ", Id(node.identifier));
+    TryPrintNode(node.funcBody);
+}
+
+void Ast2SourceVisitor::Visit(const MainDecl& node, VisitResult& res)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For MainDecl");
+    if (OpenDesugar() && node.desugarDecl) {
+        Logger::Get().Debug("Ast2SourceVisitor::Visit", "For Desugared Decl of MainDecl");
+        if (node.TestAttr(Attribute::UNSAFE)) {
+            PRT().PVal("unsafe ");
+        }
+        VisitNode(node.desugarDecl);
+    } else {
+        PrintDecl(node);
+        PRT().PVal("main");
+        AH_CHECK_NULL(node.funcBody);
+        Visit(*node.funcBody, res);
+    }
 }
 
 void Ast2SourceVisitor::Visit(const PrimaryCtorDecl& node, VisitResult&)
@@ -411,50 +353,56 @@ void Ast2SourceVisitor::Visit(const PrimaryCtorDecl& node, VisitResult&)
     TryPrintNode(node.funcBody.get());
 }
 
+void Ast2SourceVisitor::Visit(const ClassDecl& node, VisitResult& res)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ClassDecl: ", node.identifier.Val());
+    PrintInheritableDeclHeader(node, "class");
+    AH_CHECK_NULL(node.body);
+    PrintInheritableDeclBody(node.body->decls);
+}
+
 void Ast2SourceVisitor::Visit(const InterfaceDecl& node, VisitResult& res)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For InterfaceDecl: ", node.identifier.Val());
-    PrintDecl(node);
-    PRT().PVals("interface ", Id(node.identifier));
-    TryPrintGenericParams(node.generic);
-    PRT().PVec<Type>(node.inheritedTypes, [this](const Type& ty) { Traverse(ty, *this); }, " & ", " <: ");
-    TryPrintGenericConstraints(node.generic.get());
-    VisitNode(node.body);
-}
-
-void Ast2SourceVisitor::Visit(const InterfaceBody& node, VisitResult& res)
-{
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For InterfaceBody");
-    PRT().PValNL(" {").Indent();
-    PRT().PVec<Decl>(node.decls, [this](const Decl& decl) {
-        Traverse(decl, *this);
-        PRT().PNL(2);
-    });
-    PRT().Unindent();
-    PRT().PVal("}");
+    PrintInheritableDeclHeader(node, "interface");
+    AH_CHECK_NULL(node.body);
+    PrintInheritableDeclBody(node.body->decls);
 }
 
 void Ast2SourceVisitor::Visit(const StructDecl& node, VisitResult& res)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For StructDecl: ", node.identifier.Val());
-    PrintDecl(node);
-    PRT().PVals("struct ", Id(node.identifier));
-    TryPrintGenericParams(node.generic.get());
-    PRT().PVec<Type>(node.inheritedTypes, [this](const Type& ty) { Traverse(ty, *this); }, " & ", " <: ");
-    TryPrintGenericConstraints(node.generic.get());
-    VisitNode(node.body);
+    PrintInheritableDeclHeader(node, "struct");
+    AH_CHECK_NULL(node.body);
+    PrintInheritableDeclBody(node.body->decls);
 }
 
-void Ast2SourceVisitor::Visit(const StructBody& node, VisitResult& res)
+void Ast2SourceVisitor::Visit(const EnumDecl& node, VisitResult&)
 {
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For StructBody");
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For EnumDecl: ", node.identifier.Val());
+    PrintInheritableDeclHeader(node, "enum");
     PRT().PValNL(" {").Indent();
-    PRT().PVec<Decl>(node.decls, [this](const Decl& decl) {
+    PRT().PVec<Decl>(node.constructors, [this](const Decl& decl) {
+        PRT().PVal("| ");
         Traverse(decl, *this);
-        PRT().PNL(2);
+        PRT().PNL();
     });
+    PRT().PNL();
+    PrintDecls(node.members);
     PRT().Unindent();
     PRT().PVal("}");
+}
+
+void Ast2SourceVisitor::Visit(const ExtendDecl& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ExtendDecl: ", node.identifier.Val());
+    PrintDecl(node);
+    PRT().PVal("extend");
+    TryPrintGenericParams(node.generic.get());
+    TryPrintNode(node.extendedType.get(), " ");
+    PrintInheritedTypes(node.inheritedTypes);
+    TryPrintGenericConstraints(node.generic.get());
+    PrintInheritableDeclBody(node.members);
 }
 
 void Ast2SourceVisitor::Visit(const TypeAliasDecl& node, VisitResult&)
@@ -464,15 +412,6 @@ void Ast2SourceVisitor::Visit(const TypeAliasDecl& node, VisitResult&)
     PRT().PVal("type ");
     PRT().PVal(Id(node.identifier));
     TryPrintNode(node.type.get(), " = ");
-}
-
-void Ast2SourceVisitor::Visit(const VarWithPatternDecl& node, VisitResult&)
-{
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For VarWithPatternDecl: ", node.identifier.Val());
-    PrintDecl(node);
-    TryPrintNode(node.irrefutablePattern.get(), GetVarKeyword(node) + " ");
-    TryPrintType(node.type.get());
-    TryPrintNode(node.initializer.get(), " = ");
 }
 
 // Type
@@ -930,8 +869,7 @@ void Ast2SourceVisitor::PrintDecl(const Decl& node)
 
 /**
  * @brief 辅助打印代码块。
- * @param pnode : VarDecl。
- * @return 如果打印成功返回true，否则返回false。
+ * @param pnode : Block节点
  */
 inline void Ast2SourceVisitor::PrintBlock(const Ptr<Block> pnode)
 {
@@ -1021,6 +959,50 @@ bool Ast2SourceVisitor::TryPrintEnumConstructor(const FuncDecl& node)
     PRT().PVec<FuncParam>(
         params, [this](const FuncParam& param) { TryPrintNode(param.type.get()); }, ", ", "(", ")", true);
     return true;
+}
+
+/**
+ * @brief 辅助打印继承类型。
+ */
+inline void Ast2SourceVisitor::PrintInheritedTypes(const std::vector<OwnedPtr<Type>>& types)
+{
+    PRT().PVec<Type>(types, [this](const Type& ty) { Traverse(ty, *this); }, " & ", " <: ");
+}
+
+/**
+ * @brief 辅助打印可继承类型头部。
+ * @param node 声明引用 (可继承类型: Class, Struct, Interface, Enum)
+ */
+void Ast2SourceVisitor::PrintInheritableDeclHeader(const InheritableDecl& node, const std::string& keyword)
+{
+    PrintDecl(node);
+    PRT().PVals(keyword, " ", Id(node.identifier)); // class, interface, struct, enum
+    TryPrintGenericParams(node.generic.get());
+    PrintInheritedTypes(node.inheritedTypes);
+    TryPrintGenericConstraints(node.generic.get());
+}
+
+/**
+ * @brief 辅助打印一组声明。
+ */
+inline void Ast2SourceVisitor::PrintDecls(const std::vector<OwnedPtr<Decl>>& decls)
+{
+    PRT().PVec<Decl>(decls, [this](const Decl& decl) {
+        Traverse(decl, *this);
+        PRT().PNL(2);
+    });
+}
+
+/**
+ * @brief 辅助打印可继承类型定义体。
+ */
+void Ast2SourceVisitor::PrintInheritableDeclBody(const std::vector<OwnedPtr<Decl>>& members)
+{
+    PRT().PValNL(" {");
+    PRT().Indent();
+    PrintDecls(members);
+    PRT().Unindent();
+    PRT().PVal("}");
 }
 
 /**
