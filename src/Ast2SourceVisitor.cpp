@@ -549,12 +549,8 @@ void Ast2SourceVisitor::Visit(const Block& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const RefExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For RefExpr: ", node.ref.identifier.Val());
-    if (OpenDesugar() && OpenSema()) {
-        auto target = node.ref.target;
-        if (auto it = desugaredVarId.find(target); it != desugaredVarId.end()) {
-            PRT().PVal(it->second);
-            return;
-        }
+    if (TryPrintDesugaredRef(node)) {
+        return;
     }
     PRT().PVal(Id(node.ref.identifier));
     PRT().PVec<Type>(node.typeArguments, [this](const Type& tp) { Traverse(tp, *this); }, ", ", "<", ">");
@@ -780,7 +776,7 @@ void Ast2SourceVisitor::Visit(const DoWhileExpr& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const ForInExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ForInExpr");
-    if (TryDesugaredPrintForInExpr(node)) {
+    if (TryPrintDesugaredForInExpr(node)) {
         return;
     }
     TryPrintNode(node.pattern.get(), "for (", " in ");
@@ -1034,6 +1030,22 @@ void Ast2SourceVisitor::TryPrintGenericConstraints(Ptr<Generic> generic)
 }
 
 /**
+ * @brief 尝试打印解糖的RefExpr节点。
+ */
+bool Ast2SourceVisitor::TryPrintDesugaredRef(const RefExpr& ref)
+{
+    if (!OpenDesugar() || !OpenSema()) {
+        return false;
+    }
+    auto target = ref.ref.target;
+    if (auto it = desugaredVarId.find(target); it != desugaredVarId.end()) {
+        PRT().PVal(it->second);
+        return true;
+    }
+    return false;
+}
+
+/**
  * @brief 辅助打印 Type 节点
  * @param type 类型节点指针。
  */
@@ -1265,7 +1277,7 @@ bool Ast2SourceVisitor::TryRecoverPropCallExpr(const CallExpr& node)
  *
  * @param node For-In 表达式节点的引用。
  */
-bool Ast2SourceVisitor::TryDesugaredPrintForInExpr(const ForInExpr& node)
+bool Ast2SourceVisitor::TryPrintDesugaredForInExpr(const ForInExpr& node)
 {
     if (!OpenSema()) {
         return false;
