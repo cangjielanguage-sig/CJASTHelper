@@ -150,9 +150,13 @@ private:
      */
     void TryPrintGenericConstraints(Ptr<Generic> generic);
     /**
+     * @brief 尝试打印解糖的RefExpr节点。
+     */
+    bool TryPrintDesugaredRef(const RefExpr& ref);
+    /**
      * @brief 辅助打印 Type 节点。
      */
-    void TryPrintType(const Ptr<Cangjie::AST::Type> type);
+    bool TryPrintType(const Ptr<Cangjie::AST::Type> type);
     /**
      * @brief 辅助打印 Ty 语义信息。
      */
@@ -176,7 +180,7 @@ private:
     /**
      * @brief 尝试打印解糖后的for-in表达式。
      */
-    bool TryDesugaredPrintForInExpr(const ForInExpr& node);
+    bool TryPrintDesugaredForInExpr(const ForInExpr& node);
     /**
      * @brief 打印解糖后的 For-In 表达式（范围形式）。
      */
