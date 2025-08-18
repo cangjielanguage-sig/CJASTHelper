@@ -156,7 +156,7 @@ private:
     /**
      * @brief 辅助打印 Type 节点。
      */
-    void TryPrintType(const Ptr<Cangjie::AST::Type> type);
+    bool TryPrintType(const Ptr<Cangjie::AST::Type> type);
     /**
      * @brief 辅助打印 Ty 语义信息。
      */

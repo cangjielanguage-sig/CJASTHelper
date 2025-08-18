@@ -291,7 +291,12 @@ void Ast2SourceVisitor::Visit(const FuncParam& node, VisitResult&)
     if (node.isNamedParam) {
         PRT().PVal("!");
     }
-    TryPrintType(node.type.get());
+    // 先尝试打印 type, 否则使用语义信息
+    if (!TryPrintType(node.type.get()) && OpenSema() && node.ty) {
+        // 有语义信息
+        PRT().PVal(": ");
+        PrintTy(*node.ty);
+    }
     TryPrintNode(node.initializer.get(), " = ");
 }
 
@@ -1049,18 +1054,23 @@ bool Ast2SourceVisitor::TryPrintDesugaredRef(const RefExpr& ref)
  * @brief 辅助打印 Type 节点
  * @param type 类型节点指针。
  */
-void Ast2SourceVisitor::TryPrintType(const Ptr<Type> type)
+bool Ast2SourceVisitor::TryPrintType(const Ptr<Type> type)
 {
-    if (type) {
-        if (type->astKind != AstKind::TYPE) {
-            // 合法的 Type 语法节点
-            PRT().PVal(": ");
-            Traverse(*type, *this);
-        } else if (OpenSema() && type->ty) {
-            PRT().PVal(": ");
-            PrintTy(*type->ty);
-        }
+    if (!type) {
+        return false;
     }
+    if (type->astKind != AstKind::TYPE) {
+        // 合法的 Type 语法节点
+        PRT().PVal(": ");
+        Traverse(*type, *this);
+        return true;
+    }
+    if (OpenSema() && type->ty) {
+        PRT().PVal(": ");
+        PrintTy(*type->ty);
+        return true;
+    }
+    return false;
 }
 
 /**
