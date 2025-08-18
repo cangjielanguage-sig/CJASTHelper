@@ -55,7 +55,7 @@ std::vector<std::string> ArgumentParser::GetMultiValue(const std::string& option
 {
     auto it = parsedOptions.find(option);
     if (it == parsedOptions.end()) {
-        throw InvalidArgumentException("Option not found: " + option);
+        return {};
     }
     return it->second;
 }
