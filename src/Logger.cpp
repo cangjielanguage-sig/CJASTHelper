@@ -19,6 +19,8 @@ const char* LoggerException::what() const noexcept
 
 Logger& Logger::Get(Mode m)
 {
+#ifdef NDEBUG
+#else
     // 注意: 当前实现不是线程安全的
     if (m == Mode::FILE) {
         if (!instances.at(1)) {
@@ -27,6 +29,7 @@ Logger& Logger::Get(Mode m)
         }
         return *instances[1];
     }
+#endif
     // Default
     if (!instances.at(0)) {
         instances[0] = std::unique_ptr<Logger>(new Logger());
@@ -36,10 +39,10 @@ Logger& Logger::Get(Mode m)
 
 void Logger::Close()
 {
-    if (instances[1]->fs.is_open()) {
+    if (instances[1] && instances[1]->fs.is_open()) {
         instances[1]->fs.close();
+        instances[1] = nullptr;
     }
-    instances[1] = nullptr;
 }
 
 Logger::Logger() : p(std::cout, 0)
