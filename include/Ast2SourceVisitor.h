@@ -153,6 +153,11 @@ private:
      * @brief 尝试打印解糖的RefExpr节点。
      */
     bool TryPrintDesugaredRef(const RefExpr& ref);
+
+    /**
+     * @brief 尝试打印泛型实例参数。
+     */
+    void PrintInstArgs(const Cangjie::AST::NameReferenceExpr& ref, bool isPattern = false);
     /**
      * @brief 辅助打印 Type 节点。
      */
