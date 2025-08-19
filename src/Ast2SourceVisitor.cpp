@@ -508,7 +508,17 @@ void Ast2SourceVisitor::Visit(const ConstPattern& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const EnumPattern& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For EnumPattern");
-    VisitNode(node.constructor);
+
+    AH_CHECK_NULL(node.constructor);
+    // RefExpr 单独处理
+    auto ctor = node.constructor.get();
+    if (ctor->astKind == AstKind::REF_EXPR) {
+        auto refExpr = static_cast<RefExpr*>(ctor.get());
+        PRT().PVal(Id(refExpr->ref.identifier));
+        PrintInstArgs(*refExpr, true);
+    } else {
+        VisitNode(ctor);
+    }
     PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, *this); }, ", ", "(", ")");
 }
 
@@ -558,7 +568,7 @@ void Ast2SourceVisitor::Visit(const RefExpr& node, VisitResult&)
         return;
     }
     PRT().PVal(Id(node.ref.identifier));
-    PRT().PVec<Type>(node.typeArguments, [this](const Type& tp) { Traverse(tp, *this); }, ", ", "<", ">");
+    PrintInstArgs(node);
 }
 
 void Ast2SourceVisitor::Visit(const FuncArg& node, VisitResult&)
@@ -617,7 +627,7 @@ void Ast2SourceVisitor::Visit(const MemberAccess& node, VisitResult&)
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For MemberAccess");
     VisitNode(node.baseExpr);
     PRT().PVals(".", Id(node.field));
-    PRT().PVec<Type>(node.typeArguments, [this](const Type& tp) { Traverse(tp, *this); }, ", ", "<", ">");
+    PrintInstArgs(node, node.isPattern);
 }
 
 void Ast2SourceVisitor::Visit(const LambdaExpr& node, VisitResult&)
@@ -1051,6 +1061,20 @@ bool Ast2SourceVisitor::TryPrintDesugaredRef(const RefExpr& ref)
 }
 
 /**
+ * @brief 尝试打印泛型实例参数。
+ * @param ref 引用表达式: RefExpr or MemberAccess
+ * @param isPattern 是否是在 pattern 中 (enum pattern 不允许打印泛型参数)
+ */
+void Ast2SourceVisitor::PrintInstArgs(const Cangjie::AST::NameReferenceExpr& ref, bool isPattern)
+{
+    if (!ref.typeArguments.empty()) {
+        PRT().PVec<Type>(ref.typeArguments, [this](const Type& tp) { Traverse(tp, *this); }, ", ", "<", ">");
+    } else if (OpenSema() && !isPattern) {
+        PRT().PVec<Ty>(ref.instTys, [this](const Ty& ty) { PrintTy(ty); }, ", ", "<", ">");
+    }
+}
+
+/**
  * @brief 辅助打印 Type 节点
  * @param type 类型节点指针。
  */
@@ -1297,9 +1321,11 @@ bool Ast2SourceVisitor::TryPrintDesugaredForInExpr(const ForInExpr& node)
         PrintDesugaredForInRange(node);
     } else if (node.forInKind == ForInKind::FORIN_STRING) {
         PrintDesugaredForInString(node);
-    } else {
+    } else if (node.desugarExpr) {
         // Default: ForInKind::FORIN_ITER
         PrintDesugaredForInIterator(node);
+    } else {
+        return false;
     }
     return true;
 }

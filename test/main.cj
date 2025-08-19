@@ -237,6 +237,11 @@ enum E <: I0 {
     }
 }
 
+func foo10() {
+    let x: ?Int64 = None<Int64>
+    let y: ?(Int64, E) = None
+}
+
 unsafe func entry() {
     let res = foo(2, 3)
     println(res)
