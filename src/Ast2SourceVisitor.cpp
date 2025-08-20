@@ -247,7 +247,7 @@ void Ast2SourceVisitor::Visit(const VarDecl& node, VisitResult&)
         desugaredVarId.emplace(&node, id);
     }
     PRT().PVals(GetVarKeyword(node), " ", id);
-    TryPrintType(node.type.get());
+    PrintVarType(node);
     TryPrintNode(node.initializer.get(), " = ");
 }
 
@@ -256,7 +256,7 @@ void Ast2SourceVisitor::Visit(const VarWithPatternDecl& node, VisitResult&)
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For VarWithPatternDecl: ", node.identifier.Val());
     PrintDecl(node);
     TryPrintNode(node.irrefutablePattern.get(), GetVarKeyword(node) + " ");
-    TryPrintType(node.type.get());
+    PrintVarType(node);
     TryPrintNode(node.initializer.get(), " = ");
 }
 
@@ -291,12 +291,7 @@ void Ast2SourceVisitor::Visit(const FuncParam& node, VisitResult&)
     if (node.isNamedParam) {
         PRT().PVal("!");
     }
-    // 先尝试打印 type, 否则使用语义信息
-    if (!TryPrintType(node.type.get()) && OpenSema() && node.ty) {
-        // 有语义信息
-        PRT().PVal(": ");
-        PrintTy(*node.ty);
-    }
+    PrintVarType(node);
     TryPrintNode(node.initializer.get(), " = ");
 }
 
@@ -307,13 +302,25 @@ void Ast2SourceVisitor::Visit(const FuncParamList& node, VisitResult&)
         node.params, [this](const FuncParam& param) { Traverse(param, *this); }, ", ", "(", ")", true);
 }
 
+namespace {
+inline Ptr<Ty> TryGetRetTy(Ptr<Ty> ty)
+{
+    if (ty->IsFunc()) {
+        return static_cast<Cangjie::AST::FuncTy*>(ty.get())->retTy;
+    }
+    return nullptr;
+}
+} // namespace
+
 void Ast2SourceVisitor::Visit(const FuncBody& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncBody");
     TryPrintGenericParams(node.generic.get());
     VisitNode(node.paramLists[0]);
-    TryPrintType(node.retType);
-    TryPrintGenericConstraints(node.generic.get());
+    if (!TryPrintType(node.retType) && OpenSema()) {
+        TryPrintTy(TryGetRetTy(node.ty));
+    }
+    TryPrintGenericConstraints(node.generic);
     PrintBlock(node.body);
 }
 
@@ -440,7 +447,8 @@ void Ast2SourceVisitor::Visit(const RefType& node, VisitResult& res)
 void Ast2SourceVisitor::Visit(const OptionType& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For OptionType");
-    TryPrintNode(node.componentType.get(), "?");
+    std::string preQuest(node.questNum, '?');
+    TryPrintNode(node.componentType.get(), preQuest);
 }
 
 void Ast2SourceVisitor::Visit(const TupleType& node, VisitResult&)
@@ -622,12 +630,25 @@ void Ast2SourceVisitor::Visit(const TupleLit& node, VisitResult&)
     PRT().PVec<AstNode>(node.children, [this](const AstNode& expr) { Traverse(expr, *this); }, ", ", "(", ")", true);
 }
 
+namespace {
+// 检查 expr 是否是对 Enum 类型的引用
+inline bool IsRefEnum(const Expr& expr)
+{
+    if (expr.astKind != AstKind::REF_EXPR) {
+        return false;
+    }
+    return static_cast<const RefExpr*>(&expr)->ref.target->astKind == AstKind::ENUM_DECL;
+}
+} // namespace
+
 void Ast2SourceVisitor::Visit(const MemberAccess& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For MemberAccess");
     VisitNode(node.baseExpr);
     PRT().PVals(".", Id(node.field));
-    PrintInstArgs(node, node.isPattern);
+    if (!OpenSema() || !IsRefEnum(*node.baseExpr)) {
+        PrintInstArgs(node, node.isPattern);
+    }
 }
 
 void Ast2SourceVisitor::Visit(const LambdaExpr& node, VisitResult&)
@@ -1075,6 +1096,16 @@ void Ast2SourceVisitor::PrintInstArgs(const Cangjie::AST::NameReferenceExpr& ref
 }
 
 /**
+ * @brief 辅助打印 变量的类型标注。
+ */
+inline void Ast2SourceVisitor::PrintVarType(const VarDeclAbstract& node)
+{
+    if (!TryPrintType(node.type.get()) && OpenSema()) {
+        TryPrintTy(node.ty);
+    }
+}
+
+/**
  * @brief 辅助打印 Type 节点
  * @param type 类型节点指针。
  */
@@ -1089,12 +1120,23 @@ bool Ast2SourceVisitor::TryPrintType(const Ptr<Type> type)
         Traverse(*type, *this);
         return true;
     }
-    if (OpenSema() && type->ty) {
-        PRT().PVal(": ");
-        PrintTy(*type->ty);
-        return true;
+    if (OpenSema()) {
+        return TryPrintTy(type->ty);
     }
     return false;
+}
+
+/**
+ * @brief 辅助打印 Ty 标注。
+ */
+inline bool Ast2SourceVisitor::TryPrintTy(const Ptr<Ty> ty)
+{
+    if (!ty) {
+        return false;
+    }
+    PRT().PVal(": ");
+    PrintTy(*ty);
+    return true;
 }
 
 /**
@@ -1191,6 +1233,15 @@ inline bool IsPropCall(const CallExpr& node)
     }
     return node.resolvedFunction->isGetter || node.resolvedFunction->isSetter;
 }
+
+inline Ptr<Ty> TryGetBaseTy(Ptr<Ty> ty)
+{
+    Ptr<Ty> res = ty;
+    while (res->IsCoreOptionType()) {
+        res = res->typeArgs[0];
+    }
+    return res;
+}
 } // namespace
 
 /**
@@ -1203,7 +1254,8 @@ bool Ast2SourceVisitor::TryPrintInitCall(const CallExpr& node)
     }
     AH_CHECK_NULL(node.ty);
     // 构造函数调用 init() -> A(), TODO: 应该缩小下范围， 构造函数内的init不需要替换
-    PrintTy(*node.ty);
+    // 特殊场景处理: init() -> ??A 是解糖表达式
+    PrintTy(*TryGetBaseTy(node.ty));
     PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, *this); }, ", ", "(", ")", true);
     return true;
 }

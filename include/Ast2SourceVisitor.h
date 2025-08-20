@@ -159,9 +159,17 @@ private:
      */
     void PrintInstArgs(const Cangjie::AST::NameReferenceExpr& ref, bool isPattern = false);
     /**
+     * @brief 辅助打印 变量的类型标注。
+     */
+    void PrintVarType(const Cangjie::AST::VarDeclAbstract& node);
+    /**
      * @brief 辅助打印 Type 节点。
      */
     bool TryPrintType(const Ptr<Cangjie::AST::Type> type);
+    /**
+     * @brief 辅助打印 Ty 标注。
+     */
+    bool TryPrintTy(const Ptr<Cangjie::AST::Ty> ty);
     /**
      * @brief 辅助打印 Ty 语义信息。
      */
