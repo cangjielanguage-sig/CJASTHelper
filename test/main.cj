@@ -237,9 +237,18 @@ enum E <: I0 {
     }
 }
 
+func foo100(s: ??S) {}
+
 func foo10() {
-    let x: ?Int64 = None<Int64>
-    let y: ?(Int64, E) = None
+    let x0 = None<Int64>
+    let x1: ?Int64 = None
+    let x2: ?Int64 = Option.None
+    let x3 = Option<Int64>.None
+
+    let y: ?(Int64, S) = None
+    let z: ?Int64 = Option<Int64>.Some(1)
+    let u: ?S = Some<S>(S(1))
+    foo100(S(1))
 }
 
 unsafe func entry() {
