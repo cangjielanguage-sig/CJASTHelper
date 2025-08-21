@@ -3,3 +3,5 @@ build
 output
 third_party
 log.txt
+.cjdocs
+.lingma
