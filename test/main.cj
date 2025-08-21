@@ -184,8 +184,18 @@ interface I0 {
     prop bar: Int64
 }
 
+// 泛型接口
+interface GenericInterface<T> {
+    func process(value: T): T
+}
+
 struct S {
     public S(private let x: Int64) {}
+}
+
+// 泛型结构体
+struct GenericStruct<T> {
+    public GenericStruct(let value: T) {}
 }
 
 extend S <: I0 {
@@ -237,6 +247,12 @@ enum E <: I0 {
     }
 }
 
+// 泛型枚举
+enum GenericEnum<T> {
+    | None
+    | Some(T)
+}
+
 func foo100(s: ??S) {}
 
 func foo10() {
@@ -251,11 +267,56 @@ func foo10() {
     foo100(S(1))
 }
 
+// 新增函数：测试元组匹配和类型匹配
+func testTupleAndTypeMatch() {
+    let tuple = (1, "hello")
+    match (tuple) {
+        case (x, y) => println("Tuple match: ${x}, ${y}")
+    }
+    
+    let value: Object = A()
+    match (value) {
+        case a: A => a.hello()
+        case _ => println("Not an A instance")
+    }
+}
+
+// 新增函数：测试空合并操作符
+func testNullCoalescingOperator() {
+    let x: ?Int64 = None
+    let y: Int64 = x ?? 42
+    println("Value of y: ${y}")
+    
+    let z: ?String = Some("hello")
+    let w: String = z ?? "default"
+    println("Value of w: ${w}")
+}
+
+// 新增函数：测试泛型接口、结构体和枚举
+func testGenericTypes() {
+    // 测试泛型结构体
+    let gs = GenericStruct<Int64>(100)
+    println("Generic struct value: ${gs.value}")
+    
+    // 测试泛型枚举
+    let ge: GenericEnum<String> = GenericEnum.Some("generic enum value")
+    match (ge) {
+        case GenericEnum.Some(value) => println("Generic enum value: ${value}")
+        case GenericEnum.None => println("Generic enum is None")
+    }
+}
+
 unsafe func entry() {
     let res = foo(2, 3)
     println(res)
     foo1(A())
     foo2()
     foo3()
+    
+    // 调用新增的测试函数
+    testTupleAndTypeMatch()
+    testNullCoalescingOperator()
+    testGenericTypes()
+    
     return 0
 }
