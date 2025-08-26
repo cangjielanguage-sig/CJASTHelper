@@ -361,21 +361,36 @@ void Ast2SourceVisitor::Visit(const FuncDecl& node, VisitResult&)
     TryPrintNode(node.funcBody);
 }
 
-void Ast2SourceVisitor::Visit(const MainDecl& node, VisitResult& res)
+VisitResult Ast2SourceVisitor::Before(const MainDecl& node)
 {
-    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For MainDecl");
-    if (config.Desugar() && node.desugarDecl) {
-        Logger::Get().Debug("Ast2SourceVisitor::Visit", "For Desugared Decl of MainDecl");
+    if (!node.desugarDecl) {
+        return VisitResult::Cont();
+    }
+    Logger::Get().Debug("Ast2SourceVisitor::Before", "For MainDecl");
+    // 存在解糖节点
+    if (config.Desugar()) {
+        Logger::Get().Debug("Ast2SourceVisitor::Before", "For Desugared Decl of MainDecl");
         if (node.TestAttr(Attribute::UNSAFE)) {
             PRT().PVal("unsafe ");
         }
         VisitNode(node.desugarDecl);
     } else {
+        // 还原原节点
+        Logger::Get().Debug("Ast2SourceVisitor::Before", "For Recover Desugared Decl of MainDecl");
         PrintDecl(node);
         PRT().PVal("main");
-        AH_CHECK_NULL(node.funcBody);
-        Visit(*node.funcBody, res);
+        TryPrintNode(node.desugarDecl->funcBody);
     }
+    return VisitResult::Skip();
+}
+
+void Ast2SourceVisitor::Visit(const MainDecl& node, VisitResult& res)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For MainDecl");
+    PrintDecl(node);
+    PRT().PVal("main");
+    AH_CHECK_NULL(node.funcBody);
+    Visit(*node.funcBody, res);
 }
 
 void Ast2SourceVisitor::Visit(const PrimaryCtorDecl& node, VisitResult&)
@@ -588,18 +603,27 @@ void Ast2SourceVisitor::Visit(const Block& node, VisitResult&)
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For Block: ", node.body.size());
     PRT().PVec<AstNode>(node.body, [this](const AstNode& node) {
         auto res = Traverse(node, *this);
-        if (res.status) {
-            PRT().PNL();
-        }
+        PRT().PNL();
     });
+}
+
+VisitResult Ast2SourceVisitor::Before(const RefExpr& node)
+{
+    if (!config.Sema()) {
+        return VisitResult::Cont();
+    }
+    auto target = node.ref.target;
+    if (auto it = desugaredVarId.find(target); it != desugaredVarId.end()) {
+        Logger::Get().Debug("Ast2SourceVisitor::Before", "For RefExpr: ", node.ref.identifier.Val());
+        PRT().PVal(it->second);
+        return VisitResult::Skip();
+    }
+    return VisitResult::Cont();
 }
 
 void Ast2SourceVisitor::Visit(const RefExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For RefExpr: ", node.ref.identifier.Val());
-    if (TryPrintDesugaredRef(node)) {
-        return;
-    }
     PRT().PVal(Id(node.ref.identifier));
     PrintInstArgs(node);
 }
@@ -732,16 +756,33 @@ void Ast2SourceVisitor::Visit(const AsExpr& node, VisitResult&)
     VisitNode(node.asType);
 }
 
+VisitResult Ast2SourceVisitor::Before(const AssignExpr& node)
+{
+    if (!node.desugarExpr) {
+        return VisitResult::Cont();
+    }
+    Logger::Get().Debug("Ast2SourceVisitor::Before", "For AssignExpr");
+    if (config.Desugar()) {
+        Traverse(*node.desugarExpr, *this);
+    } else {
+        // desugared: x.[](i, y) -> x[i] = v
+        Ptr<CallExpr> callExpr = static_cast<CallExpr*>(node.desugarExpr.get().get());
+        AH_ASSERT(callExpr->args.size() == 2);
+        auto ma = static_cast<MemberAccess*>(callExpr->baseFunc.get().get());
+        VisitNode(ma->baseExpr);
+        TryPrintNode(callExpr->args[0].get(), "[", "]");
+        PRT().PVal(" = ");
+        VisitNode(callExpr->args[1]);
+    }
+    return VisitResult::Skip();
+}
+
 void Ast2SourceVisitor::Visit(const AssignExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For AssignExpr");
-    if (config.Desugar() && node.desugarExpr) {
-        Traverse(*node.desugarExpr, *this);
-    } else {
-        VisitNode(node.leftValue);
-        PRT().PVals(" ", Tk2Str(node.op), " ");
-        VisitNode(node.rightExpr);
-    }
+    VisitNode(node.leftValue);
+    PRT().PVals(" ", Tk2Str(node.op), " ");
+    VisitNode(node.rightExpr);
 }
 
 void Ast2SourceVisitor::Visit(const IncOrDecExpr& node, VisitResult&)
@@ -750,22 +791,55 @@ void Ast2SourceVisitor::Visit(const IncOrDecExpr& node, VisitResult&)
     TryPrintNode(node.expr.get(), "", Tk2Str(node.op));
 }
 
+VisitResult Ast2SourceVisitor::Before(const UnaryExpr& node)
+{
+    if (!node.desugarExpr) {
+        return VisitResult::Cont();
+    }
+    Logger::Get().Debug("Ast2SourceVisitor::Before", "For UnaryExpr");
+    if (config.Desugar()) {
+        Traverse(*node.desugarExpr, *this);
+    } else {
+        // desugared: val.!() -> !val
+        Ptr<CallExpr> callExpr = static_cast<CallExpr*>(node.desugarExpr.get().get());
+        AH_ASSERT(callExpr->args.size() == 0);
+        auto ma = static_cast<MemberAccess*>(callExpr->baseFunc.get().get());
+        TryPrintNode(ma->baseExpr, Tk2Str(node.op));
+    }
+    return VisitResult::Skip();
+}
+
 void Ast2SourceVisitor::Visit(const UnaryExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For UnaryExpr");
     TryPrintNode(node.expr.get(), Tk2Str(node.op));
 }
 
+VisitResult Ast2SourceVisitor::Before(const BinaryExpr& node)
+{
+    if (!node.desugarExpr) {
+        return VisitResult::Cont();
+    }
+    Logger::Get().Debug("Ast2SourceVisitor::Before", "For BinaryExpr");
+    if (config.Desugar()) {
+        Traverse(*node.desugarExpr, *this);
+    } else {
+        // desugared: left.+(right) -> left + right
+        Ptr<CallExpr> callExpr = static_cast<CallExpr*>(node.desugarExpr.get().get());
+        AH_ASSERT(callExpr->args.size() == 1);
+        auto ma = static_cast<MemberAccess*>(callExpr->baseFunc.get().get());
+        VisitNode(ma->baseExpr);
+        PRT().PVals(" ", Tk2Str(node.op), " ");
+        VisitNode(callExpr->args[0]);
+    }
+    return VisitResult::Skip();
+}
 void Ast2SourceVisitor::Visit(const BinaryExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For BinaryExpr");
-    if (config.Desugar() && node.desugarExpr) {
-        Traverse(*node.desugarExpr, *this);
-    } else {
-        VisitNode(node.leftExpr);
-        PRT().PVals(" ", Tk2Str(node.op), " ");
-        VisitNode(node.rightExpr);
-    }
+    VisitNode(node.leftExpr);
+    PRT().PVals(" ", Tk2Str(node.op), " ");
+    VisitNode(node.rightExpr);
 }
 
 void Ast2SourceVisitor::Visit(const ThrowExpr& node, VisitResult&)
@@ -775,15 +849,30 @@ void Ast2SourceVisitor::Visit(const ThrowExpr& node, VisitResult&)
     VisitNode(node.expr);
 }
 
+VisitResult Ast2SourceVisitor::Before(const SubscriptExpr& node)
+{
+    if (!node.desugarExpr) {
+        return VisitResult::Cont();
+    }
+    Logger::Get().Debug("Ast2SourceVisitor::Before", "For SubscriptExpr");
+    if (config.Desugar()) {
+        Traverse(*node.desugarExpr, *this);
+    } else {
+        // desugared: a.[](i) -> a[i]
+        Ptr<CallExpr> callExpr = static_cast<CallExpr*>(node.desugarExpr.get().get());
+        AH_ASSERT(callExpr->args.size() == 1);
+        auto ma = static_cast<MemberAccess*>(callExpr->baseFunc.get().get());
+        VisitNode(ma->baseExpr);
+        TryPrintNode(callExpr->args[0].get(), "[", "]");
+    }
+    return VisitResult::Skip();
+}
+
 void Ast2SourceVisitor::Visit(const SubscriptExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For SubscriptExpr");
-    if (config.Desugar() && node.desugarExpr) {
-        Traverse(*node.desugarExpr, *this);
-    } else {
-        VisitNode(node.baseExpr);
-        PRT().PVec<Expr>(node.indexExprs, [this](const Expr& expr) { Traverse(expr, *this); }, ", ", "[", "]");
-    }
+    VisitNode(node.baseExpr);
+    PRT().PVec<Expr>(node.indexExprs, [this](const Expr& expr) { Traverse(expr, *this); }, ", ", "[", "]");
 }
 
 void Ast2SourceVisitor::Visit(const JumpExpr& node, VisitResult&)
@@ -1093,22 +1182,6 @@ void Ast2SourceVisitor::TryPrintGenericConstraints(Ptr<Generic> generic)
 }
 
 /**
- * @brief 尝试打印解糖的RefExpr节点。
- */
-bool Ast2SourceVisitor::TryPrintDesugaredRef(const RefExpr& ref)
-{
-    if (!config.Desugar() || !config.Sema()) {
-        return false;
-    }
-    auto target = ref.ref.target;
-    if (auto it = desugaredVarId.find(target); it != desugaredVarId.end()) {
-        PRT().PVal(it->second);
-        return true;
-    }
-    return false;
-}
-
-/**
  * @brief 尝试打印泛型实例参数。
  * @param ref 引用表达式: RefExpr or MemberAccess
  * @param isPattern 是否是在 pattern 中 (enum pattern 不允许打印泛型参数)
@@ -1207,7 +1280,7 @@ void Ast2SourceVisitor::PrintTy(const Ty& ty)
  */
 bool Ast2SourceVisitor::TryRecoverCallExpr(const CallExpr& node)
 {
-    if (config.Desugar() && config.Sema()) {
+    if (config.Sema()) {
         return TryPrintInitCall(node) || TryRecoverOverloadCallExpr(node) || TryRecoverPropCallExpr(node);
     }
     return false;
