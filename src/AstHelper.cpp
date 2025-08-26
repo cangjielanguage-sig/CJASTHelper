@@ -74,8 +74,10 @@ void ShowHelperInfo()
     hip.PL("Options: ");
     hip.Indent();
     hip.PL("--dump-source=<stage>", "Dump source after <stage>. Supported stages:");
-
     hip.PWILines({"<stage>=parse", "<stage>=desugared-parse", "<stage>=sema", "<stage>=desugared-sema"});
+    hip.PL("");
+    hip.PL(
+        "--dump-desugar=<value>", "Dump desugared code when <value> is true. Supported <value>: (default) true, false");
     hip.PL("");
     hip.PL("--filter-decls=<kinds>",
         "Filter top-level decls of <kinds>. Supported <kinds>: func, class, interface, struct, enum, var");
@@ -129,8 +131,8 @@ void AstHelper::Run()
         ShowHelperInfo();
         return;
     }
-    for (int i = 0; i <= static_cast<int>(stage); i++) {
-        if (i == static_cast<int>(SourceStage::DESUGARED_PARSE) && stage > SourceStage::DESUGARED_PARSE) {
+    for (int i = 0; i <= static_cast<int>(options.stage); i++) {
+        if (i == static_cast<int>(SourceStage::DESUGARED_PARSE) && options.stage > SourceStage::DESUGARED_PARSE) {
             // Skip desugared parse stage when stage including sema.
             continue;
         }
@@ -142,13 +144,14 @@ void AstHelper::Run()
     Logger::Get().Debug("AstHelper::Run", "Get pkgs: ", pkgs.size());
     Ast2SourceVisitorBuilder asvBuilder;
     asvBuilder.Output(GetOutputDir()).Suffix("_source.cj").Indent(4);
-    if (stage >= SourceStage::DESUGARED_PARSE) {
-        asvBuilder.EnableDusgar();
+    // 不应该按阶段配置， 新增单独的编译选项 (默认不开启解糖: 尽可能恢复用户源码)
+    if (options.enableDesugar) {
+        asvBuilder.EnableDesugar();
     }
-    if (stage >= SourceStage::SEMA) {
-        asvBuilder.EnableSeam();
+    if (options.stage >= SourceStage::SEMA) {
+        asvBuilder.EnableSema();
     }
-    asvBuilder.Focus(filterDecls);
+    asvBuilder.Focus(options.filterDecls);
     Ast2SourceVisitor ast2SourceVisitor = asvBuilder.Build();
     for (auto pkg : pkgs) {
         Logger::Get().Debug("AstHelper::Run", "Traverse ", pkg->fullPackageName, " by Ast2SourceVisitor");
@@ -158,16 +161,18 @@ void AstHelper::Run()
 
 void AstHelper::ParseArgs(const std::vector<std::string>& args)
 {
-    ArgumentParser ap({{"dump-source", {"parse", "desugared-parse", "sema", "desugared-sema"}},
-        {"filter-decls", {"func", "class", "interface", "struct", "enum", "var"}}});
+    ArgumentParser ap(
+        {{"dump-source", {"parse", "desugared-parse", "sema", "desugared-sema"}}, {"dump-desugar", {"true", "false"}},
+            {"filter-decls", {"func", "class", "interface", "struct", "enum", "var"}}});
     const std::string& DS_KEY = "--dump-source=";
-    std::vector<std::string> filterKeys{"--dump-source=", "--filter-decls"};
+    std::vector<std::string> filterKeys{"--dump-source=", "--dump-desugar", "--filter-decls"};
     std::vector<std::string> filterArgs;
     std::vector<std::string> ciArgs;
     auto isFilter = [&filterKeys](const std::string& arg) {
         return std::any_of(filterKeys.begin(), filterKeys.end(),
             [&arg](const std::string& k) { return arg.find(k) != std::string::npos; });
     };
+    // 过滤当前工具参数和 CI 参数
     for (auto arg : args) {
         if (isFilter(arg)) {
             filterArgs.push_back(arg);
@@ -177,9 +182,10 @@ void AstHelper::ParseArgs(const std::vector<std::string>& args)
     }
     try {
         ap.Parse(filterArgs);
-        auto stage = ap.GetSingleValue("dump-source");
-        this->stage = key2Stage.at(stage);
-        this->filterDecls = ap.GetMultiValue("filter-decls");
+        auto stage = ap.GetSingleValue("dump-source", "parse");
+        this->options.stage = key2Stage.at(stage);
+        this->options.enableDesugar = ap.GetSingleValue("dump-desugar", "true") == "true";
+        this->options.filterDecls = ap.GetMultiValue("filter-decls");
     } catch (InvalidArgumentException& iae) {
         Logger::Get().Error("AstHelper::ParseArgs", iae.what(), ", dump all decls!");
     }

@@ -58,6 +58,22 @@ ${CJASTHelper_SRC}/build/bin/cjah --dump-source=desugared-sema ${zzz}/main.cj --
 > 
 > 该工具执行要依赖 Cangjie 构建的二进制环境，请确保 执行过 `source ${yyy}/cangjie/envsetup.sh`
 
+### 配置是否打印解糖后代码
+
+提供 `--dump-desugared` 选项用来配置是否打印解糖后的代码， 支持参数值：（默认值）true， false。
+
+- true: 打印解糖后的代码
+- false: 不打印解糖后的代码，尝试还原解糖前的用户代码。
+
+```bash
+# 假设 构建好的工具 ${CJASTHelper_SRC}/build/bin/cjah 源码为 ${zzz}/main.cj 输出目录为 ${OUT_DIR}
+${CJASTHelper_SRC}/build/bin/cjah --dump-source=desugared-sema --dump-desugar=true --filter-decls=class,func ${zzz}/main.cj --output-dir ${OUT_DIR}
+```
+
+> 注意：
+> 
+> 当前选项功能尚未实现完成！
+
 ### 配置关注声明列表
 
 提供 `--filter-decls` 选项用来配置打印的顶层声明种类列表，支持配置多个，支持参数值：func，class, interface，struct, enum, var

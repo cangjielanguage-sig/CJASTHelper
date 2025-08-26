@@ -37,12 +37,13 @@ public:
     /**
      * @brief 获取单值选项的值。
      * @param option 选项名称。
+     * @param defalut 如果不存在的话，返回默认值。
      * @return 选项的值。
      */
-    std::string GetSingleValue(const std::string& option) const;
+    std::string GetSingleValue(const std::string& option, const std::string& dv = "") const;
 
     /**
-     * @brief 获取多值选项的值。
+     * @brief 获取多值选项的值，不存在返回空列表。
      * @param option 选项名称。
      * @return 选项的值列表。
      */

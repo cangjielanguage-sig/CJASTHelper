@@ -42,11 +42,11 @@ void ArgumentParser::Parse(const std::vector<std::string>& args)
     }
 }
 
-std::string ArgumentParser::GetSingleValue(const std::string& option) const
+std::string ArgumentParser::GetSingleValue(const std::string& option, const std::string& dv) const
 {
     auto it = parsedOptions.find(option);
     if (it == parsedOptions.end() || it->second.size() != 1) {
-        throw InvalidArgumentException("Option not found or not a single value: " + option);
+        return dv;
     }
     return it->second[0];
 }
