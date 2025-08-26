@@ -86,7 +86,12 @@ public:
     ~Ast2SourceVisitor() override = default;
 
 protected:
+#define GEN_BEFORE_OVERRIDE(N) VisitResult Before(const N& node) override
 #define GEN_VISIT_OVERRIDE(N) void Visit(const N& node, VisitResult&) override
+
+    // 递归展开需要重写的解糖节点
+    EXPAND4(GEN_BEFORE_OVERRIDE, MainDecl, AssignExpr, UnaryExpr, BinaryExpr);
+    EXPAND2(GEN_BEFORE_OVERRIDE, RefExpr, SubscriptExpr);
 
     // 递归展开需要重写的节点
     EXPAND2(GEN_VISIT_OVERRIDE, Annotation, Modifier);
@@ -181,11 +186,6 @@ private:
      * @brief 辅助打印泛型约束。
      */
     void TryPrintGenericConstraints(Ptr<Generic> generic);
-    /**
-     * @brief 尝试打印解糖的RefExpr节点。
-     */
-    bool TryPrintDesugaredRef(const RefExpr& ref);
-
     /**
      * @brief 尝试打印泛型实例参数。
      */
