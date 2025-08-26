@@ -182,11 +182,16 @@ void AstHelper::ParseArgs(const std::vector<std::string>& args)
     }
     try {
         ap.Parse(filterArgs);
-        auto stage = ap.GetSingleValue("dump-source", "parse");
+        auto stage = ap.GetSingleValue("dump-source", "");
+        if (stage == "") {
+            ShowHelperInfo();
+            return;
+        }
         this->options.stage = key2Stage.at(stage);
         this->options.enableDesugar = ap.GetSingleValue("dump-desugar", "true") == "true";
         this->options.filterDecls = ap.GetMultiValue("filter-decls");
     } catch (InvalidArgumentException& iae) {
+        ShowHelperInfo();
         Logger::Get().Error("AstHelper::ParseArgs", iae.what(), ", dump all decls!");
     }
     Logger::Get().Debug("AstHelper::ParseArgs", "args: ", ciArgs.size());
