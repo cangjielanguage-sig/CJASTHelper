@@ -33,21 +33,58 @@ public:
 };
 
 /**
- * @typedef Flag
- * @brief 定义标志类型，用于控制功能开关。
+ * @class Ast2SourceConfig
+ * @brief 配置 `Ast2SourceVisitor` 的参数。
  */
-using Flag = unsigned char;
+class Ast2SourceConfig {
+public:
+    Ast2SourceConfig();
 
-/** @brief 解糖标志 */
-constexpr Flag DESUGAR_FLAG = 0x1;
-/** @brief 语义分析标志 */
-constexpr Flag SEMA_FLAG = 0x2;
+    /**
+     * @brief 检查是否启用解糖功能。
+     *     开启解糖打印解糖后的代码， 否则打印源代码 (还原解糖前的代码)。
+     * @return 如果启用返回true，否则返回false。
+     */
+    bool Desugar() const;
+    /**
+     * @brief 检查是否启用语义分析功能。
+     * @return 如果启用返回true，否则返回false。
+     */
+    bool Sema() const;
+    /**
+     * @brief 检查是否关注特定的声明类型。
+     * @param decl 声明。
+     * @return 如果关注返回true，否则返回false。
+     */
+    bool Focus(const Decl& decl) const;
+
+public:
+    /**
+     * @typedef Flag
+     * @brief 定义标志类型，用于控制功能开关。
+     */
+    using Flag = unsigned char;
+
+    /** @brief 解糖标志 */
+    static constexpr Flag DESUGAR_FLAG = 0x1;
+    /** @brief 语义分析标志 */
+    static constexpr Flag SEMA_FLAG = 0x2;
+
+    int indent;                             /**< 输出缩进大小 */
+    std::string out;                        /**< 输出文件路径 */
+    std::string suffix;                     /**< 输出文件后缀 */
+    Flag flags;                             /**< 功能开关标志（解糖、语义等） */
+    std::unordered_set<AstKind> focusDecls; /**< 关注的顶层声明类型 */
+};
 
 /**
  * @class Ast2SourceVisitor
  * @brief 继承自 `AstVisitor`，用于将AST转换为源代码。
  */
 class Ast2SourceVisitor : public AstVisitor {
+public:
+    ~Ast2SourceVisitor() override = default;
+
 protected:
 #define GEN_VISIT_OVERRIDE(N) void Visit(const N& node, VisitResult&) override
 
@@ -83,14 +120,9 @@ private:
     friend class Ast2SourceVisitorBuilder;
     /**
      * @brief 构造函数，初始化输出文件、缩进和标志。
-     * @param out 输出文件路径。
-     * @param suffix 输出文件后缀。
-     * @param indent 缩进大小。
-     * @param flags 功能开关标志。
-     * @param focusDecls 关注的顶层声明类型集合。
+     * @param config Ast2SourceConfig对象，包含输出文件、缩进和标志信息。
      */
-    Ast2SourceVisitor(const std::string& out, const std::string& suffix, int indent, Flag flags,
-        std::unordered_set<AstKind>&& focusDecls);
+    Ast2SourceVisitor(Ast2SourceConfig config);
 
 private:
     /// 辅助打印函数
@@ -207,24 +239,6 @@ private:
      */
     void PrintDesugaredForInString(const ForInExpr& node);
 
-    /// 辅助 Flag 判断函数
-    /**
-     * @brief 检查是否启用解糖功能。
-     * @return 如果启用返回true，否则返回false。
-     */
-    bool OpenDesugar() const;
-    /**
-     * @brief 检查是否启用语义分析功能。
-     * @return 如果启用返回true，否则返回false。
-     */
-    bool OpenSema() const;
-    /**
-     * @brief 检查是否关注特定的声明类型。
-     * @param decl 声明。
-     * @return 如果关注返回true，否则返回false。
-     */
-    bool IsFocused(const Decl& decl) const;
-
     /**
      * @brief 获取 `Printer` 实例。
      * @return `Printer` 的引用。
@@ -232,12 +246,9 @@ private:
     Printer& PRT();
 
 private:
-    std::string out;                                                 /**< 输出文件路径 */
+    Ast2SourceConfig config;                                         /**< 配置对象 */
     std::fstream ofs;                                                /**< 输出文件流 */
     Printer prt;                                                     /**< 打印器实例 */
-    std::string suffix;                                              /**< 输出文件后缀 */
-    Flag flags;                                                      /**< 功能开关标志（解糖、语义等） */
-    std::unordered_set<AstKind> focusDecls;                          /**< 关注的顶层声明类型 */
     std::unordered_map<Ptr<const Decl>, std::string> desugaredVarId; /**< 解糖变量名字表 */
 };
 
@@ -269,11 +280,11 @@ public:
     /**
      * @brief 启用解糖功能。
      */
-    Ast2SourceVisitorBuilder& EnableDusgar();
+    Ast2SourceVisitorBuilder& EnableDesugar();
     /**
      * @brief 启用语义分析功能。
      */
-    Ast2SourceVisitorBuilder& EnableSeam();
+    Ast2SourceVisitorBuilder& EnableSema();
     /**
      * @brief 设置关注的顶层声明类型。
      * @param kinds 关注的声明类型名称列表。
@@ -286,11 +297,7 @@ public:
     Ast2SourceVisitor Build();
 
 private:
-    std::string out = ".";                  /**< 输出文件路径 */
-    std::string suffix = "_source.cj";      /**< 文件后缀名 */
-    int indent = 2;                         /**< 缩进大小 */
-    Flag flags = 0;                         /**< 功能开关标志 */
-    std::unordered_set<AstKind> focusDecls; /**< 关注的声明类型集合 */
+    Ast2SourceConfig config;
 };
 
 #endif // AST_2_SOURCE_VISITOR_H

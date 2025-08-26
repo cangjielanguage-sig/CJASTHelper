@@ -41,6 +41,10 @@ public:
      */
     AstVisitor();
     /**
+     * @brief 虚析构函数，确保派生类能正确析构
+     */
+    virtual ~AstVisitor() = default;
+    /**
      * @brief 注册处理程序以处理特定类型的 AST 节点。
      *
      * @param kind AST 节点的种类。

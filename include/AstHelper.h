@@ -59,7 +59,7 @@ public:
      */
     SourceStage GetStage() const
     {
-        return stage;
+        return options.stage;
     }
 
 private:
@@ -107,8 +107,13 @@ private:
     CompilerInvocation ci;                 /**< 编译器调用实例 */
     std::unique_ptr<CompilerInstance> mci; /**< 编译器实例的智能指针 */
 
-    SourceStage stage = SourceStage::DEFAULT; /**< 当前的源代码阶段 */
-    std::vector<std::string> filterDecls;     /**< 过滤打印decl配置 */
+    struct Options {
+        SourceStage stage = SourceStage::DEFAULT; /**< 当前的源代码阶段 */
+        bool enableDesugar = false;               /**< 是否启用语法糖打印 */
+        std::vector<std::string> filterDecls;     /**< 过滤打印decl配置 */
+    };
+
+    Options options; /**< 用户选项 */
     /**
      * @brief 将SourceStage值映射到对应的执行函数
      */

@@ -91,6 +91,31 @@ const char* Ast2SourceException::what() const noexcept
     return message.c_str();
 }
 
+///  Ast2SourceConfig 实现函数
+
+// 默认配置
+Ast2SourceConfig::Ast2SourceConfig() : indent(4), out("."), suffix(".cj"), flags(0)
+{
+}
+
+inline bool Ast2SourceConfig::Desugar() const
+{
+    return flags & DESUGAR_FLAG;
+}
+
+inline bool Ast2SourceConfig::Sema() const
+{
+    return flags & SEMA_FLAG;
+}
+
+bool Ast2SourceConfig::Focus(const Decl& decl) const
+{
+    if (focusDecls.empty()) {
+        return true;
+    }
+    return focusDecls.find(decl.astKind) != focusDecls.end();
+}
+
 namespace {
 /*
  * 获取文件名不包括后缀： xxx.cj -> xxx
@@ -109,7 +134,7 @@ std::string GetFileNameWithoutSuffix(const std::string& fname)
 void Ast2SourceVisitor::Visit(const File& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For File imports: ", node.imports.size());
-    std::string fp = out + "/" + GetFileNameWithoutSuffix(node.fileName) + suffix;
+    std::string fp = config.out + "/" + GetFileNameWithoutSuffix(node.fileName) + config.suffix;
     ofs.open(fp, std::ios::out);
     if (!ofs.is_open()) {
         throw Ast2SourceException("Failed to open file: " + fp);
@@ -120,7 +145,7 @@ void Ast2SourceVisitor::Visit(const File& node, VisitResult&)
     PRT().PVec<ImportSpec>(node.imports, [this](const ImportSpec& imp) { Traverse(imp, *this); }, "", "", "\n");
     // toplevel decls
     PRT().PVec<Decl>(node.decls, [this](const Decl& decl) {
-        if (!IsFocused(decl)) {
+        if (!config.Focus(decl)) {
             return;
         }
         Traverse(decl, *this);
@@ -317,7 +342,7 @@ void Ast2SourceVisitor::Visit(const FuncBody& node, VisitResult&)
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncBody");
     TryPrintGenericParams(node.generic.get());
     VisitNode(node.paramLists[0]);
-    if (!TryPrintType(node.retType) && OpenSema()) {
+    if (!TryPrintType(node.retType) && config.Sema()) {
         TryPrintTy(TryGetRetTy(node.ty));
     }
     TryPrintGenericConstraints(node.generic);
@@ -339,7 +364,7 @@ void Ast2SourceVisitor::Visit(const FuncDecl& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const MainDecl& node, VisitResult& res)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For MainDecl");
-    if (OpenDesugar() && node.desugarDecl) {
+    if (config.Desugar() && node.desugarDecl) {
         Logger::Get().Debug("Ast2SourceVisitor::Visit", "For Desugared Decl of MainDecl");
         if (node.TestAttr(Attribute::UNSAFE)) {
             PRT().PVal("unsafe ");
@@ -356,7 +381,7 @@ void Ast2SourceVisitor::Visit(const MainDecl& node, VisitResult& res)
 void Ast2SourceVisitor::Visit(const PrimaryCtorDecl& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For PrimaryCtorDecl: ", node.identifier.Val());
-    if (OpenSema()) {
+    if (config.Sema()) {
         return; // PrimaryCtorDecl is desugared in Sema
     }
     PrintDecl(node);
@@ -436,7 +461,7 @@ void Ast2SourceVisitor::Visit(const PrimitiveType& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const RefType& node, VisitResult& res)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For RefType");
-    if (node.ref.identifier.Val() == "" && OpenSema() && node.ty) {
+    if (node.ref.identifier.Val() == "" && config.Sema() && node.ty) {
         PrintTy(*node.ty);
     } else {
         PRT().PVal(Id(node.ref.identifier));
@@ -646,7 +671,7 @@ void Ast2SourceVisitor::Visit(const MemberAccess& node, VisitResult&)
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For MemberAccess");
     VisitNode(node.baseExpr);
     PRT().PVals(".", Id(node.field));
-    if (!OpenSema() || !IsRefEnum(*node.baseExpr)) {
+    if (!config.Sema() || !IsRefEnum(*node.baseExpr)) {
         PrintInstArgs(node, node.isPattern);
     }
 }
@@ -710,7 +735,7 @@ void Ast2SourceVisitor::Visit(const AsExpr& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const AssignExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For AssignExpr");
-    if (OpenDesugar() && node.desugarExpr) {
+    if (config.Desugar() && node.desugarExpr) {
         Traverse(*node.desugarExpr, *this);
     } else {
         VisitNode(node.leftValue);
@@ -734,7 +759,7 @@ void Ast2SourceVisitor::Visit(const UnaryExpr& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const BinaryExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For BinaryExpr");
-    if (OpenDesugar() && node.desugarExpr) {
+    if (config.Desugar() && node.desugarExpr) {
         Traverse(*node.desugarExpr, *this);
     } else {
         VisitNode(node.leftExpr);
@@ -753,7 +778,7 @@ void Ast2SourceVisitor::Visit(const ThrowExpr& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const SubscriptExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For SubscriptExpr");
-    if (OpenDesugar() && node.desugarExpr) {
+    if (config.Desugar() && node.desugarExpr) {
         Traverse(*node.desugarExpr, *this);
     } else {
         VisitNode(node.baseExpr);
@@ -863,11 +888,9 @@ void CreateDirIfNotExists(const std::string& path)
 }
 } // namespace
 
-Ast2SourceVisitor::Ast2SourceVisitor(
-    const std::string& out, const std::string& suffix, int indent, Flag flags, std::unordered_set<AstKind>&& focusDecls)
-    : out(out), prt(ofs, indent), suffix(suffix), flags(flags), focusDecls(std::move(focusDecls))
+Ast2SourceVisitor::Ast2SourceVisitor(Ast2SourceConfig config) : config(config), prt(ofs, config.indent)
 {
-    CreateDirIfNotExists(out);
+    CreateDirIfNotExists(config.out);
 }
 
 // 辅助打印函数 (重命名 PrintXXX)
@@ -1074,7 +1097,7 @@ void Ast2SourceVisitor::TryPrintGenericConstraints(Ptr<Generic> generic)
  */
 bool Ast2SourceVisitor::TryPrintDesugaredRef(const RefExpr& ref)
 {
-    if (!OpenDesugar() || !OpenSema()) {
+    if (!config.Desugar() || !config.Sema()) {
         return false;
     }
     auto target = ref.ref.target;
@@ -1094,7 +1117,7 @@ void Ast2SourceVisitor::PrintInstArgs(const Cangjie::AST::NameReferenceExpr& ref
 {
     if (!ref.typeArguments.empty()) {
         PRT().PVec<Type>(ref.typeArguments, [this](const Type& tp) { Traverse(tp, *this); }, ", ", "<", ">");
-    } else if (OpenSema() && !isPattern) {
+    } else if (config.Sema() && !isPattern) {
         PRT().PVec<Ty>(ref.instTys, [this](const Ty& ty) { PrintTy(ty); }, ", ", "<", ">");
     }
 }
@@ -1104,7 +1127,7 @@ void Ast2SourceVisitor::PrintInstArgs(const Cangjie::AST::NameReferenceExpr& ref
  */
 inline void Ast2SourceVisitor::PrintVarType(const VarDeclAbstract& node)
 {
-    if (!TryPrintType(node.type.get()) && OpenSema()) {
+    if (!TryPrintType(node.type.get()) && config.Sema()) {
         TryPrintTy(node.ty);
     }
 }
@@ -1124,7 +1147,7 @@ bool Ast2SourceVisitor::TryPrintType(const Ptr<Type> type)
         Traverse(*type, *this);
         return true;
     }
-    if (OpenSema()) {
+    if (config.Sema()) {
         return TryPrintTy(type->ty);
     }
     return false;
@@ -1184,7 +1207,7 @@ void Ast2SourceVisitor::PrintTy(const Ty& ty)
  */
 bool Ast2SourceVisitor::TryRecoverCallExpr(const CallExpr& node)
 {
-    if (OpenDesugar() && OpenSema()) {
+    if (config.Desugar() && config.Sema()) {
         return TryPrintInitCall(node) || TryRecoverOverloadCallExpr(node) || TryRecoverPropCallExpr(node);
     }
     return false;
@@ -1369,7 +1392,7 @@ bool Ast2SourceVisitor::TryRecoverPropCallExpr(const CallExpr& node)
  */
 bool Ast2SourceVisitor::TryPrintDesugaredForInExpr(const ForInExpr& node)
 {
-    if (!OpenSema()) {
+    if (!config.Sema()) {
         return false;
     }
     using Cangjie::AST::ForInKind;
@@ -1496,24 +1519,6 @@ void Ast2SourceVisitor::PrintDesugaredForInString(const ForInExpr& node)
     PRT().PVal("}");
 }
 
-inline bool Ast2SourceVisitor::OpenDesugar() const
-{
-    return flags & DESUGAR_FLAG;
-}
-
-inline bool Ast2SourceVisitor::OpenSema() const
-{
-    return flags & SEMA_FLAG;
-}
-
-bool Ast2SourceVisitor::IsFocused(const Decl& decl) const
-{
-    if (focusDecls.empty()) {
-        return true;
-    }
-    return focusDecls.find(decl.astKind) != focusDecls.end();
-}
-
 Printer& Ast2SourceVisitor::PRT()
 {
     return prt;
@@ -1522,31 +1527,31 @@ Printer& Ast2SourceVisitor::PRT()
 /// Ast2SourceVisitorBuilder 实现方法
 Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::Output(const std::string& out)
 {
-    this->out = out;
+    config.out = out;
     return *this;
 }
 
 Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::Suffix(const std::string& suffix)
 {
-    this->suffix = suffix;
+    config.suffix = suffix;
     return *this;
 }
 
 Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::Indent(int indent)
 {
-    this->indent = indent;
+    config.indent = indent;
     return *this;
 }
 
-Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::EnableDusgar()
+Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::EnableDesugar()
 {
-    this->flags |= DESUGAR_FLAG;
+    config.flags |= Ast2SourceConfig::DESUGAR_FLAG;
     return *this;
 }
 
-Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::EnableSeam()
+Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::EnableSema()
 {
-    this->flags |= SEMA_FLAG;
+    config.flags |= Ast2SourceConfig::SEMA_FLAG;
     return *this;
 }
 
@@ -1562,12 +1567,12 @@ const std::unordered_map<std::string, AstKind> key2DeclKind{{"func", AstKind::FU
 Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::Focus(const std::vector<std::string>& kinds)
 {
     for (auto& kind : kinds) {
-        focusDecls.insert(key2DeclKind.at(kind));
+        config.focusDecls.insert(key2DeclKind.at(kind));
     }
     return *this;
 }
 
 Ast2SourceVisitor Ast2SourceVisitorBuilder::Build()
 {
-    return Ast2SourceVisitor(out, suffix, indent, flags, std::move(focusDecls));
+    return Ast2SourceVisitor(config);
 }

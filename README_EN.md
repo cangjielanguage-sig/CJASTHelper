@@ -58,6 +58,22 @@ ${CJASTHelper_SRC}/build/bin/cjah --dump-source=desugared-sema ${zzz}/main.cj --
 >
 > This tool requires the binary environment built by Cangjie. Please ensure you have executed `source ${yyy}/cangjie/envsetup.sh`.
 
+### Configure Whether to Print Desugared Code
+
+The `--dump-desugared` option is provided to configure whether to print desugared code. Supported parameter values: (default) `true`, `false`.
+
+- `true`: Print desugared code.
+- `false`: Do not print desugared code, attempt to restore the original user code before desugaring.
+
+```bash
+# Assume the built tool is located at ${CJASTHelper_SRC}/build/bin/cjah, the source code is at ${zzz}/main.cj, and the output directory is ${OUT_DIR}.
+${CJASTHelper_SRC}/build/bin/cjah --dump-source=desugared-sema --dump-desugar=true --filter-decls=class,func ${zzz}/main.cj --output-dir ${OUT_DIR}
+```
+
+> Note:
+> 
+> This option is not fully implemented yet!
+
 ### Configure Declaration Filters
 
 The `--filter-decls` option is provided to configure the list of top-level declaration types to print. Multiple values are supported. Supported parameter values: `func`, `class`, `interface`, `struct`, `enum`, `var`.
