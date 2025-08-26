@@ -734,9 +734,13 @@ void Ast2SourceVisitor::Visit(const UnaryExpr& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const BinaryExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For BinaryExpr");
-    VisitNode(node.leftExpr);
-    PRT().PVals(" ", Tk2Str(node.op), " ");
-    VisitNode(node.rightExpr);
+    if (OpenDesugar() && node.desugarExpr) {
+        Traverse(*node.desugarExpr, *this);
+    } else {
+        VisitNode(node.leftExpr);
+        PRT().PVals(" ", Tk2Str(node.op), " ");
+        VisitNode(node.rightExpr);
+    }
 }
 
 void Ast2SourceVisitor::Visit(const ThrowExpr& node, VisitResult&)
