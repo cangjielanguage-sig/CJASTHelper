@@ -94,7 +94,7 @@ const char* Ast2SourceException::what() const noexcept
 ///  Ast2SourceConfig 实现函数
 
 // 默认配置
-Ast2SourceConfig::Ast2SourceConfig() : indent(4), out("."), suffix(".cj"), flags(0)
+Ast2SourceConfig::Ast2SourceConfig() : indent(4), out("."), suffix("_source.cj"), flags(0)
 {
 }
 
@@ -110,10 +110,7 @@ inline bool Ast2SourceConfig::Sema() const
 
 bool Ast2SourceConfig::Focus(const Decl& decl) const
 {
-    if (focusDecls.empty()) {
-        return true;
-    }
-    return focusDecls.find(decl.astKind) != focusDecls.end();
+    return (focusDecls.empty() || focusDecls.count(decl.astKind)) && !ignoreDecls.count(decl.identifier.Val());
 }
 
 namespace {
@@ -1010,9 +1007,46 @@ inline void Ast2SourceVisitor::TryPrintNode(
  */
 void Ast2SourceVisitor::PrintDecl(const Decl& node)
 {
-    VisitNodes(node.annotations);
+    PrintAnnotations(node);
     VisitNode(node.annotationsArray);
     PRT().PVec<Modifier>(node.modifiers, [this](const Modifier& mod) { Traverse(mod, *this); }, " ", "", " ");
+}
+
+namespace {
+// 关注的注解属性映射表
+std::unordered_map<std::string, Attribute> focusAttrsMap = {{"C", Attribute::C}};
+} // namespace
+
+/**
+ * @brief 辅助打印注解列表。
+ *  注解打印规则:
+ * 1. 用户代码注解列表： node.annotations
+ * 2. 配置忽略打印的列表： config.ignoreAnnotations
+ * 3. 语义后置的注解列表： config.focusAttrs
+ * 规则描述:
+ * (node.annotations + config.focusAttrs) - config.ignoreAnnotations
+ */
+void Ast2SourceVisitor::PrintAnnotations(const Decl& node)
+{
+    std::unordered_set<std::string> annotations;
+    for (auto& anno : node.annotations) {
+        auto& annoName = anno->identifier.Val();
+        if (!config.ignoreAnnotations.count(annoName)) {
+            Traverse(*anno, *this);
+            annotations.insert(annoName);
+        }
+    }
+    if (!config.Sema()) {
+        return;
+    }
+    // 补充打印语义后的缺少的注解
+    PRT().PVec<std::string>(config.focusAttrs, [&node, &annotations, this](const std::string& anno) {
+        // node 有关注的属性 没有打印过 也没有忽略
+        if (node.TestAttr(focusAttrsMap.at(anno)) && !annotations.count(anno) &&
+            !config.ignoreAnnotations.count(anno)) {
+            PRT().PValNL("@" + anno);
+        }
+    });
 }
 
 /**
@@ -1642,6 +1676,36 @@ Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::Focus(const std::vector<std:
     for (auto& kind : kinds) {
         config.focusDecls.insert(key2DeclKind.at(kind));
     }
+    return *this;
+}
+
+/**
+ * @brief 设置关注的注解属性。
+ * @param attrs 关注的注解属性名称列表。
+ */
+Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::FocusAttrs(const std::vector<std::string>& attrs)
+{
+    config.focusAttrs.insert(attrs.begin(), attrs.end());
+    return *this;
+}
+
+/**
+ * @brief 设置忽略的顶层声明。
+ * @param decls 忽略的声明标识符列表。
+ */
+Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::IgnoreDecls(const std::vector<std::string>& decls)
+{
+    config.ignoreDecls.insert(decls.begin(), decls.end());
+    return *this;
+}
+
+/**
+ * @brief 设置忽略的注解。
+ * @param annos 忽略的注解名称列表。
+ */
+Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::IgnoreAnnotations(const std::vector<std::string>& annos)
+{
+    config.ignoreAnnotations.insert(annos.begin(), annos.end());
     return *this;
 }
 
