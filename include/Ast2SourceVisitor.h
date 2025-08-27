@@ -75,6 +75,10 @@ public:
     std::string suffix;                     /**< 输出文件后缀 */
     Flag flags;                             /**< 功能开关标志（解糖、语义等） */
     std::unordered_set<AstKind> focusDecls; /**< 关注的顶层声明类型 */
+    // 可配置属性: Attribute::C, Attribute::INTRINSIC, ...
+    std::unordered_set<std::string> focusAttrs;        /**< 关注的注解对应的属性列表 */
+    std::unordered_set<std::string> ignoreAnnotations; /**< 忽略的注解对应的属性列表 */
+    std::unordered_set<std::string> ignoreDecls;       /**< 忽略的顶层声明列表 */
 };
 
 /**
@@ -140,6 +144,10 @@ private:
      * @brief 辅助打印声明节点。
      */
     void PrintDecl(const Decl& node);
+    /**
+     * @brief 辅助打印注解列表。
+     */
+    void PrintAnnotations(const Decl& node);
     /**
      * @brief 辅助打印block。
      */
@@ -290,6 +298,21 @@ public:
      * @param kinds 关注的声明类型名称列表。
      */
     Ast2SourceVisitorBuilder& Focus(const std::vector<std::string>& kinds);
+    /**
+     * @brief 设置关注的注解属性。
+     * @param attrs 关注的注解属性名称列表。
+     */
+    Ast2SourceVisitorBuilder& FocusAttrs(const std::vector<std::string>& attrs);
+    /**
+     * @brief 设置忽略的顶层声明。
+     * @param decls 忽略的声明标识符列表。
+     */
+    Ast2SourceVisitorBuilder& IgnoreDecls(const std::vector<std::string>& decls);
+    /**
+     * @brief 设置忽略的注解。
+     * @param annos 忽略的注解名称列表。
+     */
+    Ast2SourceVisitorBuilder& IgnoreAnnotations(const std::vector<std::string>& annos);
     /**
      * @brief 构建 `Ast2SourceVisitor` 实例。
      * @return 返回构建好的 `Ast2SourceVisitor` 实例。

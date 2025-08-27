@@ -29,6 +29,17 @@ public:
         DESUGARED_SEMA,  /**< Source of desugared typechecked ast. */
     };
 
+    /**
+     * @brief helper 自定义选项定义
+     */
+    struct Options {
+        SourceStage stage = SourceStage::DEFAULT;   /**< 当前的源代码阶段 */
+        bool enableDesugar = false;                 /**< 是否启用语法糖打印 */
+        std::vector<std::string> filterDecls;       /**< 过滤打印decl配置 */
+        std::vector<std::string> ignoreDecls;       /**< 忽略打印decl配置 */
+        std::vector<std::string> ignoreAnnotations; /**< 忽略打印annotations配置 */
+    };
+
 public:
     /**
      * @brief 构造AstHelper实例
@@ -61,6 +72,18 @@ public:
     {
         return options.stage;
     }
+
+protected:
+    /**
+     * @brief 执行分析阶段 复用前端的编译器调用，得到AST
+     * @return 分析阶段执行成功返回true，否则返回false
+     */
+    bool DoAnalysis();
+    /**
+     * @brief 执行转换阶段, 获取AST并转换为源代码
+     * @return 转换阶段执行成功返回true，否则返回false
+     */
+    bool DoTransform() const;
 
 private:
     /**
@@ -106,12 +129,6 @@ private:
     DiagnosticEngine diag;                 /**< 诊断引擎实例 */
     CompilerInvocation ci;                 /**< 编译器调用实例 */
     std::unique_ptr<CompilerInstance> mci; /**< 编译器实例的智能指针 */
-
-    struct Options {
-        SourceStage stage = SourceStage::DEFAULT; /**< 当前的源代码阶段 */
-        bool enableDesugar = false;               /**< 是否启用语法糖打印 */
-        std::vector<std::string> filterDecls;     /**< 过滤打印decl配置 */
-    };
 
     Options options; /**< 用户选项 */
     /**

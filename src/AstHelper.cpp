@@ -131,41 +131,85 @@ void AstHelper::Run()
         ShowHelperInfo();
         return;
     }
+    if (!DoAnalysis()) {
+        Logger::Get().Error("AstHelper::Run", "DoAnalysis failed.");
+        return;
+    }
+    if (!DoTransform()) {
+        Logger::Get().Error("AstHelper::Run", "DoTransform failed.");
+        return;
+    }
+}
+
+/**
+ * @brief 执行分析阶段 复用前端的编译器调用，得到AST
+ * @return 分析阶段执行成功返回true，否则返回false
+ */
+bool AstHelper::DoAnalysis()
+{
+    Logger::Get().Debug("AstHelper::DoAnalysis");
+    // --dump-source 按照 stage 决策执行前端哪些pipeline
     for (int i = 0; i <= static_cast<int>(options.stage); i++) {
         if (i == static_cast<int>(SourceStage::DESUGARED_PARSE) && options.stage > SourceStage::DESUGARED_PARSE) {
             // Skip desugared parse stage when stage including sema.
             continue;
         }
         if (!stageMap.at(static_cast<SourceStage>(i))(this)) {
-            return;
+            return false;
         }
     }
+    // TODO: 检查是否有错误
+    return true;
+}
+
+namespace {
+/**
+ *  @brief 根据用户输入的选项更新 Builder 配置
+ */
+inline void UpdateAst2SourceVisitorBuilder(Ast2SourceVisitorBuilder& builder, const AstHelper::Options& options)
+{
+    // --dump-desugar=true or false (默认不开启解糖: 尽可能恢复用户源码)
+    if (options.enableDesugar) {
+        builder.EnableDesugar();
+    }
+    if (options.stage >= AstHelper::SourceStage::SEMA) {
+        builder.EnableSema();
+    }
+    builder.Focus(options.filterDecls);
+    // TODO: 默认白名单
+    builder.FocusAttrs({"C"});
+    builder.IgnoreDecls(options.ignoreDecls);
+    builder.IgnoreAnnotations(options.ignoreAnnotations);
+}
+} // namespace
+
+/**
+ * @brief 执行转换阶段, 获取AST并转换为源代码
+ * @return 转换阶段执行成功返回true，否则返回false
+ */
+bool AstHelper::DoTransform() const
+{
     auto pkgs = mci->GetSourcePackages();
     Logger::Get().Debug("AstHelper::Run", "Get pkgs: ", pkgs.size());
     Ast2SourceVisitorBuilder asvBuilder;
-    asvBuilder.Output(GetOutputDir()).Suffix("_source.cj").Indent(4);
-    // 不应该按阶段配置， 新增单独的编译选项 (默认不开启解糖: 尽可能恢复用户源码)
-    if (options.enableDesugar) {
-        asvBuilder.EnableDesugar();
-    }
-    if (options.stage >= SourceStage::SEMA) {
-        asvBuilder.EnableSema();
-    }
-    asvBuilder.Focus(options.filterDecls);
+    asvBuilder.Output(GetOutputDir());
+    // 更新Builder
+    UpdateAst2SourceVisitorBuilder(asvBuilder, options);
     Ast2SourceVisitor ast2SourceVisitor = asvBuilder.Build();
     for (auto pkg : pkgs) {
-        Logger::Get().Debug("AstHelper::Run", "Traverse ", pkg->fullPackageName, " by Ast2SourceVisitor");
         Traverse(*pkg, ast2SourceVisitor);
     }
+    return true;
 }
 
 void AstHelper::ParseArgs(const std::vector<std::string>& args)
 {
-    ArgumentParser ap(
-        {{"dump-source", {"parse", "desugared-parse", "sema", "desugared-sema"}}, {"dump-desugar", {"true", "false"}},
-            {"filter-decls", {"func", "class", "interface", "struct", "enum", "var"}}});
+    ArgumentParser ap({{"dump-source", {"parse", "desugared-parse", "sema", "desugared-sema"}},
+        {"filter-decls", {"func", "class", "interface", "struct", "enum", "var"}}, {"dump-desugar", {"true", "false"}},
+        {"ignore-decls", {}}, {"ignore-annotations", {}}});
     const std::string& DS_KEY = "--dump-source=";
-    std::vector<std::string> filterKeys{"--dump-source=", "--dump-desugar", "--filter-decls"};
+    std::vector<std::string> filterKeys{
+        "--dump-source=", "--dump-desugar", "--filter-decls", "--ignore-decls", "--ignore-annotations"};
     std::vector<std::string> filterArgs;
     std::vector<std::string> ciArgs;
     auto isFilter = [&filterKeys](const std::string& arg) {
@@ -183,16 +227,16 @@ void AstHelper::ParseArgs(const std::vector<std::string>& args)
     try {
         ap.Parse(filterArgs);
         auto stage = ap.GetSingleValue("dump-source", "");
-        if (stage == "") {
-            ShowHelperInfo();
-            return;
+        if (stage != "") {
+            this->options.stage = key2Stage.at(stage);
         }
-        this->options.stage = key2Stage.at(stage);
         this->options.enableDesugar = ap.GetSingleValue("dump-desugar", "true") == "true";
         this->options.filterDecls = ap.GetMultiValue("filter-decls");
+        this->options.ignoreDecls = ap.GetMultiValue("ignore-decls");
+        this->options.ignoreAnnotations = ap.GetMultiValue("ignore-annotations");
     } catch (InvalidArgumentException& iae) {
+        Logger::Get().Error("AstHelper::ParseArgs", iae.what());
         ShowHelperInfo();
-        Logger::Get().Error("AstHelper::ParseArgs", iae.what(), ", dump all decls!");
     }
     Logger::Get().Debug("AstHelper::ParseArgs", "args: ", ciArgs.size());
     ci.ParseArgs(ciArgs);
