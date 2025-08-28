@@ -76,9 +76,12 @@ public:
     Flag flags;                             /**< 功能开关标志（解糖、语义等） */
     std::unordered_set<AstKind> focusDecls; /**< 关注的顶层声明类型 */
     // 可配置属性: Attribute::C, Attribute::INTRINSIC, ...
-    std::unordered_set<std::string> focusAttrs;        /**< 关注的注解对应的属性列表 */
-    std::unordered_set<std::string> ignoreAnnotations; /**< 忽略的注解对应的属性列表 */
-    std::unordered_set<std::string> ignoreDecls;       /**< 忽略的顶层声明列表 */
+    std::unordered_set<std::string> focusAnnotationAttrs; /**< 关注的注解对应的属性列表 */
+    // 可配置属性: Attribute::PUBLIC, ...
+    std::unordered_set<std::string> focusModifierAttrs; /**< 关注的修饰符对应的属性列表 */
+    std::unordered_set<AstKind> focusModifierWhiteList; /**< 关注的语义后修饰符的节点白名单 */
+    std::unordered_set<std::string> ignoreAnnotations;  /**< 忽略的注解对应的属性列表 */
+    std::unordered_set<std::string> ignoreDecls;        /**< 忽略的顶层声明列表 */
 };
 
 /**
@@ -148,6 +151,10 @@ private:
      * @brief 辅助打印注解列表。
      */
     void PrintAnnotations(const Decl& node);
+    /**
+     * @brief 辅助打印修饰符列表。
+     */
+    void PrintModifiers(const Decl& node);
     /**
      * @brief 辅助打印block。
      */
@@ -302,7 +309,14 @@ public:
      * @brief 设置关注的注解属性。
      * @param attrs 关注的注解属性名称列表。
      */
-    Ast2SourceVisitorBuilder& FocusAttrs(const std::vector<std::string>& attrs);
+    Ast2SourceVisitorBuilder& FocusAnnotationAttrs(const std::vector<std::string>& attrs);
+    /**
+     * @brief 设置关注的修饰符属性。
+     * @param attrs 关注的修饰符属性名称列表。
+     * @param kinds 关注的修饰符属性所在的声明类型名称列表（白名单）。
+     */
+    Ast2SourceVisitorBuilder& FocusModifierAttrs(
+        const std::vector<std::string>& attrs, const std::vector<std::string>& kinds);
     /**
      * @brief 设置忽略的顶层声明。
      * @param decls 忽略的声明标识符列表。

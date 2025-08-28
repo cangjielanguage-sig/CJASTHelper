@@ -1016,12 +1016,13 @@ void Ast2SourceVisitor::PrintDecl(const Decl& node)
 {
     PrintAnnotations(node);
     VisitNode(node.annotationsArray);
-    PRT().PVec<Modifier>(node.modifiers, [this](const Modifier& mod) { Traverse(mod, *this); }, " ", "", " ");
+    PrintModifiers(node);
 }
 
 namespace {
 // 关注的注解属性映射表
-std::unordered_map<std::string, Attribute> focusAttrsMap = {{"C", Attribute::C}};
+std::unordered_map<std::string, Attribute> focusAttrsMap = {{"C", Attribute::C}, {"public", Attribute::PUBLIC},
+    {"protected", Attribute::PROTECTED}, {"private", Attribute::PRIVATE}, {"internal", Attribute::INTERNAL}};
 } // namespace
 
 /**
@@ -1029,9 +1030,9 @@ std::unordered_map<std::string, Attribute> focusAttrsMap = {{"C", Attribute::C}}
  *  注解打印规则:
  * 1. 用户代码注解列表： node.annotations
  * 2. 配置忽略打印的列表： config.ignoreAnnotations
- * 3. 语义后置的注解列表： config.focusAttrs
+ * 3. 语义后置的注解列表： config.focusAnnotationAttrs
  * 规则描述:
- * (node.annotations + config.focusAttrs) - config.ignoreAnnotations
+ * (node.annotations + config.focusAnnotationAttrs) - config.ignoreAnnotations
  */
 void Ast2SourceVisitor::PrintAnnotations(const Decl& node)
 {
@@ -1047,11 +1048,56 @@ void Ast2SourceVisitor::PrintAnnotations(const Decl& node)
         return;
     }
     // 补充打印语义后的缺少的注解
-    PRT().PVec<std::string>(config.focusAttrs, [&node, &annotations, this](const std::string& anno) {
+    PRT().PVec<std::string>(config.focusAnnotationAttrs, [&node, &annotations, this](const std::string& anno) {
         // node 有关注的属性 没有打印过 也没有忽略
         if (node.TestAttr(focusAttrsMap.at(anno)) && !annotations.count(anno) &&
             !config.ignoreAnnotations.count(anno)) {
             PRT().PValNL("@" + anno);
+        }
+    });
+}
+
+namespace {
+inline bool NeedAddMoidifier(const Decl& node)
+{
+    if (node.TestAttr(Attribute::ENUM_CONSTRUCTOR)) {
+        return false;
+    }
+    if (node.IsFunc()) {
+        auto& fn = static_cast<const FuncDecl&>(node);
+        if (fn.isGetter || fn.isSetter) {
+            return false;
+        }
+    }
+    if (node.IsFuncOrProp() && node.outerDecl && node.outerDecl->astKind == AstKind::INTERFACE_DECL) {
+        return false;
+    }
+    return true;
+}
+} // namespace
+
+/**
+ * @brief 辅助打印修饰符列表。
+ */
+void Ast2SourceVisitor::PrintModifiers(const Decl& node)
+{
+    std::unordered_set<std::string> modifiers;
+    PRT().PVec<Modifier>(
+        node.modifiers,
+        [this, &modifiers](const Modifier& mod) {
+            modifiers.insert(Tk2Str(mod.modifier));
+            Traverse(mod, *this);
+        },
+        " ", "", " ");
+
+    if (!config.Sema() || !config.focusModifierWhiteList.count(node.astKind) || !NeedAddMoidifier(node)) {
+        return;
+    }
+    // 补充打印语义后的缺少的修饰符
+    PRT().PVec<std::string>(config.focusModifierAttrs, [&node, &modifiers, this](const std::string& mod) {
+        // node 有关注的属性 没有打印过
+        if (node.TestAttr(focusAttrsMap.at(mod)) && !modifiers.count(mod)) {
+            PRT().PVals(mod, " ");
         }
     });
 }
@@ -1690,9 +1736,23 @@ Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::Focus(const std::vector<std:
  * @brief 设置关注的注解属性。
  * @param attrs 关注的注解属性名称列表。
  */
-Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::FocusAttrs(const std::vector<std::string>& attrs)
+Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::FocusAnnotationAttrs(const std::vector<std::string>& attrs)
 {
-    config.focusAttrs.insert(attrs.begin(), attrs.end());
+    config.focusAnnotationAttrs.insert(attrs.begin(), attrs.end());
+    return *this;
+}
+
+/**
+ * @brief 设置关注的修饰符属性。
+ * @param attrs 关注的修饰符属性名称列表。
+ */
+Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::FocusModifierAttrs(
+    const std::vector<std::string>& attrs, const std::vector<std::string>& kinds)
+{
+    config.focusModifierAttrs.insert(attrs.begin(), attrs.end());
+    for (auto& kind : kinds) {
+        config.focusModifierWhiteList.insert(key2DeclKind.at(kind));
+    }
     return *this;
 }
 
