@@ -177,7 +177,8 @@ inline void UpdateAst2SourceVisitorBuilder(Ast2SourceVisitorBuilder& builder, co
     }
     builder.Focus(options.filterDecls);
     // TODO: 默认白名单
-    builder.FocusAttrs({"C"});
+    builder.FocusAnnotationAttrs({"C"});
+    builder.FocusModifierAttrs({"public", "protected", "internal", "private"}, {"func", "var"});
     builder.IgnoreDecls(options.ignoreDecls);
     builder.IgnoreAnnotations(options.ignoreAnnotations);
 }
