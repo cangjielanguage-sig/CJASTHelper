@@ -676,6 +676,13 @@ void Ast2SourceVisitor::Visit(const TupleLit& node, VisitResult&)
     PRT().PVec<AstNode>(node.children, [this](const AstNode& expr) { Traverse(expr, *this); }, ", ", "(", ")", true);
 }
 
+void Ast2SourceVisitor::Visit(const TypeConvExpr& node, VisitResult&)
+{
+    Logger::Get().Debug("Ast2SourceVisitor::Visit", "For TypeConvExpr");
+    VisitNode(node.type);
+    TryPrintNode(node.expr, "(", ")");
+}
+
 namespace {
 // 检查 expr 是否是对 Enum 类型的引用
 inline bool IsRefEnum(const Expr& expr)

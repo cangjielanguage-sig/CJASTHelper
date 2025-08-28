@@ -62,13 +62,13 @@ std::vector<std::string> ArgumentParser::GetMultiValue(const std::string& option
 
 void ArgumentParser::ValidateOption(const std::string& option, const std::vector<std::string>& values) const
 {
-    // 未配置有效选项值，默认不限制
-    if (validOptions.empty()) {
-        return;
-    }
     auto it = validOptions.find(option);
     if (it == validOptions.end()) {
         throw InvalidArgumentException("Invalid option: " + option);
+    }
+    // 未配置有效选项值，默认不限制
+    if (it->second.empty()) {
+        return;
     }
     for (const auto& value : values) {
         if (it->second.find(value) == it->second.end()) {

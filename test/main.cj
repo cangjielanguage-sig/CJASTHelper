@@ -308,7 +308,7 @@ func testGenericTypes() {
 
 unsafe func entry() {
     let res = foo(2, 3)
-    println(res)
+    println(Int32(res))
     foo1(A())
     foo2()
     foo3()
