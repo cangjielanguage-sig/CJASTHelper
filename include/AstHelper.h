@@ -25,6 +25,7 @@ public:
         DEFAULT = 0,     /**< No Source. */
         PARSE,           /**< Source of parsed ast. */
         DESUGARED_PARSE, /**< Source of desugared parsed ast. */
+        IMPORT,          /**< Import Depend Packages for dump imports. */
         SEMA,            /**< Source of typechecked ast. */
         DESUGARED_SEMA,  /**< Source of desugared typechecked ast. */
     };
@@ -33,11 +34,12 @@ public:
      * @brief helper 自定义选项定义
      */
     struct Options {
-        SourceStage stage = SourceStage::DEFAULT;   /**< 当前的源代码阶段 */
-        bool enableDesugar = false;                 /**< 是否启用语法糖打印 */
-        std::vector<std::string> filterDecls;       /**< 过滤打印decl配置 */
-        std::vector<std::string> ignoreDecls;       /**< 忽略打印decl配置 */
-        std::vector<std::string> ignoreAnnotations; /**< 忽略打印annotations配置 */
+        SourceStage stage = SourceStage::DEFAULT;     /**< 当前的源代码阶段 */
+        bool enableDesugar = false;                   /**< 是否启用语法糖打印 */
+        std::vector<std::string> filterDecls;         /**< 过滤打印decl配置 */
+        std::vector<std::string> ignoreDecls;         /**< 忽略打印decl配置 */
+        std::vector<std::string> ignoreAnnotations;   /**< 忽略打印annotations配置 */
+        std::unordered_set<std::string> importedPkgs; /**< --dump-imported: 期望打印导入包的包名 */
     };
 
 public:
@@ -111,6 +113,12 @@ private:
     bool DesugaredParse();
 
     /**
+     * @brief 执行导入依赖包阶段
+     * @return 如果成功返回true，否则返回false
+     */
+    bool LoadImports();
+
+    /**
      * @brief 执行语义分析阶段
      * @return 如果成功返回true，否则返回false
      */
@@ -130,14 +138,15 @@ private:
     CompilerInvocation ci;                 /**< 编译器调用实例 */
     std::unique_ptr<CompilerInstance> mci; /**< 编译器实例的智能指针 */
 
-    Options options; /**< 用户选项 */
+    Options options;                              /**< 用户选项 */
+    std::vector<Ptr<Cangjie::AST::Package>> pkgs; /**< 分析结果包列表 */
     /**
      * @brief 将SourceStage值映射到对应的执行函数
      */
     static inline const std::unordered_map<SourceStage, std::function<bool(AstHelper*)>> stageMap{
         {SourceStage::DEFAULT, &AstHelper::Default}, {SourceStage::PARSE, &AstHelper::Parse},
-        {SourceStage::DESUGARED_PARSE, &AstHelper::DesugaredParse}, {SourceStage::SEMA, &AstHelper::Sema},
-        {SourceStage::DESUGARED_SEMA, &AstHelper::DesugaredSema}};
+        {SourceStage::DESUGARED_PARSE, &AstHelper::DesugaredParse}, {SourceStage::IMPORT, &AstHelper::LoadImports},
+        {SourceStage::SEMA, &AstHelper::Sema}, {SourceStage::DESUGARED_SEMA, &AstHelper::DesugaredSema}};
 };
 
 /**
