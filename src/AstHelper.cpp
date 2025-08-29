@@ -135,6 +135,15 @@ void AstHelper::Run()
         Logger::Get().Error("AstHelper::Run", "DoAnalysis failed.");
         return;
     }
+    if (options.stage == SourceStage::IMPORT) {
+        for (auto pkg : mci->GetPackages()) {
+            if (options.importedPkgs.count(pkg->fullPackageName)) {
+                pkgs.push_back(pkg);
+            }
+        }
+    } else {
+        pkgs = mci->GetSourcePackages();
+    }
     if (!DoTransform()) {
         Logger::Get().Error("AstHelper::Run", "DoTransform failed.");
         return;
@@ -172,7 +181,7 @@ inline void UpdateAst2SourceVisitorBuilder(Ast2SourceVisitorBuilder& builder, co
     if (options.enableDesugar) {
         builder.EnableDesugar();
     }
-    if (options.stage >= AstHelper::SourceStage::SEMA) {
+    if (options.stage >= AstHelper::SourceStage::IMPORT) {
         builder.EnableSema();
     }
     builder.Focus(options.filterDecls);
@@ -190,7 +199,6 @@ inline void UpdateAst2SourceVisitorBuilder(Ast2SourceVisitorBuilder& builder, co
  */
 bool AstHelper::DoTransform() const
 {
-    auto pkgs = mci->GetSourcePackages();
     Logger::Get().Debug("AstHelper::Run", "Get pkgs: ", pkgs.size());
     Ast2SourceVisitorBuilder asvBuilder;
     asvBuilder.Output(GetOutputDir());
@@ -205,12 +213,12 @@ bool AstHelper::DoTransform() const
 
 void AstHelper::ParseArgs(const std::vector<std::string>& args)
 {
-    ArgumentParser ap({{"dump-source", {"parse", "desugared-parse", "sema", "desugared-sema"}},
+    ArgumentParser ap({{"dump-source", {"parse", "desugared-parse", "sema", "desugared-sema"}}, {"dump-imports", {}},
         {"filter-decls", {"func", "class", "interface", "struct", "enum", "var"}}, {"dump-desugar", {"true", "false"}},
         {"ignore-decls", {}}, {"ignore-annotations", {}}});
     const std::string& DS_KEY = "--dump-source=";
-    std::vector<std::string> filterKeys{
-        "--dump-source=", "--dump-desugar", "--filter-decls", "--ignore-decls", "--ignore-annotations"};
+    std::vector<std::string> filterKeys{"--dump-source", "--dump-imports", "--dump-desugar", "--filter-decls",
+        "--ignore-decls", "--ignore-annotations"};
     std::vector<std::string> filterArgs;
     std::vector<std::string> ciArgs;
     auto isFilter = [&filterKeys](const std::string& arg) {
@@ -231,6 +239,12 @@ void AstHelper::ParseArgs(const std::vector<std::string>& args)
         if (stage != "") {
             this->options.stage = key2Stage.at(stage);
         }
+        auto imports = ap.GetMultiValue("dump-imports");
+        if (imports.size() > 0) {
+            this->options.stage = SourceStage::IMPORT;
+            this->options.importedPkgs.insert(imports.begin(), imports.end());
+        }
+        // TODO： 适配默认 false
         this->options.enableDesugar = ap.GetSingleValue("dump-desugar", "true") == "true";
         this->options.filterDecls = ap.GetMultiValue("filter-decls");
         this->options.ignoreDecls = ap.GetMultiValue("ignore-decls");
@@ -246,15 +260,13 @@ void AstHelper::ParseArgs(const std::vector<std::string>& args)
 bool AstHelper::Default()
 {
     Logger::Get().Debug("AstHelper::Default", "input files: ", ci.globalOptions.srcFiles.size());
-    Logger::Get().Debug("AstHelper::Default", "Output", GetOutputDir());
+    Logger::Get().Debug("AstHelper::Default", "Output: ", GetOutputDir());
     return true;
 }
 
 bool AstHelper::Parse()
 {
-    Logger::Get().Debug("AstHelper::Parse");
     Logger::Get().Debug("AstHelper::Parse", "file paths: ", mci->srcFilePaths.size());
-
     return mci->PerformParse();
 }
 
@@ -267,11 +279,15 @@ bool AstHelper::DesugaredParse()
     return true;
 }
 
+bool AstHelper::LoadImports()
+{
+    Logger::Get().Debug("AstHelper::LoadImports");
+    return mci->PerformImportPackage();
+}
+
 bool AstHelper::Sema()
 {
     Logger::Get().Debug("AstHelper::Sema");
-    // Necessary pipeline
-    mci->PerformImportPackage();
     return mci->PerformSema();
 }
 

@@ -1552,7 +1552,8 @@ bool Ast2SourceVisitor::TryRecoverPropCallExpr(const CallExpr& node)
  */
 bool Ast2SourceVisitor::TryPrintDesugaredForInExpr(const ForInExpr& node)
 {
-    if (!config.Sema()) {
+    // TODO: 适配 默认 desugar false
+    if (!config.Sema() || !config.Desugar()) {
         return false;
     }
     using Cangjie::AST::ForInKind;

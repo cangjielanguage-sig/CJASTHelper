@@ -614,8 +614,6 @@ void AstVisitor::Visit(const StrInterpolationExpr& node, VisitResult& res)
 
 void AstVisitor::Visit(const BuiltInDecl& node, VisitResult& res)
 {
-    // TO Check
-    Visit(node, res);
 }
 
 void AstVisitor::VisitDecl(const Decl& node, VisitResult& res)
