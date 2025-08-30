@@ -4,21 +4,12 @@
  * This file declares the generic MutAstVisitor.
  */
 
-#ifndef MUT_AST_VISITOR_H
-#define MUT_AST_VISITOR_H
+#pragma once
 
 #include "MutAstVisitorBase.h"
 #include <functional>
 #include <map>
 #include <tuple>
-
-using AstKind = Cangjie::AST::ASTKind;
-using Cangjie::AST::Decl;
-
-// 宏自动生成 using Cangjie::AST::Package
-#define AST_INFO(KIND, STR, DEF) using Cangjie::AST::DEF;
-#include "AstInfo.inc"
-#undef AST_INFO
 
 class MutAstVisitor : public MutAstVisitorBase {
 public:
@@ -156,5 +147,3 @@ protected:
      */
     std::map<AstKind, std::tuple<BeforeFunc, VisitFunc, AfterFunc>> handlers;
 };
-
-#endif // MUT_AST_VISITOR_H

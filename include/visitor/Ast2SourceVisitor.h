@@ -3,8 +3,8 @@
  *
  * This file declares the Ast2SourceVisitor.
  */
-#ifndef AST_2_SOURCE_VISITOR_H
-#define AST_2_SOURCE_VISITOR_H
+#pragma once
+
 #include "AstVisitor.h"
 #include "utils/Macro.h"
 #include "utils/Printer.h"
@@ -177,11 +177,11 @@ private:
     /**
      * @brief 辅助打印继承类型。
      */
-    void PrintInheritedTypes(const std::vector<OwnedPtr<Cangjie::AST::Type>>& types);
+    void PrintInheritedTypes(const std::vector<OwnedPtr<Type>>& types);
     /**
      * @brief 辅助打印可继承类型头部。
      */
-    void PrintInheritableDeclHeader(const Cangjie::AST::InheritableDecl& node, const std::string& keyword);
+    void PrintInheritableDeclHeader(const InheritableDecl& node, const std::string& keyword);
 
     /**
      * @brief 辅助打印一组声明。
@@ -204,23 +204,23 @@ private:
     /**
      * @brief 尝试打印泛型实例参数。
      */
-    void PrintInstArgs(const Cangjie::AST::NameReferenceExpr& ref, bool isPattern = false);
+    void PrintInstArgs(const NameReferenceExpr& ref, bool isPattern = false);
     /**
      * @brief 辅助打印 变量的类型标注。
      */
-    void PrintVarType(const Cangjie::AST::VarDeclAbstract& node);
+    void PrintVarType(const VarDeclAbstract& node);
     /**
      * @brief 辅助打印 Type 节点。
      */
-    bool TryPrintType(const Ptr<Cangjie::AST::Type> type);
+    bool TryPrintType(const Ptr<Type> type);
     /**
      * @brief 辅助打印 Ty 标注。
      */
-    bool TryPrintTy(const Ptr<Cangjie::AST::Ty> ty);
+    bool TryPrintTy(const Ptr<Ty> ty);
     /**
      * @brief 辅助打印 Ty 语义信息。
      */
-    void PrintTy(const Cangjie::AST::Ty& ty);
+    void PrintTy(const Ty& ty);
     /**
      * @brief 尝试还原解糖后的调用表达式。
      */
@@ -336,5 +336,3 @@ public:
 private:
     Ast2SourceConfig config;
 };
-
-#endif // AST_2_SOURCE_VISITOR_H

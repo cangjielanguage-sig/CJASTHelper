@@ -3,8 +3,8 @@
  *
  * This file declares macro tools.
  */
-#ifndef MACRO_H
-#define MACRO_H
+#pragma once
+
 // 工具宏: 完成对只有一个变参函数或宏的调用
 #ifdef NDEBUG
 #define AH_ASSERT(f) static_cast<void>(f)
@@ -26,4 +26,3 @@
 #define EXPAND4(f, t0, t1, t2, t3, ...)                                                                                \
     EXPAND3(f, t0, t1, t2, ##__VA_ARGS__);                                                                             \
     EXPAND1(f, t3, ##__VA_ARGS__)
-#endif // MACRO_H

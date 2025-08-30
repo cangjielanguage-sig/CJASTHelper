@@ -4,8 +4,7 @@
  * This file declares the general Printer.
  */
 
-#ifndef PRINTER_H
-#define PRINTER_H
+#pragma once
 
 #include <functional>
 #include <iostream>
@@ -279,5 +278,3 @@ private:
     int currentIndent_; // 当前缩进级别
     bool needIndent_;   // 标记是否需要进行缩进
 };
-
-#endif // PRINTER_H

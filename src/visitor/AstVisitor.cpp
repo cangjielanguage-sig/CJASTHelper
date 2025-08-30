@@ -40,7 +40,6 @@ void AstVisitor::registerHandler(AstKind kind, BeforeFunc before, VisitFunc visi
 
 VisitResult AstVisitor::BeforeVisit(const AstNode& node)
 {
-    // Logger::Get().Debug("AstVisitor::BeforeVisit", "For ", static_cast<int>(node.astKind));
     auto it = handlers.find(node.astKind);
     if (it != handlers.end() && std::get<0>(it->second)) {
         return std::get<0>(it->second)(node);

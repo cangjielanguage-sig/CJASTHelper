@@ -3,8 +3,8 @@
  *
  * This file declares the Logger.
  */
-#ifndef LOGGER_H
-#define LOGGER_H
+#pragma once
+
 #include "utils/Printer.h"
 #include <exception>
 #include <fstream>
@@ -164,5 +164,3 @@ private:
     static inline std::fstream fs;                         // 文件流
     static std::vector<std::unique_ptr<Logger>> instances; // 日志实例集合
 };
-
-#endif // LOGGER_H

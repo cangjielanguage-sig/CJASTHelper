@@ -3,8 +3,7 @@
  *
  * This file declares the AstHelper.
  */
-#ifndef AST_HELPER_H
-#define AST_HELPER_H
+#pragma once
 
 #include "cangjie/Frontend/CompilerInstance.h"
 #include "utils/Printer.h"
@@ -165,5 +164,3 @@ std::vector<std::string> ParseArgs(int argc, const char* const* argv);
  */
 std::unordered_map<std::string, std::string> ParseEnv(
     const char* const* envp, const std::unordered_set<std::string>& focus);
-
-#endif // AST_HELPER_H

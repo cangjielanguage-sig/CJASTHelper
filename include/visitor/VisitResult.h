@@ -3,8 +3,7 @@
  *
  * This file declares the visit result.
  */
-#ifndef VISIT_RESULT_H
-#define VISIT_RESULT_H
+#pragma once
 
 // 定义遍历结果结构体
 struct VisitResult {
@@ -28,4 +27,3 @@ struct VisitResult {
     static VisitResult Skip();
     bool status; // 遍历状态，true 表示继续遍历，false 表示停止遍历
 };
-#endif // VISIT_RESULT_H
