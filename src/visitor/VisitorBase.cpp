@@ -34,7 +34,7 @@ VisitResult Traverse(const AstNode& node, AstVisitorBase& visitor)
     return res;
 }
 
-VisitResult MutTraverse(AstNodePtr& node, MutAstVisitorBase& visitor)
+VisitResult MutTraverse(AstNode& node, MutAstVisitorBase& visitor)
 {
     auto res = visitor.BeforeVisit(node);
     if (!res.status) {
