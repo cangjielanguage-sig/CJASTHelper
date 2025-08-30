@@ -4,6 +4,7 @@
  * This file implementation of Ast2SourceVisitor.
  */
 #include "visitor/Ast2SourceVisitor.h"
+#include "utils/Cast.h"
 #include "utils/Logger.h"
 #include <filesystem>
 
@@ -65,7 +66,7 @@ inline std::string Id(const Identifier& id)
  */
 inline std::string Tk2Str(Cangjie::TokenKind tk)
 {
-    return Cangjie::TOKENS[static_cast<int>(tk)];
+    return Cangjie::TOKENS[Cast<int>(tk)];
 }
 } // namespace
 
@@ -317,7 +318,7 @@ namespace {
 inline Ptr<Ty> TryGetRetTy(Ptr<Ty> ty)
 {
     if (ty->IsFunc()) {
-        return static_cast<Cangjie::AST::FuncTy*>(ty.get())->retTy;
+        return Cast<Cangjie::AST::FuncTy*>(ty)->retTy;
     }
     return nullptr;
 }
@@ -547,7 +548,7 @@ void Ast2SourceVisitor::Visit(const EnumPattern& node, VisitResult&)
     // RefExpr 单独处理
     auto ctor = node.constructor.get();
     if (ctor->astKind == AstKind::REF_EXPR) {
-        auto refExpr = static_cast<RefExpr*>(ctor.get());
+        auto refExpr = Cast<RefExpr*>(ctor.get());
         PRT().PVal(Id(refExpr->ref.identifier));
         PrintInstArgs(*refExpr, true);
     } else {
@@ -679,7 +680,7 @@ inline bool IsRefEnum(const Expr& expr)
     if (expr.astKind != AstKind::REF_EXPR) {
         return false;
     }
-    return static_cast<const RefExpr*>(&expr)->ref.target->astKind == AstKind::ENUM_DECL;
+    return Cast<const RefExpr&>(expr).ref.target->astKind == AstKind::ENUM_DECL;
 }
 } // namespace
 
@@ -759,13 +760,14 @@ VisitResult Ast2SourceVisitor::Before(const AssignExpr& node)
         Traverse(*node.desugarExpr, *this);
     } else {
         // desugared: x.[](i, y) -> x[i] = v
-        Ptr<CallExpr> callExpr = static_cast<CallExpr*>(node.desugarExpr.get().get());
-        AH_ASSERT(callExpr->args.size() == 2);
-        auto ma = static_cast<MemberAccess*>(callExpr->baseFunc.get().get());
-        VisitNode(ma->baseExpr);
-        TryPrintNode(callExpr->args[0].get(), "[", "]");
+        auto& callExpr = Cast<const CallExpr&>(node.desugarExpr.get());
+        AH_ASSERT(callExpr.args.size() == 2);
+        AH_ASSERT(callExpr.baseFunc->astKind == AstKind::MEMBER_ACCESS);
+        auto& ma = Cast<const MemberAccess&>(callExpr.baseFunc.get());
+        VisitNode(ma.baseExpr);
+        TryPrintNode(callExpr.args[0].get(), "[", "]");
         PRT().PVal(" = ");
-        VisitNode(callExpr->args[1]);
+        VisitNode(callExpr.args[1]);
     }
     return VisitResult::Skip();
 }
@@ -794,10 +796,11 @@ VisitResult Ast2SourceVisitor::Before(const UnaryExpr& node)
         Traverse(*node.desugarExpr, *this);
     } else {
         // desugared: val.!() -> !val
-        Ptr<CallExpr> callExpr = static_cast<CallExpr*>(node.desugarExpr.get().get());
-        AH_ASSERT(callExpr->args.size() == 0);
-        auto ma = static_cast<MemberAccess*>(callExpr->baseFunc.get().get());
-        TryPrintNode(ma->baseExpr, Tk2Str(node.op));
+        auto& callExpr = Cast<const CallExpr&>(node.desugarExpr.get());
+        AH_ASSERT(callExpr.args.size() == 0);
+        AH_ASSERT(callExpr.baseFunc->astKind == AstKind::MEMBER_ACCESS);
+        auto& ma = Cast<const MemberAccess&>(callExpr.baseFunc.get());
+        TryPrintNode(ma.baseExpr, Tk2Str(node.op));
     }
     return VisitResult::Skip();
 }
@@ -817,13 +820,12 @@ VisitResult Ast2SourceVisitor::Before(const BinaryExpr& node)
     if (config.Desugar()) {
         Traverse(*node.desugarExpr, *this);
     } else {
-        // desugared: left.+(right) -> left + right
-        Ptr<CallExpr> callExpr = static_cast<CallExpr*>(node.desugarExpr.get().get());
-        AH_ASSERT(callExpr->args.size() == 1);
-        auto ma = static_cast<MemberAccess*>(callExpr->baseFunc.get().get());
-        VisitNode(ma->baseExpr);
+        auto& callExpr = Cast<const CallExpr&>(node.desugarExpr.get());
+        AH_ASSERT(callExpr.args.size() == 0);
+        AH_ASSERT(callExpr.baseFunc->astKind == AstKind::MEMBER_ACCESS);
+        auto& ma = Cast<const MemberAccess&>(callExpr.baseFunc.get());
         PRT().PVals(" ", Tk2Str(node.op), " ");
-        VisitNode(callExpr->args[0]);
+        VisitNode(callExpr.args[0]);
     }
     return VisitResult::Skip();
 }
@@ -852,11 +854,12 @@ VisitResult Ast2SourceVisitor::Before(const SubscriptExpr& node)
         Traverse(*node.desugarExpr, *this);
     } else {
         // desugared: a.[](i) -> a[i]
-        Ptr<CallExpr> callExpr = static_cast<CallExpr*>(node.desugarExpr.get().get());
-        AH_ASSERT(callExpr->args.size() == 1);
-        auto ma = static_cast<MemberAccess*>(callExpr->baseFunc.get().get());
-        VisitNode(ma->baseExpr);
-        TryPrintNode(callExpr->args[0].get(), "[", "]");
+        auto& callExpr = Cast<const CallExpr&>(node.desugarExpr.get());
+        AH_ASSERT(callExpr.args.size() == 0);
+        AH_ASSERT(callExpr.baseFunc->astKind == AstKind::MEMBER_ACCESS);
+        auto& ma = Cast<const MemberAccess&>(callExpr.baseFunc.get());
+        VisitNode(ma.baseExpr);
+        TryPrintNode(callExpr.args[0], "[", "]");
     }
     return VisitResult::Skip();
 }
@@ -1053,7 +1056,7 @@ inline bool NeedAddMoidifier(const Decl& node)
         return false;
     }
     if (node.IsFunc()) {
-        auto& fn = static_cast<const FuncDecl&>(node);
+        auto& fn = Cast<const FuncDecl&>(node);
         if (fn.isGetter || fn.isSetter) {
             return false;
         }
@@ -1369,7 +1372,7 @@ namespace {
 inline std::string TryGetCallRef(const CallExpr& node)
 {
     if (node.baseFunc->astKind == AstKind::REF_EXPR) {
-        return static_cast<RefExpr*>(node.baseFunc.get().get())->ref.identifier.Val();
+        return Cast<const RefExpr&>(node.baseFunc.get()).ref.identifier.Val();
     }
     return "";
 }
@@ -1454,8 +1457,8 @@ bool Ast2SourceVisitor::TryRecoverOverloadCallExpr(const CallExpr& node)
     auto op = fn->op;
     Logger::Get().Debug("Ast2SourceVisitor::TryRecoverOverloadCallExpr", "For Overload operator: ", Tk2Str(op));
     AH_ASSERT(IsOverloadCall(node));
-    auto ma = static_cast<MemberAccess*>(node.baseFunc.get().get());
-    auto base = ma->baseExpr.get();
+    auto& ma = Cast<const MemberAccess&>(node.baseFunc.get());
+    auto base = ma.baseExpr.get();
     // 可以重载的操作符有
     if (op == TokenKind::NOT) {
         // 一元 !
@@ -1485,7 +1488,7 @@ bool Ast2SourceVisitor::TryRecoverOverloadCallExpr(const CallExpr& node)
     }
     // 打印个注释在这里
     PRT().PVal(" /* Desugared ");
-    TryPrintNode(ma);
+    Traverse(ma, *this);
     PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, *this); }, ", ", "(", ")", true);
     PRT().PVal(" */ ");
     return true;
@@ -1512,8 +1515,8 @@ bool Ast2SourceVisitor::TryRecoverPropCallExpr(const CallExpr& node)
     AH_CHECK_NULL(propDecl);
     bool isMem = node.baseFunc->astKind == AstKind::MEMBER_ACCESS;
     if (isMem) {
-        auto ma = static_cast<MemberAccess*>(node.baseFunc.get().get());
-        TryPrintNode(ma->baseExpr.get(), "", ".");
+        auto& ma = Cast<const MemberAccess&>(node.baseFunc.get());
+        TryPrintNode(ma.baseExpr.get(), "", ".");
     }
     PRT().PVal(Id(propDecl->identifier));
     if (fn->isSetter) {
@@ -1580,20 +1583,20 @@ void Ast2SourceVisitor::PrintDesugaredForInRange(const ForInExpr& node)
     // ASSERT
     AH_CHECK_NULL(node.pattern);
     AH_ASSERT(node.pattern->astKind == AstKind::VAR_PATTERN);
-    Ptr<VarPattern> varPat = static_cast<VarPattern*>(node.pattern.get().get());
+    auto& varPat = Cast<const VarPattern&>(node.pattern.get());
     Ptr<Expr> inExpr = node.inExpression.get();
     AH_CHECK_NULL(inExpr);
     AH_ASSERT(inExpr->astKind == AstKind::BLOCK);
-    Ptr<Block> block = static_cast<Block*>(inExpr.get());
-    AH_ASSERT(block->body.size() == 4);
+    auto& block = Cast<const Block&>(inExpr);
+    AH_ASSERT(block.body.size() == 4);
 
-    TryPrintNode(block->body[0].get(), "", "", true); // var $iter-i = startExpr
-    TryPrintNode(block->body[1].get(), "", "", true); // var $stop-compiler = stopExpr
-    TryPrintNode(block->body[3].get(), "while (", ") {", true);
+    TryPrintNode(block.body[0], "", "", true); // var $iter-i = startExpr
+    TryPrintNode(block.body[1], "", "", true); // var $stop-compiler = stopExpr
+    TryPrintNode(block.body[3], "while (", ") {", true);
     PRT().Indent();
-    TryPrintNode(varPat->varDecl.get(), "", "", true); // let i = $iter-i;
-    Traverse(*node.body, *this);                       // foo(i);
-    TryPrintNode(block->body[2].get(), "", "", true);  // $iter-i += stepExpr;
+    TryPrintNode(varPat.varDecl, "", "", true); // let i = $iter-i;
+    Traverse(*node.body, *this);                // foo(i);
+    TryPrintNode(block.body[2], "", "", true);  // $iter-i += stepExpr;
     PRT().Unindent();
     PRT().PVal("}");
 }
@@ -1621,9 +1624,9 @@ void Ast2SourceVisitor::PrintDesugaredForInIterator(const ForInExpr& node)
     Logger::Get().Debug("Ast2SourceVisitor::PrintDesugaredForInIterator", "For ForInExpr with Iterator");
     AH_CHECK_NULL(node.desugarExpr);
     AH_ASSERT(node.desugarExpr->astKind == AstKind::BLOCK);
-    Ptr<Block> block = static_cast<Block*>(node.desugarExpr.get().get());
-    AH_ASSERT(block->body.size() == 2);
-    Traverse(*block, *this);
+    auto& block = Cast<const Block&>(node.desugarExpr.get());
+    AH_ASSERT(block.body.size() == 2);
+    Traverse(block, *this);
 }
 
 /**
@@ -1647,23 +1650,23 @@ void Ast2SourceVisitor::PrintDesugaredForInString(const ForInExpr& node)
     Logger::Get().Debug("Ast2SourceVisitor::PrintDesugaredForInString", "For ForInExpr with String");
     AH_CHECK_NULL(node.pattern);
     AH_ASSERT(node.pattern->astKind == AstKind::VAR_PATTERN);
-    Ptr<VarPattern> varPat = static_cast<VarPattern*>(node.pattern.get().get());
+    auto& varPat = Cast<const VarPattern&>(node.pattern.get());
     Ptr<Expr> inExpr = node.inExpression.get();
     AH_CHECK_NULL(inExpr);
     AH_ASSERT(inExpr->astKind == AstKind::BLOCK);
-    Ptr<Block> block = static_cast<Block*>(inExpr.get());
-    AH_ASSERT(block->body.size() == 3);
+    auto& block = Cast<const Block&>(inExpr);
+    AH_ASSERT(block.body.size() == 3);
 
-    TryPrintNode(block->body[0].get(), "", "", true); // var $iter-compiler = 0
-    TryPrintNode(block->body[1].get(), "", "", true); // let tmp1 = "hello"
-    TryPrintNode(block->body[2].get(), "", "", true); // let tmp2 = tmp1.$sizeget()
+    TryPrintNode(block.body[0], "", "", true); // var $iter-compiler = 0
+    TryPrintNode(block.body[1], "", "", true); // let tmp1 = "hello"
+    TryPrintNode(block.body[2], "", "", true); // let tmp2 = tmp1.$sizeget()
 
-    auto loopVar = desugaredVarId.at(static_cast<VarDecl*>(block->body[0].get().get()));
-    auto stopVar = static_cast<VarDecl*>(block->body[2].get().get());
-    PRT().PVals("while (", loopVar, " < ", Id(stopVar->identifier), ") {").PNL();
+    auto loopVar = desugaredVarId.at(Cast<VarDecl*>(block.body[0].get()));
+    auto& stopVar = Cast<const VarDecl&>(block.body[2].get());
+    PRT().PVals("while (", loopVar, " < ", Id(stopVar.identifier), ") {").PNL();
     PRT().Indent();
-    TryPrintNode(varPat->varDecl.get(), "", "", true); // let i = $iter-i;
-    Traverse(*node.body, *this);                       // foo(i);
+    TryPrintNode(varPat.varDecl, "", "", true); // let i = $iter-i;
+    Traverse(*node.body, *this);                // foo(i);
     PRT().PVals(loopVar, " = ", loopVar, " + 1").PNL();
     PRT().Unindent();
     PRT().PVal("}");
