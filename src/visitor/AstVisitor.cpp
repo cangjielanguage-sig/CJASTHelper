@@ -4,7 +4,7 @@
  * This file implementation of AstVisitor.
  */
 
-#include "AstVisitor.h"
+#include "visitor/AstVisitor.h"
 #include "cangjie/Utils/CastingTemplate.h"
 #include "utils/Logger.h"
 #include "utils/Macro.h"
@@ -13,7 +13,7 @@
 // AstKind 2 String
 static std::unordered_map<AstKind, std::string> kindsInfo{
 #define AST_INFO(KIND, STR, DEF) {AstKind::KIND, STR},
-#include "AstInfo.inc"
+#include "visitor/AstInfo.inc"
 #undef AST_INFO
 };
 
@@ -28,7 +28,7 @@ AstVisitor::AstVisitor()
             const AstNode& node, const VisitResult& res) { this->After(Cangjie::StaticCast<const N&>(node), res); })
 // 使用宏生成代码
 #define AST_INFO(KIND, STR, DEF) GEN_REG_HANDLER(KIND, DEF);
-#include "AstInfo.inc"
+#include "visitor/AstInfo.inc"
 #undef AST_INFO
 }
 

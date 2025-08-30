@@ -4,7 +4,7 @@
  * This file implements the AstHelper.
  */
 #include "AstHelper.h"
-#include "Ast2SourceVisitor.h"
+#include "visitor/Ast2SourceVisitor.h"
 #include "cangjie/Sema/Desugar.h"
 #include "utils/ArgumentParser.h"
 #include "utils/Logger.h"

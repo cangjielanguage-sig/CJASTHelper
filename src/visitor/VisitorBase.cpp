@@ -4,8 +4,8 @@
  * This file implementation of AstVisitorBase.
  */
 
-#include "AstVisitorBase.h"
-#include "MutAstVisitorBase.h"
+#include "visitor/AstVisitorBase.h"
+#include "visitor/MutAstVisitorBase.h"
 
 VisitResult::VisitResult(bool cont) : status(cont)
 {
