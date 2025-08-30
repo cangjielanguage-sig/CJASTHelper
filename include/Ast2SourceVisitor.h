@@ -6,8 +6,8 @@
 #ifndef AST_2_SOURCE_VISITOR_H
 #define AST_2_SOURCE_VISITOR_H
 #include "AstVisitor.h"
-#include "Macro.h"
-#include "Printer.h"
+#include "utils/Macro.h"
+#include "utils/Printer.h"
 #include <fstream>
 
 /**

@@ -5,6 +5,7 @@
  */
 
 #include "AstVisitorBase.h"
+#include "MutAstVisitorBase.h"
 
 VisitResult::VisitResult(bool cont) : status(cont)
 {
@@ -21,6 +22,19 @@ VisitResult VisitResult::Skip()
 }
 
 VisitResult Traverse(const AstNode& node, AstVisitorBase& visitor)
+{
+    auto res = visitor.BeforeVisit(node);
+    if (!res.status) {
+        return res;
+    }
+    visitor.Visit(node, res);
+    if (res.status) {
+        visitor.AfterVisit(node, res);
+    }
+    return res;
+}
+
+VisitResult MutTraverse(AstNodePtr& node, MutAstVisitorBase& visitor)
 {
     auto res = visitor.BeforeVisit(node);
     if (!res.status) {

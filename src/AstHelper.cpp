@@ -4,10 +4,10 @@
  * This file implements the AstHelper.
  */
 #include "AstHelper.h"
-#include "ArgumentParser.h"
 #include "Ast2SourceVisitor.h"
-#include "Logger.h"
 #include "cangjie/Sema/Desugar.h"
+#include "utils/ArgumentParser.h"
+#include "utils/Logger.h"
 
 using namespace Cangjie;
 

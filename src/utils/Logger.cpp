@@ -3,7 +3,7 @@
  *
  * This file implements the Logger.
  */
-#include "Logger.h"
+#include "utils/Logger.h"
 #include <cstdlib>
 
 std::vector<std::unique_ptr<Logger>> Logger::instances(2);

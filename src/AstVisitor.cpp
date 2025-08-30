@@ -5,9 +5,9 @@
  */
 
 #include "AstVisitor.h"
-#include "Logger.h"
-#include "Macro.h"
 #include "cangjie/Utils/CastingTemplate.h"
+#include "utils/Logger.h"
+#include "utils/Macro.h"
 #include <tuple>
 
 // AstKind 2 String
