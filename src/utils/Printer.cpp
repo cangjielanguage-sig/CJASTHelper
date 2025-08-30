@@ -3,7 +3,7 @@
  *
  * This file implements the general Printer.
  */
-#include "Printer.h"
+#include "utils/Printer.h"
 
 /// public implementation
 Printer::Printer(std::ostream& os, int indent) : os_(os), indent_(indent), currentIndent_(0), needIndent_(true)

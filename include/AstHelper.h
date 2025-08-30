@@ -6,8 +6,8 @@
 #ifndef AST_HELPER_H
 #define AST_HELPER_H
 
-#include "Printer.h"
 #include "cangjie/Frontend/CompilerInstance.h"
+#include "utils/Printer.h"
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
