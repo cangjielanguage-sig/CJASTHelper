@@ -3,22 +3,12 @@
  *
  * This file declares the generic AstVisitor.
  */
-
-#ifndef AST_VISITOR_H
-#define AST_VISITOR_H
+#pragma once
 
 #include "AstVisitorBase.h"
 #include <functional>
 #include <map>
 #include <tuple>
-
-using AstKind = Cangjie::AST::ASTKind;
-using Cangjie::AST::Decl;
-
-// 宏自动生成 using Cangjie::AST::Package
-#define AST_INFO(KIND, STR, DEF) using Cangjie::AST::DEF;
-#include "AstInfo.inc"
-#undef AST_INFO
 
 class AstVisitor : public AstVisitorBase {
 public:
@@ -156,5 +146,3 @@ protected:
      */
     std::map<AstKind, std::tuple<BeforeFunc, VisitFunc, AfterFunc>> handlers;
 };
-
-#endif // AST_VISITOR_H

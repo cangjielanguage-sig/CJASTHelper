@@ -3,13 +3,10 @@
  *
  * This file declares the generic AstVisitor.
  */
-#ifndef AST_VISITOR_BASE_H
-#define AST_VISITOR_BASE_H
+#pragma once
 
 #include "VisitResult.h"
-#include "cangjie/AST/Node.h"
-
-using AstNode = Cangjie::AST::Node;
+#include "WrapperAst.h"
 
 // 抽象访问器接口
 class AstVisitorBase {
@@ -49,5 +46,3 @@ public:
  * @return 遍历结果，指示整个遍历过程的状态。
  */
 VisitResult Traverse(const AstNode& node, AstVisitorBase& visitor);
-
-#endif // AST_VISITOR_BASE_H

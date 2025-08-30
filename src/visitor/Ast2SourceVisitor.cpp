@@ -8,17 +8,6 @@
 #include <filesystem>
 
 namespace fs = std::filesystem;
-using AstKind = Cangjie::AST::ASTKind;
-using Cangjie::Identifier;
-using Cangjie::TokenKind;
-using Cangjie::AST::Attribute;
-using Cangjie::AST::CallKind;
-using Cangjie::AST::Expr;
-using Cangjie::AST::ImportKind;
-using Cangjie::AST::InheritableDecl;
-using Cangjie::AST::Pattern;
-using Cangjie::AST::Ty;
-using Cangjie::AST::Type;
 
 namespace {
 // 私有辅助函数

@@ -1,5 +1,9 @@
-#ifndef ARGUMENT_PARSER_H
-#define ARGUMENT_PARSER_H
+/**
+ * @file
+ *
+ * This file declares the ArgumentParser.
+ */
+#pragma once
 
 #include <string>
 #include <unordered_map>
@@ -60,5 +64,3 @@ private:
      */
     void ValidateOption(const std::string& option, const std::vector<std::string>& values) const;
 };
-
-#endif // ARGUMENT_PARSER_H

@@ -3,14 +3,10 @@
  *
  * This file declares the generic MutAstVisitor.
  */
-#ifndef MUT_AST_VISITOR_BASE_H
-#define MUT_AST_VISITOR_BASE_H
+#pragma once
 
 #include "VisitResult.h"
-#include "cangjie/AST/Node.h"
-
-using AstNodePtr = OwnedPtr<Cangjie::AST::Node>;
-using AstNode = Cangjie::AST::Node;
+#include "WrapperAst.h"
 
 // 抽象访问器接口
 class MutAstVisitorBase {
@@ -50,5 +46,3 @@ public:
  * @return 遍历结果，指示整个遍历过程的状态。
  */
 VisitResult MutTraverse(AstNode& node, MutAstVisitorBase& visitor);
-
-#endif // AST_VISITOR_BASE_H
