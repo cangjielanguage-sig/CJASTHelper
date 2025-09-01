@@ -66,7 +66,7 @@ inline std::string Id(const Identifier& id)
  */
 inline std::string Tk2Str(Cangjie::TokenKind tk)
 {
-    return Cangjie::TOKENS[Cast<int>(tk)];
+    return Cangjie::TOKENS[static_cast<int>(tk)];
 }
 } // namespace
 
@@ -989,12 +989,12 @@ void Ast2SourceVisitor::RegisterHandlers()
     // 定义注册代码片段
 #define GEN_REG_HANDLER(N)                                                                                             \
     RegisterHandler(name2kind.at(#N), nullptr,                                                                         \
-        [this](const AstNode& node, VisitResult& res) { this->Visit(static_cast<const N&>(node), res); })
+        [this](const AstNode& node, VisitResult& res) { this->Visit(Cast<const N&>(node), res); })
 
 #define GEN_REG_HANDLER2(N)                                                                                            \
     RegisterHandler(                                                                                                   \
-        name2kind.at(#N), [this](const AstNode& node) { return this->Before(static_cast<const N&>(node)); },           \
-        [this](const AstNode& node, VisitResult& res) { this->Visit(static_cast<const N&>(node), res); })
+        name2kind.at(#N), [this](const AstNode& node) { return this->Before(Cast<const N&>(node)); },                  \
+        [this](const AstNode& node, VisitResult& res) { this->Visit(Cast<const N&>(node), res); })
 
     // 使用宏生成代码
     // 递归展开需要重写的解糖节点

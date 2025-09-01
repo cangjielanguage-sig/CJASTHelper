@@ -8,52 +8,34 @@
 #include <concepts>
 #include <type_traits>
 
-// Concept: 类型是引用
+// Concept: Dst 必须是指针或引用
 template <typename T>
-concept Reference = std::is_reference_v<T>;
+concept PointerOrRef = std::is_pointer_v<T> || std::is_reference_v<T>;
 
-// Concept: 类型是指针
+// Concept: Src 可以是 指针、引用，或 有 .get() 返回指针的类型
 template <typename T>
-concept Pointer = std::is_pointer_v<T>;
+concept PointerLike = std::is_pointer_v<std::remove_reference_t<T>> || std::is_reference_v<T> ||
+    requires(T&& t) { requires std::is_pointer_v<decltype(t.get())>; };
 
-// Concept: 类型有 .get() 方法
+// U*&
 template <typename T>
-concept HasGetMethod = requires(T t) { t.get(); };
+concept PointerRef = std::is_pointer_v<std::remove_reference_t<T>>;
 
-// 简化 PointerLike 概念的实现
-template <typename T>
-concept PointerLike = HasGetMethod<T>;
-
-// 主要的 cast 函数模板
-template <typename Dst, typename Src> constexpr Dst Cast(Src&& src)
+// 通用 cast 函数
+template <PointerOrRef Dst, PointerLike Src> [[nodiscard]] constexpr Dst Cast(Src&& src)
 {
-    // 情况1: 源类型有 .get() 方法
-    if constexpr (PointerLike<std::remove_cvref_t<Src>>) {
-        auto&& inner_value = src.get();
-        return Cast<Dst>(std::forward<decltype(inner_value)>(inner_value));
-    }
-    // 情况2: 目标是指针，源是引用
-    else if constexpr (Pointer<Dst> && Reference<Src> && !Pointer<std::remove_reference_t<Src>>) {
-        return Cast<Dst>(std::addressof(src));
-    }
-    // 情况3: 目标是引用，源是指针
-    else if constexpr (Reference<Dst> && Pointer<std::remove_reference_t<Src>>) {
-        return Cast<Dst>(*src);
-    }
-    // 情况4: 源和目标都是指针
-    else if constexpr (Pointer<Dst> && Pointer<std::remove_reference_t<Src>>) {
-        return static_cast<Dst>(src);
-    }
-    // 情况5: 源和目标都是引用
-    else if constexpr (Reference<Dst> && Reference<std::remove_reference_t<Src>>) {
-        return static_cast<Dst>(src);
-    }
-    // 情况6: 从值类型到引用类型
-    else if constexpr (Reference<Dst> && !Reference<Src> && !Pointer<Src>) {
-        return static_cast<Dst>(src);
-    }
-    // 情况7: 基本静态转换
-    else {
-        return static_cast<Dst>(std::forward<Src>(src));
+    if constexpr (requires { src.get(); }) {
+        // src 有 .get()，提取指针
+        return Cast<Dst>(src.get());
+    } else {
+        if constexpr (PointerRef<Src> && std::is_pointer_v<Dst>) {
+            return static_cast<Dst>(src);
+        } else if constexpr (PointerRef<Src> && std::is_reference_v<Dst>) {
+            return static_cast<Dst>(*src);
+        } else if constexpr (std::is_reference_v<Src> && std::is_pointer_v<Dst>) {
+            return static_cast<Dst>(&src);
+        } else if constexpr (std::is_reference_v<Src> && std::is_reference_v<Dst>) {
+            return static_cast<Dst>(src);
+        }
     }
 }

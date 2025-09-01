@@ -140,15 +140,6 @@ void AstHelper::Run()
         Logger::Get().Error("AstHelper::Run", "DoParse failed.");
         return;
     }
-    if (options.stage == SourceStage::IMPORT) {
-        for (auto pkg : mci->GetPackages()) {
-            if (options.importedPkgs.count(pkg->fullPackageName)) {
-                pkgs.push_back(pkg);
-            }
-        }
-    } else {
-        pkgs = mci->GetSourcePackages();
-    }
     if (!DoAnalysis()) {
         Logger::Get().Error("AstHelper::Run", "DoAnalysis failed.");
         return;
@@ -176,7 +167,15 @@ bool AstHelper::DoParse()
             return false;
         }
     }
-    // TODO: 检查是否有错误
+    if (options.stage == SourceStage::IMPORT) {
+        for (auto pkg : mci->GetPackages()) {
+            if (options.importedPkgs.count(pkg->fullPackageName)) {
+                pkgs.push_back(pkg);
+            }
+        }
+    } else {
+        pkgs = mci->GetSourcePackages();
+    }
     return true;
 }
 
@@ -239,12 +238,14 @@ bool AstHelper::DoTransform() const
     return true;
 }
 
+/**
+ * @brief 解析命令行参数, 拆分当前工具参数和前端工具透传参数
+ */
 void AstHelper::ParseArgs(const std::vector<std::string>& args)
 {
     ArgumentParser ap({{"dump-source", {"parse", "desugared-parse", "sema", "desugared-sema"}}, {"dump-imports", {}},
         {"filter-decls", {"func", "class", "interface", "struct", "enum", "var"}}, {"dump-desugar", {"true", "false"}},
         {"ignore-decls", {}}, {"ignore-annotations", {}}});
-    const std::string& DS_KEY = "--dump-source=";
     std::vector<std::string> filterKeys{"--dump-source", "--dump-imports", "--dump-desugar", "--filter-decls",
         "--ignore-decls", "--ignore-annotations"};
     std::vector<std::string> filterArgs;
@@ -294,6 +295,9 @@ void AstHelper::RegisterPass(std::string name, std::unique_ptr<MutAstVisitorBase
     passMap.emplace(name, std::move(visitor));
 }
 
+/**
+ * 注册所有分析pass
+ */
 void AstHelper::RegisterPasses()
 {
     RegisterPass("test", std::make_unique<MutAstVisitor>());
@@ -307,6 +311,9 @@ void AstHelper::RegisterStage(SourceStage stage, StageFunc fn)
     stageMap.emplace(stage, fn);
 }
 
+/**
+ * 注册所有stage回调
+ */
 void AstHelper::RegisterStages()
 {
     RegisterStage(SourceStage::DEFAULT, [this]() {
@@ -337,6 +344,7 @@ void AstHelper::RegisterStages()
     });
 }
 
+// Parse args from command line
 std::vector<std::string> ParseArgs(int argc, const char* const* argv)
 {
     std::vector<std::string> args;
@@ -349,7 +357,7 @@ std::vector<std::string> ParseArgs(int argc, const char* const* argv)
     return args;
 }
 
-// Filter some key vars
+// Parse environment filtered by some key vars
 std::unordered_map<std::string, std::string> ParseEnv(
     const char* const* envp, const std::unordered_set<std::string>& focus)
 {
