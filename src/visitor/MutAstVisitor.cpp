@@ -10,13 +10,6 @@
 #include "utils/Macro.h"
 #include <tuple>
 
-// AstKind 2 String
-static std::unordered_map<AstKind, std::string> kindsInfo{
-#define AST_INFO(KIND, STR, DEF) {AstKind::KIND, STR},
-#include "visitor/AstInfo.inc"
-#undef AST_INFO
-};
-
 MutAstVisitor::MutAstVisitor()
 {
     // 定义注册代码片段
@@ -25,7 +18,7 @@ MutAstVisitor::MutAstVisitor()
 void MutAstVisitor::RegisterHandler(AstKind kind, BeforeFunc before, VisitFunc visit, AfterFunc after, MergeFunc merge)
 {
     handlers[kind] = {before, visit, after, merge};
-    Logger::Get().Debug("MutAstVisitor:registerHandler", "For ", kindsInfo[kind]);
+    Logger::Get().Debug("MutAstVisitor:registerHandler", "For ", AstKind2Str(kind));
 }
 
 VisitResult MutAstVisitor::BeforeVisit(AstNode& node)
@@ -70,10 +63,11 @@ void MutAstVisitor::MergeResult(AstNode& node, VisitResult& res, const std::vect
 
 VisitResult MutAstVisitor::DefaultBefore(AstNode& node)
 {
+    Logger::Get().Debug("MutAstVisitor::DefaultBefore", AstKind2Str(node.astKind));
     auto defaultRes = VisitResult::Cont();
     std::vector<VisitResult> childrenRes;
     // 遍历子节点
-    for (auto& child : GetChildren(node)) {
+    for (auto& child : AstNodeVisitor::GetChildren(node)) {
         childrenRes.push_back(BeforeVisit(*child));
     }
     MergeResult(node, defaultRes, childrenRes);
@@ -82,10 +76,12 @@ VisitResult MutAstVisitor::DefaultBefore(AstNode& node)
 
 VisitResult MutAstVisitor::DefaultVisit(AstNode& node, VisitResult& res)
 {
+    Logger::Get().Debug("MutAstVisitor::DefaultVisit", AstKind2Str(node.astKind));
     std::vector<VisitResult> childrenRes;
     // 遍历子节点
-    for (auto& child : GetChildren(node)) {
-        childrenRes.push_back(BeforeVisit(*child));
+    for (auto& child : AstNodeVisitor::GetChildren(node)) {
+        // 注意: 这里的 res 是 Before 合并后的结果
+        childrenRes.push_back(Visit(*child, res));
     }
     MergeResult(node, res, childrenRes);
     return res;
@@ -93,10 +89,11 @@ VisitResult MutAstVisitor::DefaultVisit(AstNode& node, VisitResult& res)
 
 VisitResult MutAstVisitor::DefaultAfter(AstNode& node, VisitResult& res)
 {
+    Logger::Get().Debug("MutAstVisitor::DefaultAfter", AstKind2Str(node.astKind));
     std::vector<VisitResult> childrenRes;
     // 遍历子节点
-    for (auto& child : GetChildren(node)) {
-        childrenRes.push_back(BeforeVisit(*child));
+    for (auto& child : AstNodeVisitor::GetChildren(node)) {
+        childrenRes.push_back(AfterVisit(*child, res));
     }
     MergeResult(node, res, childrenRes);
     return res;

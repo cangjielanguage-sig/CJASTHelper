@@ -16,7 +16,7 @@ public:
     /**
      * @brief 构造函数，初始化 AstNodeVisitor 对象。
      */
-    AstNodeVisitor();
+    AstNodeVisitor() = default;
     /**
      * @brief 虚析构函数，确保派生类能正确析构
      */
@@ -27,5 +27,5 @@ public:
      * @param node 要获取子节点的节点。
      * @return 子节点列表。
      */
-    std::vector<Ptr<AstNode>> GetChildren(AstNode& node);
+    std::vector<Ptr<AstNode>> GetChildren(const AstNode& node);
 };

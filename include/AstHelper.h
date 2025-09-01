@@ -7,6 +7,7 @@
 
 #include "cangjie/Frontend/CompilerInstance.h"
 #include "utils/Printer.h"
+#include "visitor/MutAstVisitorBase.h"
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -76,7 +77,12 @@ public:
 
 protected:
     /**
-     * @brief 执行分析阶段 复用前端的编译器调用，得到AST
+     * @brief 执行解析阶段 复用前端的编译器调用，得到AST
+     * @return 解析阶段执行成功返回true，否则返回false
+     */
+    bool DoParse();
+    /**
+     * @brief 执行分析阶段 调用注册的分析pass
      * @return 分析阶段执行成功返回true，否则返回false
      */
     bool DoAnalysis();
@@ -94,40 +100,17 @@ private:
     void ParseArgs(const std::vector<std::string>& args);
 
     /**
-     * @brief 执行默认阶段
-     * @return 如果成功返回true，否则返回false
+     * 注册一个分析pass
      */
-    bool Default();
+    void RegisterPass(std::string name, std::unique_ptr<MutAstVisitorBase> visitor);
+    void RegisterPasses();
 
+    using StageFunc = std::function<bool()>;
     /**
-     * @brief 执行解析阶段
-     * @return 如果成功返回true，否则返回false
+     * 注册stage回调
      */
-    bool Parse();
-
-    /**
-     * @brief 执行语法糖解析阶段
-     * @return 如果成功返回true，否则返回false
-     */
-    bool DesugaredParse();
-
-    /**
-     * @brief 执行导入依赖包阶段
-     * @return 如果成功返回true，否则返回false
-     */
-    bool LoadImports();
-
-    /**
-     * @brief 执行语义分析阶段
-     * @return 如果成功返回true，否则返回false
-     */
-    bool Sema();
-
-    /**
-     * @brief 执行语法糖处理后的语义分析阶段
-     * @return 如果成功返回true，否则返回false
-     */
-    bool DesugaredSema();
+    void RegisterStage(SourceStage stage, StageFunc fn);
+    void RegisterStages();
 
 private:
     using DiagnosticEngine = Cangjie::DiagnosticEngine;
@@ -139,13 +122,11 @@ private:
 
     Options options;                              /**< 用户选项 */
     std::vector<Ptr<Cangjie::AST::Package>> pkgs; /**< 分析结果包列表 */
-    /**
-     * @brief 将SourceStage值映射到对应的执行函数
-     */
-    static inline const std::unordered_map<SourceStage, std::function<bool(AstHelper*)>> stageMap{
-        {SourceStage::DEFAULT, &AstHelper::Default}, {SourceStage::PARSE, &AstHelper::Parse},
-        {SourceStage::DESUGARED_PARSE, &AstHelper::DesugaredParse}, {SourceStage::IMPORT, &AstHelper::LoadImports},
-        {SourceStage::SEMA, &AstHelper::Sema}, {SourceStage::DESUGARED_SEMA, &AstHelper::DesugaredSema}};
+
+    std::vector<std::string> passes; /**< 配置需要执行的 passes 列表 */
+
+    std::unordered_map<std::string, std::unique_ptr<MutAstVisitorBase>> passMap; /**< 注册的分析pass: name -> visitor */
+    std::unordered_map<SourceStage, std::function<bool()>> stageMap;             /**< 注册的 stage 回调函数 */
 };
 
 /**
