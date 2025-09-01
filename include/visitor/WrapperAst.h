@@ -24,3 +24,5 @@ using Cangjie::AST::VarDeclAbstract;
 #define AST_INFO(KIND, STR, DEF) using Cangjie::AST::DEF;
 #include "AstInfo.inc"
 #undef AST_INFO
+
+std::string AstKind2Str(AstKind kind);

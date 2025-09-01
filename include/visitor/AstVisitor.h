@@ -29,7 +29,7 @@ public:
     /**
      * @brief 构造函数，初始化 AstVisitor 对象。
      */
-    AstVisitor();
+    AstVisitor() = default;
     /**
      * @brief 虚析构函数，确保派生类能正确析构
      */
@@ -42,7 +42,7 @@ public:
      * @param visit 访问节点时的回调函数，默认为 nullptr。
      * @param after 访问节点之后的回调函数，默认为 nullptr。
      */
-    void registerHandler(AstKind kind, BeforeFunc before, VisitFunc visit = nullptr, AfterFunc after = nullptr);
+    void RegisterHandler(AstKind kind, BeforeFunc before, VisitFunc visit = nullptr, AfterFunc after = nullptr);
     /**
      * @brief 在访问节点之前调用的方法。
      *
@@ -88,30 +88,6 @@ public:
     virtual void DefaultAfter(const AstNode& node, const VisitResult& res);
 
 protected:
-    // 宏定义
-#define GEN_BEFORE_AFTER_VISIT(N)                                                                                      \
-    virtual VisitResult Before(const N& node)                                                                          \
-    {                                                                                                                  \
-        return VisitResult::Cont();                                                                                    \
-    }                                                                                                                  \
-    virtual void After(const N& node, const VisitResult& res)                                                          \
-    {                                                                                                                  \
-    }                                                                                                                  \
-    virtual void Visit(const N& node, VisitResult& res);
-
-    // 使用宏生成代码
-#define AST_INFO(KIND, STR, DEF) GEN_BEFORE_AFTER_VISIT(DEF)
-#include "AstInfo.inc"
-#undef AST_INFO
-
-    /**
-     * @brief 处理声明节点。
-     *
-     * @param node 声明节点。
-     * @param res 遍历结果对象，用于传递状态信息。
-     */
-    void VisitDecl(const Decl& node, VisitResult& res);
-
     /**
      * @brief 遍历单个节点。
      *
