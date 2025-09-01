@@ -20,11 +20,16 @@ public:
     /**
      * @brief 使用 std::function 定义 Visit 的回调函数类型。
      */
-    using VisitFunc = std::function<void(AstNode&, VisitResult&)>;
+    using VisitFunc = std::function<VisitResult(AstNode&, VisitResult&)>;
     /**
      * @brief 使用 std::function 定义 AfterVisit 的回调函数类型。
      */
-    using AfterFunc = std::function<void(AstNode&, const VisitResult&)>;
+    using AfterFunc = std::function<VisitResult(AstNode&, VisitResult&)>;
+
+    /**
+     * @brief 使用 std::function 定义 MergeResult 的回调函数类型。
+     */
+    using MergeFunc = std::function<void(AstNode&, VisitResult&, const std::vector<VisitResult>&)>;
 
 public:
     /**
@@ -42,8 +47,10 @@ public:
      * @param before 访问节点之前的回调函数。
      * @param visit 访问节点时的回调函数，默认为 nullptr。
      * @param after 访问节点之后的回调函数，默认为 nullptr。
+     * @param merge MergeResult回调函数， 默认为 nullptr。
      */
-    void registerHandler(AstKind kind, BeforeFunc before, VisitFunc visit = nullptr, AfterFunc after = nullptr);
+    void RegisterHandler(AstKind kind, BeforeFunc before, VisitFunc visit = nullptr, AfterFunc after = nullptr,
+        MergeFunc merge = nullptr);
     /**
      * @brief 在访问节点之前调用的方法。
      *
@@ -57,14 +64,24 @@ public:
      * @param node 要访问的 AST 节点。
      * @param res 遍历结果对象，用于传递状态信息。
      */
-    void Visit(AstNode& node, VisitResult& res) override;
+    VisitResult Visit(AstNode& node, VisitResult& res) override;
     /**
      * @brief 在访问节点之后调用的方法。
      *
      * @param node 已访问的 AST 节点。
      * @param res 遍历结果对象，包含访问结果的状态信息。
      */
-    void AfterVisit(AstNode& node, const VisitResult& res) override;
+    VisitResult AfterVisit(AstNode& node, VisitResult& res) override;
+
+protected:
+    /**
+     * @brief 合并子节点遍历结果。
+     *
+     * @param node 父节点。
+     * @param res 父节点遍历结果初始值。
+     * @param childrenRes 子节点的遍历结果对象。
+     */
+    virtual void MergeResult(AstNode& node, VisitResult& res, const std::vector<VisitResult>& childrenRes);
 
     /**
      * @brief 默认的 BeforeVisit 方法。
@@ -79,71 +96,36 @@ public:
      * @param node 要访问的 AST 节点。
      * @param res 遍历结果对象，用于传递状态信息。
      */
-    virtual void DefaultVisit(AstNode& node, VisitResult& res);
+    virtual VisitResult DefaultVisit(AstNode& node, VisitResult& res);
     /**
      * @brief 默认的 AfterVisit 方法。
      *
      * @param node 已访问的 AST 节点。
      * @param res 遍历结果对象，包含访问结果的状态信息。
      */
-    virtual void DefaultAfter(AstNode& node, const VisitResult& res);
-
-protected:
-    // 宏定义
-#define GEN_BEFORE_AFTER_MUTVISIT(N)                                                                                   \
-    virtual VisitResult Before(N& node)                                                                                \
-    {                                                                                                                  \
-        return VisitResult::Cont();                                                                                    \
-    }                                                                                                                  \
-    virtual void After(N& node, const VisitResult& res)                                                                \
-    {                                                                                                                  \
-    }                                                                                                                  \
-    virtual void Visit(N& node, VisitResult& res);
-
-// 使用宏生成代码
-#define AST_INFO(KIND, STR, DEF) GEN_BEFORE_AFTER_MUTVISIT(DEF)
-#include "AstInfo.inc"
-#undef AST_INFO
+    virtual VisitResult DefaultAfter(AstNode& node, VisitResult& res);
 
     /**
-     * @brief 处理声明节点。
+     * @brief 获取节点的子节点列表。
      *
-     * @param node 声明节点。
-     * @param res 遍历结果对象，用于传递状态信息。
+     * @param node 要获取子节点的节点。
+     * @return 子节点列表。
      */
-    void VisitDecl(Decl& node, VisitResult& res);
+    std::vector<Ptr<AstNode>> GetChildren(AstNode& node);
 
     /**
-     * @brief 遍历单个节点。
+     * @brief 合并子节点的遍历结果。
      *
-     * @tparam Ptr 指针类型模板。
-     * @tparam T 节点的具体类型。
-     * @param pnode 要遍历的节点指针。
+     * @param node 父节点。
+     * @param base 父节点的遍历结果对象，用于存储合并后的结果。
+     * @param childrenRes 子节点的遍历结果列表。
+     * @return 合并后的遍历结果。
      */
-    template <template <typename> class Ptr, typename T> inline void VisitNode(Ptr<T>& pnode)
-    {
-        if (pnode) {
-            MutTraverse(*pnode, *this);
-        }
-    }
-
-    /**
-     * @brief 遍历一组节点。
-     *
-     * @tparam Ptr 指针类型模板。
-     * @tparam T 节点的具体类型。
-     * @param nodes 要遍历的节点指针数组。
-     */
-    template <template <typename> class Ptr, typename T> inline void VisitNodes(const std::vector<Ptr<T>>& nodes)
-    {
-        for (auto& node : nodes) {
-            MutTraverse(*node, *this);
-        }
-    }
+    virtual void DefaultMergeResult(AstNode& node, VisitResult& base, const std::vector<VisitResult>& childrenRes);
 
 protected:
     /**
      * @brief 存储每个 AST 节点种类对应的处理程序。
      */
-    std::map<AstKind, std::tuple<BeforeFunc, VisitFunc, AfterFunc>> handlers;
+    std::unordered_map<AstKind, std::tuple<BeforeFunc, VisitFunc, AfterFunc, MergeFunc>> handlers;
 };
