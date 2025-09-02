@@ -5,7 +5,6 @@
  */
 
 #include "visitor/AstVisitor.h"
-#include "cangjie/Utils/CastingTemplate.h"
 #include "utils/Logger.h"
 #include "utils/Macro.h"
 #include <tuple>

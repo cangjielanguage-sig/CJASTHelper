@@ -61,13 +61,6 @@ inline std::string Id(const Identifier& id)
     NormalizedId(res);
     return res;
 }
-/**
- * TokenKind 映射字符串辅助函数
- */
-inline std::string Tk2Str(Cangjie::TokenKind tk)
-{
-    return Cangjie::TOKENS[static_cast<int>(tk)];
-}
 } // namespace
 
 ///  Ast2SourceException 实现函数
@@ -223,7 +216,6 @@ void Ast2SourceVisitor::Visit(const Modifier& node, VisitResult&)
 
 // Decls
 namespace {
-using Cangjie::AST::VarDeclAbstract;
 inline std::string GetVarKeyword(const VarDeclAbstract& node)
 {
     if (node.isConst) {
@@ -318,7 +310,7 @@ namespace {
 inline Ptr<Ty> TryGetRetTy(Ptr<Ty> ty)
 {
     if (ty->IsFunc()) {
-        return Cast<Cangjie::AST::FuncTy*>(ty)->retTy;
+        return Cast<FuncTy*>(ty)->retTy;
     }
     return nullptr;
 }
@@ -983,7 +975,7 @@ void Ast2SourceVisitor::RegisterHandlers()
 {
     static std::unordered_map<std::string, AstKind> name2kind{
 #define AST_INFO(KIND, STR, DEF) {#DEF, AstKind::KIND},
-#include "visitor/AstInfo.inc"
+#include "wrapper/AstInfo.inc"
 #undef AST_INFO
     };
     // 定义注册代码片段
@@ -1314,7 +1306,7 @@ void Ast2SourceVisitor::TryPrintGenericConstraints(Ptr<Generic> generic)
  * @param ref 引用表达式: RefExpr or MemberAccess
  * @param isPattern 是否是在 pattern 中 (enum pattern 不允许打印泛型参数)
  */
-void Ast2SourceVisitor::PrintInstArgs(const Cangjie::AST::NameReferenceExpr& ref, bool isPattern)
+void Ast2SourceVisitor::PrintInstArgs(const NameReferenceExpr& ref, bool isPattern)
 {
     if (!ref.typeArguments.empty()) {
         PRT().PVec<Type>(ref.typeArguments, [this](const Type& tp) { Traverse(tp, *this); }, ", ", "<", ">");
@@ -1373,27 +1365,27 @@ inline bool Ast2SourceVisitor::TryPrintTy(const Ptr<Ty> ty)
  */
 void Ast2SourceVisitor::PrintTy(const Ty& ty)
 {
-    using TyKind = Cangjie::AST::TypeKind;
+
     // If the format is incorrect, need to adjust it.
     switch (ty.kind) {
-        case TyKind::TYPE_CSTRING:
+        case TypeKind::TYPE_CSTRING:
             PRT().PVal("CString");
             return;
-        case TyKind::TYPE_POINTER:
+        case TypeKind::TYPE_POINTER:
             PRT().PVal("CPointer");
             PRT().PVec<Ty>(ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "<", ">");
             return;
-        case TyKind::TYPE_CLASS:
-        case TyKind::TYPE_INTERFACE:
-        case TyKind::TYPE_STRUCT:
-        case TyKind::TYPE_ENUM:
+        case TypeKind::TYPE_CLASS:
+        case TypeKind::TYPE_INTERFACE:
+        case TypeKind::TYPE_STRUCT:
+        case TypeKind::TYPE_ENUM:
             PRT().PVal(ty.name);
             PRT().PVec<Ty>(ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "<", ">");
             return;
-        case TyKind::TYPE_TUPLE:
+        case TypeKind::TYPE_TUPLE:
             PRT().PVec<Ty>(ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "(", ")");
             return;
-        case TyKind::TYPE_GENERICS:
+        case TypeKind::TYPE_GENERICS:
             PRT().PVal(ty.name);
             return;
         default:
@@ -1597,7 +1589,6 @@ bool Ast2SourceVisitor::TryPrintDesugaredForInExpr(const ForInExpr& node)
     if (!config.Sema() || !config.Desugar()) {
         return false;
     }
-    using Cangjie::AST::ForInKind;
     if (node.forInKind == ForInKind::FORIN_RANGE) {
         PrintDesugaredForInRange(node);
     } else if (node.forInKind == ForInKind::FORIN_STRING) {
