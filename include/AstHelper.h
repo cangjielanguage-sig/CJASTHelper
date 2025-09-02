@@ -5,9 +5,9 @@
  */
 #pragma once
 
-#include "cangjie/Frontend/CompilerInstance.h"
 #include "utils/Printer.h"
 #include "visitor/MutAstVisitorBase.h"
+#include "wrapper/WrapperCangjieFrontend.h"
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -113,15 +113,12 @@ private:
     void RegisterStages();
 
 private:
-    using DiagnosticEngine = Cangjie::DiagnosticEngine;
-    using CompilerInvocation = Cangjie::CompilerInvocation;
-    using CompilerInstance = Cangjie::CompilerInstance;
     DiagnosticEngine diag;                 /**< 诊断引擎实例 */
     CompilerInvocation ci;                 /**< 编译器调用实例 */
     std::unique_ptr<CompilerInstance> mci; /**< 编译器实例的智能指针 */
 
-    Options options;                              /**< 用户选项 */
-    std::vector<Ptr<Cangjie::AST::Package>> pkgs; /**< 分析结果包列表 */
+    Options options;                /**< 用户选项 */
+    std::vector<Ptr<Package>> pkgs; /**< 分析结果包列表 */
 
     std::vector<std::string> passes; /**< 配置需要执行的 passes 列表 */
 

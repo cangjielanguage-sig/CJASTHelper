@@ -9,7 +9,6 @@
 #include "utils/Macro.h"
 
 using AstNode = Cangjie::AST::Node;
-
 using AstKind = Cangjie::AST::ASTKind;
 using Cangjie::Identifier;
 using Cangjie::TokenKind;
@@ -17,12 +16,15 @@ using Cangjie::AST::Attribute;
 using Cangjie::AST::CallKind;
 using Cangjie::AST::Decl;
 using Cangjie::AST::Expr;
+using Cangjie::AST::ForInKind;
+using Cangjie::AST::FuncTy;
 using Cangjie::AST::ImportKind;
 using Cangjie::AST::InheritableDecl;
 using Cangjie::AST::NameReferenceExpr;
 using Cangjie::AST::Pattern;
 using Cangjie::AST::Ty;
 using Cangjie::AST::Type;
+using Cangjie::AST::TypeKind;
 using Cangjie::AST::VarDeclAbstract;
 
 // 宏自动生成 using Cangjie::AST::Package
@@ -31,3 +33,11 @@ using Cangjie::AST::VarDeclAbstract;
 #undef AST_INFO
 
 std::string AstKind2Str(AstKind kind);
+
+/**
+ * TokenKind 映射字符串辅助函数
+ */
+inline std::string Tk2Str(TokenKind tk)
+{
+    return Cangjie::TOKENS[static_cast<int>(tk)];
+}
