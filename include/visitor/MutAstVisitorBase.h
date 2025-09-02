@@ -5,12 +5,13 @@
  */
 #pragma once
 
+#include "AstNodeVisitor.h"
 #include "VisitResult.h"
-#include "WrapperAst.h"
 
 // 抽象访问器接口
-class MutAstVisitorBase {
+class MutAstVisitorBase : public AstNodeVisitor {
 public:
+    MutAstVisitorBase() = default;
     /**
      * @brief 在访问节点之前调用的方法。
      *
@@ -23,15 +24,18 @@ public:
      *
      * @param node 要访问的 AST 节点。
      * @param res 遍历结果对象，用于传递状态信息。
+     * @return 遍历结果，指示是否继续遍历或跳过节点。
      */
-    virtual void Visit(AstNode& node, VisitResult& res) = 0;
+    virtual VisitResult Visit(AstNode& node, VisitResult& res) = 0;
     /**
      * @brief 在访问节点之后调用的方法。
      *
      * @param node 已访问的 AST 节点。
      * @param res 遍历结果对象，包含访问结果的状态信息。
+     * @return 遍历结果，指示是否继续遍历或跳过节点。
      */
-    virtual void AfterVisit(AstNode& node, const VisitResult& res) = 0;
+    virtual VisitResult AfterVisit(AstNode& node, VisitResult& res) = 0;
+
     /**
      * @brief 虚析构函数，确保派生类正确销毁。
      */

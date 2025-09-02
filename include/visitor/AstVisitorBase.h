@@ -5,11 +5,11 @@
  */
 #pragma once
 
+#include "AstNodeVisitor.h"
 #include "VisitResult.h"
-#include "WrapperAst.h"
 
 // 抽象访问器接口
-class AstVisitorBase {
+class AstVisitorBase : public AstNodeVisitor {
 public:
     /**
      * @brief 在访问节点之前调用的方法。

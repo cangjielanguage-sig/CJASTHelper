@@ -66,7 +66,7 @@ inline std::string Id(const Identifier& id)
  */
 inline std::string Tk2Str(Cangjie::TokenKind tk)
 {
-    return Cangjie::TOKENS[Cast<int>(tk)];
+    return Cangjie::TOKENS[static_cast<int>(tk)];
 }
 } // namespace
 
@@ -976,9 +976,58 @@ void CreateDirIfNotExists(const std::string& path)
 Ast2SourceVisitor::Ast2SourceVisitor(Ast2SourceConfig config) : config(config), prt(ofs, config.indent)
 {
     CreateDirIfNotExists(config.out);
+    RegisterHandlers();
 }
 
-// 辅助打印函数 (重命名 PrintXXX)
+void Ast2SourceVisitor::RegisterHandlers()
+{
+    static std::unordered_map<std::string, AstKind> name2kind{
+#define AST_INFO(KIND, STR, DEF) {#DEF, AstKind::KIND},
+#include "visitor/AstInfo.inc"
+#undef AST_INFO
+    };
+    // 定义注册代码片段
+#define GEN_REG_HANDLER(N)                                                                                             \
+    RegisterHandler(name2kind.at(#N), nullptr,                                                                         \
+        [this](const AstNode& node, VisitResult& res) { this->Visit(Cast<const N&>(node), res); })
+
+#define GEN_REG_HANDLER2(N)                                                                                            \
+    RegisterHandler(                                                                                                   \
+        name2kind.at(#N), [this](const AstNode& node) { return this->Before(Cast<const N&>(node)); },                  \
+        [this](const AstNode& node, VisitResult& res) { this->Visit(Cast<const N&>(node), res); })
+
+    // 使用宏生成代码
+    // 递归展开需要重写的解糖节点
+    EXPAND4(GEN_REG_HANDLER2, MainDecl, AssignExpr, UnaryExpr, BinaryExpr);
+    EXPAND2(GEN_REG_HANDLER2, RefExpr, SubscriptExpr);
+
+    // 递归展开需要重写的节点
+    EXPAND3(GEN_REG_HANDLER, Annotation, Modifier, File);
+    EXPAND3(GEN_REG_HANDLER, PackageSpec, ImportSpec, ImportContent);
+    // Decl
+    EXPAND4(GEN_REG_HANDLER, VarDecl, VarWithPatternDecl, PropDecl, FuncParam);
+    EXPAND3(GEN_REG_HANDLER, FuncParamList, FuncBody, FuncDecl);
+    EXPAND4(GEN_REG_HANDLER, PrimaryCtorDecl, ClassDecl, InterfaceDecl, StructDecl);
+    EXPAND3(GEN_REG_HANDLER, EnumDecl, ExtendDecl, TypeAliasDecl);
+    // Type
+    EXPAND4(GEN_REG_HANDLER, PrimitiveType, RefType, OptionType, TupleType);
+    EXPAND4(GEN_REG_HANDLER, QualifiedType, ThisType, VArrayType, ParenType);
+    EXPAND2(GEN_REG_HANDLER, ConstantType, FuncType);
+    // Pattern
+    EXPAND4(GEN_REG_HANDLER, WildcardPattern, ConstPattern, EnumPattern, VarPattern);
+    EXPAND3(GEN_REG_HANDLER, TypePattern, VarOrEnumPattern, TuplePattern);
+    // Expr
+    EXPAND4(GEN_REG_HANDLER, Block, FuncArg, MatchCase, MatchCaseOther);
+    EXPAND4(GEN_REG_HANDLER, MemberAccess, CallExpr, IncOrDecExpr, RangeExpr);
+    EXPAND4(GEN_REG_HANDLER, LitConstExpr, ArrayLit, ReturnExpr, LambdaExpr);
+    EXPAND4(GEN_REG_HANDLER, MatchExpr, IsExpr, AsExpr, ThrowExpr);
+    EXPAND4(GEN_REG_HANDLER, JumpExpr, LetPatternDestructor, TupleLit, TypeConvExpr);
+    EXPAND4(GEN_REG_HANDLER, IfExpr, DoWhileExpr, WhileExpr, ForInExpr);
+    // Generic
+    EXPAND3(GEN_REG_HANDLER, Generic, GenericParamDecl, GenericConstraint);
+}
+
+// 辅助打印函数
 /**
  * @brief 打印节点。
  * @param pnode 节点指针。

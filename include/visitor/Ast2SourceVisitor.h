@@ -93,8 +93,8 @@ public:
     ~Ast2SourceVisitor() override = default;
 
 protected:
-#define GEN_BEFORE_OVERRIDE(N) VisitResult Before(const N& node) override
-#define GEN_VISIT_OVERRIDE(N) void Visit(const N& node, VisitResult&) override
+#define GEN_BEFORE_OVERRIDE(N) VisitResult Before(const N& node)
+#define GEN_VISIT_OVERRIDE(N) void Visit(const N& node, VisitResult&)
 
     // 递归展开需要重写的解糖节点
     EXPAND4(GEN_BEFORE_OVERRIDE, MainDecl, AssignExpr, UnaryExpr, BinaryExpr);
@@ -135,6 +135,8 @@ private:
      * @param config Ast2SourceConfig对象，包含输出文件、缩进和标志信息。
      */
     Ast2SourceVisitor(Ast2SourceConfig config);
+
+    void RegisterHandlers();
 
 private:
     /// 辅助打印函数

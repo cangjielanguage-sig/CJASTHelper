@@ -4,10 +4,11 @@
  * This file implements the AstHelper.
  */
 #include "AstHelper.h"
-#include "visitor/Ast2SourceVisitor.h"
 #include "cangjie/Sema/Desugar.h"
 #include "utils/ArgumentParser.h"
 #include "utils/Logger.h"
+#include "visitor/Ast2SourceVisitor.h"
+#include "visitor/MutAstVisitor.h"
 
 using namespace Cangjie;
 
@@ -118,6 +119,10 @@ AstHelper::AstHelper(const std::vector<std::string>& args, const std::unordered_
     ci.frontendOptions.ReadPathsFromEnvironmentVars(env);
     ParseArgs(args);
     mci = std::make_unique<CompilerInstance>(ci, diag);
+    // 注册 stage 回调函数
+    RegisterStages();
+    // 注册可用的 pass
+    RegisterPasses();
 }
 
 std::string AstHelper::GetOutputDir() const
@@ -131,9 +136,36 @@ void AstHelper::Run()
         ShowHelperInfo();
         return;
     }
+    if (!DoParse()) {
+        Logger::Get().Error("AstHelper::Run", "DoParse failed.");
+        return;
+    }
     if (!DoAnalysis()) {
         Logger::Get().Error("AstHelper::Run", "DoAnalysis failed.");
         return;
+    }
+    if (!DoTransform()) {
+        Logger::Get().Error("AstHelper::Run", "DoTransform failed.");
+        return;
+    }
+}
+
+/**
+ * @brief 执行解析阶段 复用前端的编译器调用，得到AST
+ * @return 解析阶段执行成功返回true，否则返回false
+ */
+bool AstHelper::DoParse()
+{
+    Logger::Get().Debug("AstHelper::DoParse");
+    // --dump-source 按照 stage 决策执行前端哪些pipeline
+    for (int i = 0; i <= static_cast<int>(options.stage); i++) {
+        if (i == static_cast<int>(SourceStage::DESUGARED_PARSE) && options.stage > SourceStage::DESUGARED_PARSE) {
+            // Skip desugared parse stage when stage including sema.
+            continue;
+        }
+        if (!stageMap.at(static_cast<SourceStage>(i))()) {
+            return false;
+        }
     }
     if (options.stage == SourceStage::IMPORT) {
         for (auto pkg : mci->GetPackages()) {
@@ -144,10 +176,7 @@ void AstHelper::Run()
     } else {
         pkgs = mci->GetSourcePackages();
     }
-    if (!DoTransform()) {
-        Logger::Get().Error("AstHelper::Run", "DoTransform failed.");
-        return;
-    }
+    return true;
 }
 
 /**
@@ -157,17 +186,15 @@ void AstHelper::Run()
 bool AstHelper::DoAnalysis()
 {
     Logger::Get().Debug("AstHelper::DoAnalysis");
-    // --dump-source 按照 stage 决策执行前端哪些pipeline
-    for (int i = 0; i <= static_cast<int>(options.stage); i++) {
-        if (i == static_cast<int>(SourceStage::DESUGARED_PARSE) && options.stage > SourceStage::DESUGARED_PARSE) {
-            // Skip desugared parse stage when stage including sema.
-            continue;
-        }
-        if (!stageMap.at(static_cast<SourceStage>(i))(this)) {
-            return false;
+    // passes.push_back("test");
+    for (auto& pass : passes) {
+        if (auto visitor = passMap.find(pass); visitor != passMap.end()) {
+            Logger::Get().Debug("AstHelper::DoAnalysis", "do pass: ", pass);
+            for (auto& pkg : pkgs) {
+                MutTraverse(*pkg, *visitor->second);
+            }
         }
     }
-    // TODO: 检查是否有错误
     return true;
 }
 
@@ -211,12 +238,14 @@ bool AstHelper::DoTransform() const
     return true;
 }
 
+/**
+ * @brief 解析命令行参数, 拆分当前工具参数和前端工具透传参数
+ */
 void AstHelper::ParseArgs(const std::vector<std::string>& args)
 {
     ArgumentParser ap({{"dump-source", {"parse", "desugared-parse", "sema", "desugared-sema"}}, {"dump-imports", {}},
         {"filter-decls", {"func", "class", "interface", "struct", "enum", "var"}}, {"dump-desugar", {"true", "false"}},
         {"ignore-decls", {}}, {"ignore-annotations", {}}});
-    const std::string& DS_KEY = "--dump-source=";
     std::vector<std::string> filterKeys{"--dump-source", "--dump-imports", "--dump-desugar", "--filter-decls",
         "--ignore-decls", "--ignore-annotations"};
     std::vector<std::string> filterArgs;
@@ -257,46 +286,65 @@ void AstHelper::ParseArgs(const std::vector<std::string>& args)
     ci.ParseArgs(ciArgs);
 }
 
-bool AstHelper::Default()
+// 私有函数实现
+/**
+ * 注册一个分析pass
+ */
+void AstHelper::RegisterPass(std::string name, std::unique_ptr<MutAstVisitorBase> visitor)
 {
-    Logger::Get().Debug("AstHelper::Default", "input files: ", ci.globalOptions.srcFiles.size());
-    Logger::Get().Debug("AstHelper::Default", "Output: ", GetOutputDir());
-    return true;
+    passMap.emplace(name, std::move(visitor));
 }
 
-bool AstHelper::Parse()
+/**
+ * 注册所有分析pass
+ */
+void AstHelper::RegisterPasses()
 {
-    Logger::Get().Debug("AstHelper::Parse", "file paths: ", mci->srcFilePaths.size());
-    return mci->PerformParse();
+    RegisterPass("test", std::make_unique<MutAstVisitor>());
 }
 
-bool AstHelper::DesugaredParse()
+/**
+ * 注册stage回调
+ */
+void AstHelper::RegisterStage(SourceStage stage, StageFunc fn)
 {
-    Logger::Get().Debug("AstHelper::DesugaredParse");
-    for (auto& pkg : mci->GetPackages()) {
-        PerformDesugarBeforeTypeCheck(*pkg);
-    }
-    return true;
+    stageMap.emplace(stage, fn);
 }
 
-bool AstHelper::LoadImports()
+/**
+ * 注册所有stage回调
+ */
+void AstHelper::RegisterStages()
 {
-    Logger::Get().Debug("AstHelper::LoadImports");
-    return mci->PerformImportPackage();
+    RegisterStage(SourceStage::DEFAULT, [this]() {
+        Logger::Get().Debug("Default Stage", "input files: ", ci.globalOptions.srcFiles.size());
+        Logger::Get().Debug("Parse Stage", "file paths: ", mci->srcFilePaths.size());
+        Logger::Get().Debug("Default Stage", "Output: ", GetOutputDir());
+        return true;
+    });
+    RegisterStage(SourceStage::PARSE, [this]() { return mci->PerformParse(); });
+    RegisterStage(SourceStage::DESUGARED_PARSE, [this]() {
+        Logger::Get().Debug("DesugaredParse Stage");
+        for (auto& pkg : mci->GetPackages()) {
+            PerformDesugarBeforeTypeCheck(*pkg);
+        }
+        return true;
+    });
+    RegisterStage(SourceStage::IMPORT, [this]() {
+        Logger::Get().Debug("LoadImports Stage");
+        return mci->PerformImportPackage();
+    });
+    RegisterStage(SourceStage::SEMA, [this]() {
+        Logger::Get().Debug("Sema Stage");
+        return mci->PerformSema();
+    });
+    RegisterStage(SourceStage::DESUGARED_SEMA, [this]() {
+        Logger::Get().Debug("DesugaredSema stage");
+        return mci->PerformDesugarAfterSema();
+    });
 }
 
-bool AstHelper::Sema()
-{
-    Logger::Get().Debug("AstHelper::Sema");
-    return mci->PerformSema();
-}
-
-bool AstHelper::DesugaredSema()
-{
-    Logger::Get().Debug("AstHelper::DesugaredSema");
-    return mci->PerformDesugarAfterSema();
-}
-
+// Parse args from command line
 std::vector<std::string> ParseArgs(int argc, const char* const* argv)
 {
     std::vector<std::string> args;
@@ -309,7 +357,7 @@ std::vector<std::string> ParseArgs(int argc, const char* const* argv)
     return args;
 }
 
-// Filter some key vars
+// Parse environment filtered by some key vars
 std::unordered_map<std::string, std::string> ParseEnv(
     const char* const* envp, const std::unordered_set<std::string>& focus)
 {
