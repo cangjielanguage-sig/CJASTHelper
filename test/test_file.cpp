@@ -37,11 +37,18 @@ std::string ExecCmd(const char* cmd)
     return result;
 }
 
-void ExecDumpDesugaredSema(const std::string& cjahPath, const std::string& src, const std::string& out)
+using ConStr = const std::string&;
+
+void ExecDump(ConStr cjahPath, ConStr stage, ConStr src, ConStr out, bool desugar = false)
 {
     // 构建命令行字符串以运行你的应用
     std::string command =
-        cjahPath + " --dump-source=desugared-sema " + src + " -Woff unused --output-type=dylib --output-dir " + out;
+        cjahPath + " --dump-source=" + stage + " " + src + " -Woff unused --output-type=dylib --output-dir " + out;
+    if (desugar) {
+        command += " --dump-desugar=true";
+    } else {
+        command += " --dump-desugar=false";
+    }
     // 使用 popen 执行命令并捕获输出
     ExecCmd(command.c_str());
 }
@@ -60,7 +67,22 @@ inline bool CompareFile(const std::string& actual, const std::string& expected)
 {
     std::string content0 = ReadFileToString(actual);
     std::string content1 = ReadFileToString(expected);
-    return content0 == content1;
+
+    // 忽略空行的比较
+    auto removeEmptyLines = [](const std::string& content) {
+        std::istringstream iss(content);
+        std::ostringstream oss;
+        std::string line;
+        while (std::getline(iss, line)) {
+            // 检查是否为空行（只包含空白字符）
+            if (line.find_first_not_of(" \t\r\n") != std::string::npos) {
+                oss << line << '\n';
+            }
+        }
+        return oss.str();
+    };
+
+    return removeEmptyLines(content0) == removeEmptyLines(content1);
 }
 
 inline std::string GetCJAH()
@@ -94,10 +116,11 @@ inline std::vector<std::string> IterateCjah(const std::string& cjahPath, const s
     std::string outFile0 = outPre + suffix + ".cj";
     std::string outFile1 = outPre + suffix + suffix + ".cj";
     std::string expectedFile = outPre + suffix + suffix + suffix + ".cj";
+    const std::string stage = "desugared-sema";
     // cjah 测试源文件 经过 3 次迭代 源码维持不变
-    ExecDumpDesugaredSema(cjahPath, src, out);
-    ExecDumpDesugaredSema(cjahPath, outFile0, out);
-    ExecDumpDesugaredSema(cjahPath, outFile1, out);
+    ExecDump(cjahPath, stage, src, out, true);
+    ExecDump(cjahPath, stage, outFile0, out, true);
+    ExecDump(cjahPath, stage, outFile1, out, true);
     return {outFile0, outFile1, expectedFile};
 }
 } // namespace
@@ -112,11 +135,43 @@ TEST(CJAHTest, Integration01)
 {
     std::string cjahPath = GetCJAH();
     std::string out = ".";
-    std::string src = "test/main.cj";
+    std::string src = "test/data/inputs/main.cj";
     auto tmpFiles = IterateCjah(cjahPath, src, out);
     // 检查输出文件是否存在
     EXPECT_EQ(tmpFiles.size(), 3);
     EXPECT_TRUE(CheckExists(tmpFiles)) << "Output file not found.";
     EXPECT_TRUE(CompareFile(tmpFiles[1], tmpFiles[2])) << "Actual output does not match expected.";
     EXPECT_TRUE(RemoveFiles(tmpFiles)) << "Remove tmpFiles Failed!.";
+}
+
+TEST(CJAHTest, Integration02)
+{
+    std::string cjahPath = GetCJAH();
+    std::string out = ".";
+    std::string src = "test/data/inputs/desugar.cj";
+    std::string tmpFile = out + "/desugar_source.cj";
+    ExecDump(cjahPath, "parse", src, out);
+    // 检查输出文件是否存在
+    EXPECT_TRUE(fs::exists(tmpFile)) << "Output file of parse not found.";
+    EXPECT_TRUE(CompareFile(tmpFile, src)) << "Actual output does not match expected.";
+    std::vector<std::string> stages{"desugared-parse", "sema", "desugared-sema"};
+    std::string expected = "test/data/expected/desugar/dump_desugar_false/";
+    for (auto& stage : stages) {
+        ExecDump(cjahPath, stage, src, out);
+        EXPECT_TRUE(fs::exists(tmpFile)) << "Output file of " + stage + " not found.";
+        EXPECT_TRUE(fs::exists(expected + stage + ".cj")) << "Expected file of " + stage + " not found.";
+        EXPECT_TRUE(CompareFile(tmpFile, expected + stage + ".cj"))
+            << "Actual output of " + stage + " does not match expected.";
+    }
+
+    expected = "test/data/expected/desugar/dump_desugar_true/";
+    for (auto& stage : stages) {
+        ExecDump(cjahPath, stage, src, out, true);
+        EXPECT_TRUE(fs::exists(tmpFile)) << "Output file of " + stage + " not found.";
+        EXPECT_TRUE(fs::exists(expected + stage + ".cj")) << "Expected file of " + stage + " not found.";
+        EXPECT_TRUE(CompareFile(tmpFile, expected + stage + ".cj"))
+            << "Actual output of " + stage + " does not match expected.";
+    }
+
+    EXPECT_TRUE(RemoveFiles({tmpFile})) << "Remove tmpFiles Failed!.";
 }

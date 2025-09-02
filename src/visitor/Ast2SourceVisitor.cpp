@@ -463,6 +463,17 @@ void Ast2SourceVisitor::Visit(const RefType& node, VisitResult& res)
     }
 }
 
+VisitResult Ast2SourceVisitor::Before(const OptionType& node)
+{
+    if (!config.Desugar() || !node.desugarType) {
+        // desugar is false && node.desugarType is not nullptr is okay, because node.componentType is not nullptr.
+        return VisitResult::Cont();
+    }
+    Logger::Get().Debug("Ast2SourceVisitor::Before", "For OptionType: desugar: ", node.desugarType != nullptr);
+    TryPrintNode(node.desugarType);
+    return VisitResult::Skip();
+}
+
 void Ast2SourceVisitor::Visit(const OptionType& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For OptionType");
@@ -991,7 +1002,7 @@ void Ast2SourceVisitor::RegisterHandlers()
     // 使用宏生成代码
     // 递归展开需要重写的解糖节点
     EXPAND4(GEN_REG_HANDLER2, MainDecl, AssignExpr, UnaryExpr, BinaryExpr);
-    EXPAND2(GEN_REG_HANDLER2, RefExpr, SubscriptExpr);
+    EXPAND3(GEN_REG_HANDLER2, RefExpr, SubscriptExpr, OptionType);
 
     // 递归展开需要重写的节点
     EXPAND3(GEN_REG_HANDLER, Annotation, Modifier, File);
@@ -1002,7 +1013,7 @@ void Ast2SourceVisitor::RegisterHandlers()
     EXPAND4(GEN_REG_HANDLER, PrimaryCtorDecl, ClassDecl, InterfaceDecl, StructDecl);
     EXPAND3(GEN_REG_HANDLER, EnumDecl, ExtendDecl, TypeAliasDecl);
     // Type
-    EXPAND4(GEN_REG_HANDLER, PrimitiveType, RefType, OptionType, TupleType);
+    EXPAND3(GEN_REG_HANDLER, PrimitiveType, RefType, TupleType);
     EXPAND4(GEN_REG_HANDLER, QualifiedType, ThisType, VArrayType, ParenType);
     EXPAND2(GEN_REG_HANDLER, ConstantType, FuncType);
     // Pattern

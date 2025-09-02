@@ -240,27 +240,32 @@ bool AstHelper::DoTransform() const
  */
 void AstHelper::ParseArgs(const std::vector<std::string>& args)
 {
-    ArgumentParser ap({{"dump-source", {"parse", "desugared-parse", "sema", "desugared-sema"}}, {"dump-imports", {}},
+    // 工具的有效选项:
+    // key: {} 有效值集合， 空时表示不限制
+    std::unordered_map<std::string, std::unordered_set<std::string>> validOpts = {
+        {"dump-source", {"parse", "desugared-parse", "sema", "desugared-sema"}}, {"dump-imports", {}},
         {"filter-decls", {"func", "class", "interface", "struct", "enum", "var"}}, {"dump-desugar", {"true", "false"}},
-        {"ignore-decls", {}}, {"ignore-annotations", {}}});
-    std::vector<std::string> filterKeys{"--dump-source", "--dump-imports", "--dump-desugar", "--filter-decls",
-        "--ignore-decls", "--ignore-annotations"};
-    std::vector<std::string> filterArgs;
+        {"ignore-decls", {}}, {"ignore-annotations", {}}};
+    std::vector<std::string> toolArgs;
     std::vector<std::string> ciArgs;
-    auto isFilter = [&filterKeys](const std::string& arg) {
-        return std::any_of(filterKeys.begin(), filterKeys.end(),
-            [&arg](const std::string& k) { return arg.find(k) != std::string::npos; });
+    auto isFilter = [&validOpts](const std::string& arg) {
+        return std::any_of(validOpts.begin(), validOpts.end(),
+            [&arg](const auto& k) { return arg.find(k.first) != std::string::npos; });
     };
     // 过滤当前工具参数和 CI 参数
     for (auto arg : args) {
         if (isFilter(arg)) {
-            filterArgs.push_back(arg);
+            toolArgs.push_back(arg);
         } else {
             ciArgs.push_back(arg);
         }
     }
+    Logger::Get().Debug(
+        "AstHelper::ParseArgs", "args: ", args.size(), ", cjah: ", toolArgs.size(), ", ci: ", ciArgs.size());
     try {
-        ap.Parse(filterArgs);
+        // 解析并获取工具选项配置
+        ArgumentParser ap(validOpts);
+        ap.Parse(toolArgs);
         auto stage = ap.GetSingleValue("dump-source", "");
         if (stage != "") {
             this->options.stage = key2Stage.at(stage);
@@ -270,16 +275,18 @@ void AstHelper::ParseArgs(const std::vector<std::string>& args)
             this->options.stage = SourceStage::IMPORT;
             this->options.importedPkgs.insert(imports.begin(), imports.end());
         }
+        // TODO: 添加选项互斥检查
         // TODO： 适配默认 false
         this->options.enableDesugar = ap.GetSingleValue("dump-desugar", "true") == "true";
         this->options.filterDecls = ap.GetMultiValue("filter-decls");
         this->options.ignoreDecls = ap.GetMultiValue("ignore-decls");
         this->options.ignoreAnnotations = ap.GetMultiValue("ignore-annotations");
+
+        Logger::Get().Debug("AstHelper::ParseArgs", "Config: { desugar: ", this->options.enableDesugar, "}");
     } catch (InvalidArgumentException& iae) {
         Logger::Get().Error("AstHelper::ParseArgs", iae.what());
         ShowHelperInfo();
     }
-    Logger::Get().Debug("AstHelper::ParseArgs", "args: ", ciArgs.size());
     ci.ParseArgs(ciArgs);
 }
 
@@ -319,10 +326,13 @@ void AstHelper::RegisterStages()
         Logger::Get().Debug("Default Stage", "Output: ", GetOutputDir());
         return true;
     });
-    RegisterStage(SourceStage::PARSE, [this]() { return mci->PerformParse(); });
+    RegisterStage(SourceStage::PARSE, [this]() {
+        Logger::Get().Debug("Parse Stage");
+        return mci->PerformParse();
+    });
     RegisterStage(SourceStage::DESUGARED_PARSE, [this]() {
         Logger::Get().Debug("DesugaredParse Stage");
-        for (auto& pkg : mci->GetPackages()) {
+        for (auto& pkg : mci->GetSourcePackages()) {
             PerformDesugarBeforeTypeCheck(*pkg);
         }
         return true;

@@ -7,3 +7,5 @@ log.txt
 .lingma
 .cache
 .plans
+# 数据不上传
+test/data/expected
