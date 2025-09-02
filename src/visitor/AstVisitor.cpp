@@ -1,7 +1,7 @@
 /**
  * @file
  *
- * This file implementation of AstVisitor.
+ * This file implements the AstVisitor.
  */
 
 #include "visitor/AstVisitor.h"

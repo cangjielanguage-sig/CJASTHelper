@@ -1,3 +1,8 @@
+/**
+ * @file
+ *
+ * This file declares the wrapper ast nodes.
+ */
 #pragma once
 
 #include "cangjie/AST/Node.h"

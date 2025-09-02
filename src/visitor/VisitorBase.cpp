@@ -1,7 +1,7 @@
 /**
  * @file
  *
- * This file implementation of AstVisitorBase.
+ * This file implements the AstVisitorBase.
  */
 
 #include "utils/Cast.h"
@@ -45,9 +45,9 @@ VisitResult MutTraverse(AstNode& node, MutAstVisitorBase& visitor)
     if (!res.status) {
         return res;
     }
-    res = visitor.Visit(node, res);
+    visitor.Visit(node, res);
     if (res.status) {
-        res = visitor.AfterVisit(node, res);
+        visitor.AfterVisit(node, res);
     }
     return res;
 }

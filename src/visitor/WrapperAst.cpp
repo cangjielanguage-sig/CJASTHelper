@@ -1,3 +1,8 @@
+/**
+ * @file
+ *
+ * This file implements the wrapper ast nodes.
+ */
 
 #include "visitor/WrapperAst.h"
 

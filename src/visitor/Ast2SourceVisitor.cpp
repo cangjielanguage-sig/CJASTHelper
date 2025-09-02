@@ -1,7 +1,7 @@
 /**
  * @file
  *
- * This file implementation of Ast2SourceVisitor.
+ * This file implements the Ast2SourceVisitor.
  */
 #include "visitor/Ast2SourceVisitor.h"
 #include "utils/Cast.h"

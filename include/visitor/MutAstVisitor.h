@@ -20,11 +20,11 @@ public:
     /**
      * @brief 使用 std::function 定义 Visit 的回调函数类型。
      */
-    using VisitFunc = std::function<VisitResult(AstNode&, VisitResult&)>;
+    using VisitFunc = std::function<void(AstNode&, VisitResult&)>;
     /**
      * @brief 使用 std::function 定义 AfterVisit 的回调函数类型。
      */
-    using AfterFunc = std::function<VisitResult(AstNode&, VisitResult&)>;
+    using AfterFunc = std::function<void(AstNode&, const VisitResult&)>;
 
     /**
      * @brief 使用 std::function 定义 MergeResult 的回调函数类型。
@@ -35,7 +35,7 @@ public:
     /**
      * @brief 构造函数，初始化 MutAstVisitor 对象。
      */
-    MutAstVisitor();
+    MutAstVisitor() = default;
     /**
      * @brief 虚析构函数，确保派生类能正确析构
      */
@@ -62,16 +62,14 @@ public:
      * @brief 访问节点时调用的方法。
      *
      * @param node 要访问的 AST 节点。
-     * @param res 遍历结果对象，用于传递状态信息。
      */
-    VisitResult Visit(AstNode& node, VisitResult& res) override;
+    void Visit(AstNode& node, VisitResult& res) override;
     /**
      * @brief 在访问节点之后调用的方法。
      *
      * @param node 已访问的 AST 节点。
-     * @param res 遍历结果对象，包含访问结果的状态信息。
      */
-    VisitResult AfterVisit(AstNode& node, VisitResult& res) override;
+    void AfterVisit(AstNode& node, const VisitResult& res) override;
 
 protected:
     /**
@@ -96,22 +94,14 @@ protected:
      * @param node 要访问的 AST 节点。
      * @param res 遍历结果对象，用于传递状态信息。
      */
-    virtual VisitResult DefaultVisit(AstNode& node, VisitResult& res);
+    virtual void DefaultVisit(AstNode& node, VisitResult& res);
     /**
      * @brief 默认的 AfterVisit 方法。
      *
      * @param node 已访问的 AST 节点。
      * @param res 遍历结果对象，包含访问结果的状态信息。
      */
-    virtual VisitResult DefaultAfter(AstNode& node, VisitResult& res);
-
-    /**
-     * @brief 获取节点的子节点列表。
-     *
-     * @param node 要获取子节点的节点。
-     * @return 子节点列表。
-     */
-    std::vector<Ptr<AstNode>> GetChildren(AstNode& node);
+    virtual void DefaultAfter(AstNode& node, const VisitResult& res);
 
     /**
      * @brief 合并子节点的遍历结果。
