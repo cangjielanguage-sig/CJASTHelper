@@ -64,7 +64,7 @@ void MutAstVisitor::DefaultVisit(AstNode& node, VisitResult& res)
     Logger::Get().Debug("MutAstVisitor::DefaultVisit", AstKind2Str(node.astKind));
     std::vector<VisitResult> childrenRes;
     // 遍历子节点
-    for (auto& child : AstNodeVisitor::GetChildren(node)) {
+    for (auto& child : AstNodeHelper::GetChildren(node)) {
         childrenRes.push_back(MutTraverse(*child, *this));
     }
     MergeResult(node, res, childrenRes);

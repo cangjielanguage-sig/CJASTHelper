@@ -5,11 +5,11 @@
  */
 #pragma once
 
-#include "AstNodeVisitor.h"
+#include "AstNodeHelper.h"
 #include "VisitResult.h"
 
 // 抽象访问器接口
-class MutAstVisitorBase : public AstNodeVisitor {
+class MutAstVisitorBase {
 public:
     MutAstVisitorBase() = default;
     /**
