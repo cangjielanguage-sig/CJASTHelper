@@ -7,6 +7,7 @@
 #include "utils/Cast.h"
 #include "utils/Logger.h"
 #include "wrapper/WrapperAst.h"
+#include <concepts>
 #include <functional>
 
 std::string AstKind2Str(AstKind kind)
@@ -566,6 +567,66 @@ std::vector<Ptr<AstNode>> AstNodeHelper::GetChildren(const AstNode& node)
     return result;
 }
 
-void AstNodeHelper::ReplaceChildren(AstNode& node, const std::vector<OwnedPtr<AstNode>>& children)
+namespace {
+template <typename T> OwnedPtr<T> OwnedCast(OwnedPtr<AstNode>&& base)
 {
+    if (base == nullptr) {
+        return nullptr;
+    }
+    T* nodePtr = dynamic_cast<T*>(base.get().get());
+    if (nodePtr == nullptr) {
+        return nullptr; // 转换失败，原指针仍由传入的 unique_ptr 管理
+    }
+    return OwnedPtr<T>(static_cast<T*>(base.release()));
+}
+
+/**
+ * @brief 尝试交换两个AstNode指针的所有权
+ * @param dst 目标节点指针，将被替换为src的内容
+ * @param src 源节点指针，将被替换为dst的内容
+ * @note 仅当src和dst都非空且src可以转换为T类型时才执行交换
+ */
+template <std::derived_from<AstNode> T> inline void TrySwap(OwnedPtr<T>& dst, OwnedPtr<AstNode>& src)
+{
+    if (src == nullptr || dst == nullptr) {
+        return;
+    }
+    if (T* ptr = dynamic_cast<T*>(src.get().get()); !ptr) {
+        return;
+    }
+    T* tmp = static_cast<T*>(src.release());
+    src.reset(dst.release());
+    dst.reset(tmp);
+}
+template <typename T> using OwnedVec = std::vector<OwnedPtr<T>>;
+using OwnedNodeIter = OwnedVec<AstNode>::iterator;
+
+template <std::derived_from<AstNode> T>
+inline void ReplaceRange(OwnedVec<T>& dst, OwnedNodeIter& begin, const OwnedNodeIter& end)
+{
+    for (auto i = 0; i < dst.size() && begin != end; i++, begin++) {
+        TrySwap(dst[i], *begin);
+    }
+}
+
+std::unordered_map<AstKind, std::function<void(AstNode&, OwnedVec<AstNode>&)>> replaceChildrenMap{
+    {AstKind::FILE,
+        [](AstNode& node, OwnedVec<AstNode>& children) {
+            auto& file = Cast<File&>(node);
+            AH_ASSERT(children.size() == file.package ? 1 : 0 + file.imports.size() + file.decls.size());
+            auto it = children.begin();
+            TrySwap(file.package, *it);
+            ReplaceRange(file.imports, it, it + file.imports.size());
+            ReplaceRange(file.decls, it, it + file.decls.size());
+        }},
+};
+} // namespace
+
+void AstNodeHelper::ReplaceChildren(AstNode& node, std::vector<OwnedPtr<AstNode>>& children)
+{
+    if (auto fn = replaceChildrenMap.find(node.astKind); fn != replaceChildrenMap.end()) {
+        fn->second(node, children);
+    } else {
+        Logger::Get().Warn("AstNodeHelper::ReplaceChildren", "unregistered kind ", AstKind2Str(node.astKind));
+    }
 }

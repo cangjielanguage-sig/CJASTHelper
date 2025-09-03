@@ -5,6 +5,7 @@
  */
 #pragma once
 
+#include "cangjie/AST/Clone.h"
 #include "cangjie/AST/Node.h"
 #include "utils/Macro.h"
 
@@ -26,6 +27,8 @@ using Cangjie::AST::Ty;
 using Cangjie::AST::Type;
 using Cangjie::AST::TypeKind;
 using Cangjie::AST::VarDeclAbstract;
+
+using AstCloner = Cangjie::AST::ASTCloner;
 
 // 宏自动生成 using Cangjie::AST::Package
 #define AST_INFO(KIND, STR, DEF) using Cangjie::AST::DEF;
@@ -52,5 +55,10 @@ public:
      */
     static std::vector<Ptr<AstNode>> GetChildren(const AstNode& node);
 
-    static void ReplaceChildren(AstNode& node, const std::vector<OwnedPtr<AstNode>>& children);
+    static void ReplaceChildren(AstNode& node, std::vector<OwnedPtr<AstNode>>& children);
+
+    template <typename T> static inline OwnedPtr<T> Clone(T& node)
+    {
+        return AstCloner::Clone<T>(&node);
+    }
 };

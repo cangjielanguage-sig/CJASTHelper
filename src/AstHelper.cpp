@@ -8,6 +8,7 @@
 #include "utils/Logger.h"
 #include "visitor/Ast2SourceVisitor.h"
 #include "visitor/MutAstVisitor.h"
+#include "visitor/TestPass.h"
 
 namespace {
 /**
@@ -183,7 +184,7 @@ bool AstHelper::DoParse()
 bool AstHelper::DoAnalysis()
 {
     Logger::Get().Debug("AstHelper::DoAnalysis");
-    // passes.push_back("test");
+    passes.push_back("test");
     for (auto& pass : passes) {
         if (auto visitor = passMap.find(pass); visitor != passMap.end()) {
             Logger::Get().Debug("AstHelper::DoAnalysis", "do pass: ", pass);
@@ -304,7 +305,7 @@ void AstHelper::RegisterPass(std::string name, std::unique_ptr<MutAstVisitorBase
  */
 void AstHelper::RegisterPasses()
 {
-    RegisterPass("test", std::make_unique<MutAstVisitor>());
+    RegisterPass("test", std::make_unique<TestPass>());
 }
 
 /**
