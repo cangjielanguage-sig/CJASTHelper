@@ -588,13 +588,13 @@ std::unordered_map<AstKind, std::function<void(const AstNode&, std::vector<Ptr<A
 // No Childrend Node: Modifier, Annotation, PrimitiveType, ThisType, WildcardPattern, WildcardExpr, PrimitiveTypeExpr
 // JumpExpr
 } // namespace
-std::vector<Ptr<AstNode>> AstNodeVisitor::GetChildren(const AstNode& node)
+std::vector<Ptr<AstNode>> AstNodeHelper::GetChildren(const AstNode& node)
 {
     std::vector<Ptr<AstNode>> result;
     if (auto fn = getChildrenMap.find(node.astKind); fn != getChildrenMap.end()) {
         fn->second(node, result);
     } else {
-        Logger::Get().Warn("AstNodeVisitor::GetChildren", "unregistered kind ", AstKind2Str(node.astKind));
+        Logger::Get().Warn("AstNodeHelper::GetChildren", "unregistered kind ", AstKind2Str(node.astKind));
     }
     return result;
 }
