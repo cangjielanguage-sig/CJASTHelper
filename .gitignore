@@ -8,4 +8,4 @@ log.txt
 .cache
 .plans
 # 数据不上传
-test/data/expected
+test/data
