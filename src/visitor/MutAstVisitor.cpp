@@ -10,9 +10,9 @@
 #include <tuple>
 
 // MutTraverse 实现方法
-MutResult MutTraverse(AstNode& node, MutAstVisitorBase& visitor)
+ValuedResult MutTraverse(AstNode& node, MutAstVisitorBase& visitor)
 {
-    MutResult res = visitor.BeforeVisit(node);
+    ValuedResult res = visitor.BeforeVisit(node);
     if (!res.status) {
         return res;
     }
@@ -28,7 +28,7 @@ void MutAstVisitor::RegisterHandler(AstKind kind, BeforeFunc before, VisitFunc v
     handlers[kind] = {before, visit, after, merge};
 }
 
-MutResult MutAstVisitor::BeforeVisit(AstNode& node)
+ValuedResult MutAstVisitor::BeforeVisit(AstNode& node)
 {
     auto it = handlers.find(node.astKind);
     if (it != handlers.end() && std::get<0>(it->second)) {
@@ -38,7 +38,7 @@ MutResult MutAstVisitor::BeforeVisit(AstNode& node)
     }
 }
 
-void MutAstVisitor::Visit(AstNode& node, MutResult& res)
+void MutAstVisitor::Visit(AstNode& node, ValuedResult& res)
 {
     auto it = handlers.find(node.astKind);
     if (it != handlers.end() && std::get<1>(it->second)) {
@@ -48,7 +48,7 @@ void MutAstVisitor::Visit(AstNode& node, MutResult& res)
     }
 }
 
-void MutAstVisitor::AfterVisit(AstNode& node, const MutResult& res)
+void MutAstVisitor::AfterVisit(AstNode& node, const ValuedResult& res)
 {
     auto it = handlers.find(node.astKind);
     if (it != handlers.end() && std::get<2>(it->second)) {
@@ -58,7 +58,7 @@ void MutAstVisitor::AfterVisit(AstNode& node, const MutResult& res)
     }
 }
 
-void MutAstVisitor::MergeResult(AstNode& node, MutResult& res, std::vector<MutResult>& childrenRes)
+void MutAstVisitor::MergeResult(AstNode& node, ValuedResult& res, std::vector<ValuedResult>& childrenRes)
 {
     auto it = handlers.find(node.astKind);
     if (it != handlers.end() && std::get<3>(it->second)) {
@@ -68,16 +68,16 @@ void MutAstVisitor::MergeResult(AstNode& node, MutResult& res, std::vector<MutRe
     }
 }
 
-MutResult MutAstVisitor::DefaultBefore(AstNode& node)
+ValuedResult MutAstVisitor::DefaultBefore(AstNode& node)
 {
-    return MutResult::InitResult();
+    return ValuedResult::InitResult();
 }
 
-void MutAstVisitor::DefaultVisit(AstNode& node, MutResult& res)
+void MutAstVisitor::DefaultVisit(AstNode& node, ValuedResult& res)
 {
     auto children = AstNodeHelper::GetChildren(node);
     Logger::Get().Debug("MutAstVisitor::DefaultVisit", AstKind2Str(node.astKind), " : ", children.size());
-    std::vector<MutResult> childrenRes;
+    std::vector<ValuedResult> childrenRes;
     // 遍历子节点
     for (auto& child : children) {
         childrenRes.push_back(MutTraverse(*child, *this));
@@ -85,10 +85,10 @@ void MutAstVisitor::DefaultVisit(AstNode& node, MutResult& res)
     MergeResult(node, res, childrenRes);
 }
 
-void MutAstVisitor::DefaultAfter(AstNode& node, const MutResult& res)
+void MutAstVisitor::DefaultAfter(AstNode& node, const ValuedResult& res)
 {
 }
 
-void MutAstVisitor::DefaultMergeResult(AstNode& node, MutResult& base, std::vector<MutResult>& childrenRes)
+void MutAstVisitor::DefaultMergeResult(AstNode& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes)
 {
 }
