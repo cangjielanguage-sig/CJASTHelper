@@ -53,7 +53,7 @@ VisitResult AstVisitor::DefaultBefore(const AstNode& node)
 void AstVisitor::DefaultVisit(const AstNode& node, VisitResult& res)
 {
     // 遍历子节点
-    for (auto& child : this->GetChildren(node)) {
+    for (auto& child : AstNodeHelper::GetChildren(node)) {
         Traverse(*child, *this);
     }
 }

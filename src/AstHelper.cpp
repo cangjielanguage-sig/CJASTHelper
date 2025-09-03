@@ -4,9 +4,10 @@
  * This file implements the AstHelper.
  */
 #include "AstHelper.h"
+#include "pass/Ast2SourceVisitor.h"
+#include "pass/TestPass.h"
 #include "utils/ArgumentParser.h"
 #include "utils/Logger.h"
-#include "visitor/Ast2SourceVisitor.h"
 #include "visitor/MutAstVisitor.h"
 
 namespace {
@@ -304,7 +305,7 @@ void AstHelper::RegisterPass(std::string name, std::unique_ptr<MutAstVisitorBase
  */
 void AstHelper::RegisterPasses()
 {
-    RegisterPass("test", std::make_unique<MutAstVisitor>());
+    RegisterPass("test", std::make_unique<TestPass>());
 }
 
 /**

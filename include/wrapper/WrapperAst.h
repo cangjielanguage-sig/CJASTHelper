@@ -5,6 +5,7 @@
  */
 #pragma once
 
+#include "cangjie/AST/Clone.h"
 #include "cangjie/AST/Node.h"
 #include "utils/Macro.h"
 
@@ -27,6 +28,8 @@ using Cangjie::AST::Type;
 using Cangjie::AST::TypeKind;
 using Cangjie::AST::VarDeclAbstract;
 
+using AstCloner = Cangjie::AST::ASTCloner;
+
 // 宏自动生成 using Cangjie::AST::Package
 #define AST_INFO(KIND, STR, DEF) using Cangjie::AST::DEF;
 #include "AstInfo.inc"
@@ -41,3 +44,21 @@ inline std::string Tk2Str(TokenKind tk)
 {
     return Cangjie::TOKENS[static_cast<int>(tk)];
 }
+
+class AstNodeHelper {
+public:
+    /**
+     * @brief 获取节点的子节点列表。
+     *
+     * @param node 要获取子节点的节点。
+     * @return 子节点列表。
+     */
+    static std::vector<Ptr<AstNode>> GetChildren(const AstNode& node);
+
+    static void ReplaceChildren(AstNode& node, std::vector<OwnedPtr<AstNode>>& children);
+
+    template <typename T> static inline OwnedPtr<T> Clone(T& node)
+    {
+        return AstCloner::Clone<T>(&node);
+    }
+};

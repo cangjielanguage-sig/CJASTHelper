@@ -6,7 +6,7 @@
 #pragma once
 
 #include "utils/Printer.h"
-#include "visitor/MutAstVisitorBase.h"
+#include "visitor/VisitorBase.h"
 #include "wrapper/WrapperCangjieFrontend.h"
 #include <memory>
 #include <unordered_map>

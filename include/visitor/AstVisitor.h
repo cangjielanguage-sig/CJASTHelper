@@ -5,7 +5,7 @@
  */
 #pragma once
 
-#include "AstVisitorBase.h"
+#include "VisitorBase.h"
 #include <functional>
 #include <map>
 #include <tuple>
