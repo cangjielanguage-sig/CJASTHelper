@@ -5,8 +5,8 @@
  */
 #pragma once
 
-#include "AstNodeHelper.h"
 #include "VisitResult.h"
+#include "wrapper/WrapperAst.h"
 
 // 抽象访问器接口
 class MutAstVisitorBase {
