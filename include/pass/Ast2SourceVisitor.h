@@ -5,9 +5,9 @@
  */
 #pragma once
 
-#include "AstVisitor.h"
 #include "utils/Macro.h"
 #include "utils/Printer.h"
+#include "visitor/AstVisitor.h"
 #include <fstream>
 
 /**

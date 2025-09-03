@@ -4,7 +4,7 @@ file(GLOB ALL_TEST_SRC "*.cpp")
 add_executable(cjah_test ${ALL_TEST_SRC})
 
 # 链接 gtest 主程序和库
-target_link_libraries(cjah_test PRIVATE gtest_main gtest pthread ast_helper visitor wrapper utils ${DEPEN_LIBS})
+target_link_libraries(cjah_test PRIVATE gtest_main gtest pthread ${DEPEND_LIBS})
 target_link_directories(cjah_test PRIVATE ${GTEST_LIB_PATH} ${CANGJIE_TOOLS_LIB})
 
 target_include_directories(cjah_test PRIVATE ${GTEST_INCLUDE_PATH})

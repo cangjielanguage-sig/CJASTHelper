@@ -4,11 +4,11 @@
  * This file implements the AstHelper.
  */
 #include "AstHelper.h"
+#include "pass/Ast2SourceVisitor.h"
+#include "pass/TestPass.h"
 #include "utils/ArgumentParser.h"
 #include "utils/Logger.h"
-#include "visitor/Ast2SourceVisitor.h"
 #include "visitor/MutAstVisitor.h"
-#include "visitor/TestPass.h"
 
 namespace {
 /**
@@ -184,7 +184,7 @@ bool AstHelper::DoParse()
 bool AstHelper::DoAnalysis()
 {
     Logger::Get().Debug("AstHelper::DoAnalysis");
-    passes.push_back("test");
+    // passes.push_back("test");
     for (auto& pass : passes) {
         if (auto visitor = passMap.find(pass); visitor != passMap.end()) {
             Logger::Get().Debug("AstHelper::DoAnalysis", "do pass: ", pass);
