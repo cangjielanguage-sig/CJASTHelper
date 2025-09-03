@@ -3,7 +3,7 @@
  *
  * This file implements the Ast2SourceVisitor.
  */
-#include "visitor/Ast2SourceVisitor.h"
+#include "pass/Ast2SourceVisitor.h"
 #include "utils/Cast.h"
 #include "utils/Logger.h"
 #include <filesystem>

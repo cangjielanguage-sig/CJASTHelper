@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "MutAstVisitor.h"
+#include "visitor/MutAstVisitor.h"
 
 class TestPass : public MutAstVisitor {
 public:
