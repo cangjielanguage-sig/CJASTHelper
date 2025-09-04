@@ -11,19 +11,19 @@
 
 void MutAstVisitor::RegisterBeforeHandler(AstKind kind, BeforeFunc before)
 {
-    beforeHandlers[kind] = before;
+    beforeHandlers.emplace(kind, before);
 }
 void MutAstVisitor::RegisterVisitHandler(AstKind kind, VisitFunc visit)
 {
-    visitHandlers[kind] = visit;
+    visitHandlers.emplace(kind, visit);
 }
 void MutAstVisitor::RegisterAfterHandler(AstKind kind, AfterFunc after)
 {
-    afterHandlers[kind] = after;
+    afterHandlers.emplace(kind, after);
 }
 void MutAstVisitor::RegisterMergeHandler(AstKind kind, MergeFunc merge)
 {
-    mergeHandlers[kind] = merge;
+    mergeHandlers.emplace(kind, merge);
 }
 
 ValuedResult MutAstVisitor::BeforeVisit(AstNode& node)

@@ -39,10 +39,12 @@ public:
      *
      * @param kind AST 节点的种类。
      * @param before 访问节点之前的回调函数。
-     * @param visit 访问节点时的回调函数，默认为 nullptr。
-     * @param after 访问节点之后的回调函数，默认为 nullptr。
+     * @param visit 访问节点时的回调函数。
+     * @param after 访问节点之后的回调函数。
      */
-    void RegisterHandler(AstKind kind, BeforeFunc before, VisitFunc visit = nullptr, AfterFunc after = nullptr);
+    void RegisterBeforeHandler(AstKind kind, BeforeFunc before);
+    void RegisterVisitHandler(AstKind kind, VisitFunc visit);
+    void RegisterAfterHandler(AstKind kind, AfterFunc after);
     /**
      * @brief 在访问节点之前调用的方法。
      *
@@ -120,5 +122,7 @@ protected:
     /**
      * @brief 存储每个 AST 节点种类对应的处理程序。
      */
-    std::map<AstKind, std::tuple<BeforeFunc, VisitFunc, AfterFunc>> handlers;
+    std::unordered_map<AstKind, BeforeFunc> beforeHandlers;
+    std::unordered_map<AstKind, VisitFunc> visitHandlers;
+    std::unordered_map<AstKind, AfterFunc> afterHandlers;
 };
