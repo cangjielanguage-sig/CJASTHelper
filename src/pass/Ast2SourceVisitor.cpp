@@ -989,45 +989,45 @@ void Ast2SourceVisitor::RegisterHandlers()
 #include "wrapper/AstInfo.inc"
 #undef AST_INFO
     };
-    // 定义注册代码片段
-#define GEN_REG_HANDLER(N)                                                                                             \
-    RegisterHandler(name2kind.at(#N), nullptr,                                                                         \
-        [this](const AstNode& node, VisitResult& res) { this->Visit(Cast<const N&>(node), res); })
+// 定义注册代码片段
+#define GEN_REG_BEFORE_HANDLER(N)                                                                                      \
+    RegisterBeforeHandler(name2kind.at(#N), [this](const AstNode& node) { return this->Before(Cast<const N&>(node)); })
 
-#define GEN_REG_HANDLER2(N)                                                                                            \
-    RegisterHandler(                                                                                                   \
-        name2kind.at(#N), [this](const AstNode& node) { return this->Before(Cast<const N&>(node)); },                  \
-        [this](const AstNode& node, VisitResult& res) { this->Visit(Cast<const N&>(node), res); })
+#define GEN_REG_VISIT_HANDLER(N)                                                                                       \
+    RegisterVisitHandler(                                                                                              \
+        name2kind.at(#N), [this](const AstNode& node, VisitResult& res) { this->Visit(Cast<const N&>(node), res); })
 
     // 使用宏生成代码
     // 递归展开需要重写的解糖节点
-    EXPAND4(GEN_REG_HANDLER2, MainDecl, AssignExpr, UnaryExpr, BinaryExpr);
-    EXPAND3(GEN_REG_HANDLER2, RefExpr, SubscriptExpr, OptionType);
+    EXPAND4(GEN_REG_BEFORE_HANDLER, MainDecl, AssignExpr, UnaryExpr, BinaryExpr);
+    EXPAND3(GEN_REG_BEFORE_HANDLER, RefExpr, SubscriptExpr, OptionType);
 
     // 递归展开需要重写的节点
-    EXPAND3(GEN_REG_HANDLER, Annotation, Modifier, File);
-    EXPAND3(GEN_REG_HANDLER, PackageSpec, ImportSpec, ImportContent);
+    EXPAND3(GEN_REG_VISIT_HANDLER, Annotation, Modifier, File);
+    EXPAND3(GEN_REG_VISIT_HANDLER, PackageSpec, ImportSpec, ImportContent);
     // Decl
-    EXPAND4(GEN_REG_HANDLER, VarDecl, VarWithPatternDecl, PropDecl, FuncParam);
-    EXPAND3(GEN_REG_HANDLER, FuncParamList, FuncBody, FuncDecl);
-    EXPAND4(GEN_REG_HANDLER, PrimaryCtorDecl, ClassDecl, InterfaceDecl, StructDecl);
-    EXPAND3(GEN_REG_HANDLER, EnumDecl, ExtendDecl, TypeAliasDecl);
+    EXPAND4(GEN_REG_VISIT_HANDLER, VarDecl, VarWithPatternDecl, PropDecl, FuncParam);
+    EXPAND4(GEN_REG_VISIT_HANDLER, FuncParamList, FuncBody, FuncDecl, MainDecl);
+    EXPAND4(GEN_REG_VISIT_HANDLER, PrimaryCtorDecl, ClassDecl, InterfaceDecl, StructDecl);
+    EXPAND3(GEN_REG_VISIT_HANDLER, EnumDecl, ExtendDecl, TypeAliasDecl);
     // Type
-    EXPAND3(GEN_REG_HANDLER, PrimitiveType, RefType, TupleType);
-    EXPAND4(GEN_REG_HANDLER, QualifiedType, ThisType, VArrayType, ParenType);
-    EXPAND2(GEN_REG_HANDLER, ConstantType, FuncType);
+    EXPAND4(GEN_REG_VISIT_HANDLER, PrimitiveType, RefType, TupleType, OptionType);
+    EXPAND4(GEN_REG_VISIT_HANDLER, QualifiedType, ThisType, VArrayType, ParenType);
+    EXPAND2(GEN_REG_VISIT_HANDLER, ConstantType, FuncType);
     // Pattern
-    EXPAND4(GEN_REG_HANDLER, WildcardPattern, ConstPattern, EnumPattern, VarPattern);
-    EXPAND3(GEN_REG_HANDLER, TypePattern, VarOrEnumPattern, TuplePattern);
+    EXPAND4(GEN_REG_VISIT_HANDLER, WildcardPattern, ConstPattern, EnumPattern, VarPattern);
+    EXPAND3(GEN_REG_VISIT_HANDLER, TypePattern, VarOrEnumPattern, TuplePattern);
     // Expr
-    EXPAND4(GEN_REG_HANDLER, Block, FuncArg, MatchCase, MatchCaseOther);
-    EXPAND4(GEN_REG_HANDLER, MemberAccess, CallExpr, IncOrDecExpr, RangeExpr);
-    EXPAND4(GEN_REG_HANDLER, LitConstExpr, ArrayLit, ReturnExpr, LambdaExpr);
-    EXPAND4(GEN_REG_HANDLER, MatchExpr, IsExpr, AsExpr, ThrowExpr);
-    EXPAND4(GEN_REG_HANDLER, JumpExpr, LetPatternDestructor, TupleLit, TypeConvExpr);
-    EXPAND4(GEN_REG_HANDLER, IfExpr, DoWhileExpr, WhileExpr, ForInExpr);
+    EXPAND4(GEN_REG_VISIT_HANDLER, Block, FuncArg, MatchCase, MatchCaseOther);
+    EXPAND4(GEN_REG_VISIT_HANDLER, MemberAccess, CallExpr, IncOrDecExpr, RangeExpr);
+    EXPAND4(GEN_REG_VISIT_HANDLER, LitConstExpr, ArrayLit, ReturnExpr, LambdaExpr);
+    EXPAND4(GEN_REG_VISIT_HANDLER, MatchExpr, IsExpr, AsExpr, ThrowExpr);
+    EXPAND4(GEN_REG_VISIT_HANDLER, JumpExpr, LetPatternDestructor, TupleLit, TypeConvExpr);
+    EXPAND4(GEN_REG_VISIT_HANDLER, IfExpr, DoWhileExpr, WhileExpr, ForInExpr);
+    EXPAND4(GEN_REG_VISIT_HANDLER, AssignExpr, UnaryExpr, BinaryExpr, RefExpr);
+    EXPAND1(GEN_REG_VISIT_HANDLER, SubscriptExpr);
     // Generic
-    EXPAND3(GEN_REG_HANDLER, Generic, GenericParamDecl, GenericConstraint);
+    EXPAND3(GEN_REG_VISIT_HANDLER, Generic, GenericParamDecl, GenericConstraint);
 }
 
 // 辅助打印函数

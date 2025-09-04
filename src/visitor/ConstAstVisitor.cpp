@@ -9,16 +9,23 @@
 #include "utils/Macro.h"
 #include <tuple>
 
-void ConstAstVisitor::RegisterHandler(AstKind kind, BeforeFunc before, VisitFunc visit, AfterFunc after)
+void ConstAstVisitor::RegisterBeforeHandler(AstKind kind, BeforeFunc before)
 {
-    handlers[kind] = {before, visit, after};
+    beforeHandlers.emplace(kind, before);
 }
-
+void ConstAstVisitor::RegisterVisitHandler(AstKind kind, VisitFunc visit)
+{
+    visitHandlers.emplace(kind, visit);
+}
+void ConstAstVisitor::RegisterAfterHandler(AstKind kind, AfterFunc after)
+{
+    afterHandlers.emplace(kind, after);
+}
 VisitResult ConstAstVisitor::BeforeVisit(const AstNode& node)
 {
-    auto it = handlers.find(node.astKind);
-    if (it != handlers.end() && std::get<0>(it->second)) {
-        return std::get<0>(it->second)(node);
+    auto it = beforeHandlers.find(node.astKind);
+    if (it != beforeHandlers.end()) {
+        return it->second(node);
     } else {
         return DefaultBefore(node);
     }
@@ -26,22 +33,21 @@ VisitResult ConstAstVisitor::BeforeVisit(const AstNode& node)
 
 void ConstAstVisitor::Visit(const AstNode& node, VisitResult& res)
 {
-    auto it = handlers.find(node.astKind);
-    if (it != handlers.end() && std::get<1>(it->second)) {
-        return std::get<1>(it->second)(node, res);
+    auto it = visitHandlers.find(node.astKind);
+    if (it != visitHandlers.end()) {
+        it->second(node, res);
     } else {
-        return DefaultVisit(node, res);
+        DefaultVisit(node, res);
     }
 }
 
 void ConstAstVisitor::AfterVisit(const AstNode& node, const VisitResult& res)
 {
-    // Logger::Get().Debug("ConstAstVisitor::AfterVisit", "For ", static_cast<int>(node.astKind));
-    auto it = handlers.find(node.astKind);
-    if (it != handlers.end() && std::get<2>(it->second)) {
-        return std::get<2>(it->second)(node, res);
+    auto it = afterHandlers.find(node.astKind);
+    if (it != afterHandlers.end()) {
+        it->second(node, res);
     } else {
-        return DefaultAfter(node, res);
+        DefaultAfter(node, res);
     }
 }
 
