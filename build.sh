@@ -1,7 +1,5 @@
 # source cangjie
 
-# help:
-#    bash build.sh -b -r -u [run_args]
 CWD=$(dirname $(realpath "$0"))
 CJ_INC=$CANGJIE_SRC_HOME/include
 BTYPE=Debug
@@ -62,67 +60,63 @@ function test() {
     run_cmd $TEST_RUNNER $@
 }
 
+# help:
+#    bash build.sh -b -r -u [run_args]
+function help() {
+    echo "Usage:"
+    echo "    bash build.sh [options] -- [runargs]"
+    echo ""
+    echo "For example:"
+    echo "    bash build.sh -v -t Debug -b"
+    echo "    bash build.sh -t Release -b"
+    echo "    bash build.sh -v -r -- test/main.cj"
+    echo ""
+    echo "Options: "
+    echo "    -v dump build verbose info"
+    echo "    -g enable test with googletest"
+    echo "    -t config build type, optional [Debug | Release]"
+    echo "    -p config install prefix"
+    echo "    -u update cmake cache"
+    echo "    -b build only"
+    echo "    -i install binary"
+    echo "    -c clean build"
+    echo "    -r run binary or test, optional with args '-- [runargs]'"
+}
+
 function main() {
-    TEMP=$(getopt -o "vgp:t:ubicr" -n "opts" -- "$@")
-    eval set -- "$TEMP"
-    run_flag=
-    while true; do
+    action=
+    while [[ $# -gt 0 ]]; do
         case "$1" in
-            -v)
-                VERBOSE="-v"
-                shift
-                ;;
-            -g)
-                TEST="ON"
-                shift
-                ;;
-            -p)
-                PRE=$2
-                shift 2
-                ;; 
-            -t)
-                BTYPE=$2
-                shift 2
-                ;;
-            -u)
-                update
-                shift
-                ;;
-            -b)
-                build
-                shift
-                ;;
-            -i)
-                install
-                shift
-                ;;
-            -c)
-                run_cmd rm -rf build
-                shift
-                ;;
+            -h) help; exit 0 ;;
+            -v) VERBOSE="-v"; shift ;;
+            -g) TEST="ON"; shift ;;
+            -t) BTYPE="$2"; shift 2 ;;
+            -p) PRE="$2"; shift 2 ;;
+            -b) action="build"; shift ;;
+            -u) action="update"; shift ;;
+            -i) action="install"; shift ;;
+            -c) action="clean"; shift ;;
             -r)
-                run_flag="run"
+                action="run"
                 if [[ "$TEST" == "ON" ]]; then
-                    run_flag="test"
+                    action="test"
                 fi
-                shift
-                ;;
-            --)
-                shift
-                break
-                ;;
-            *)
-                echo "Internal error!"
-                exit 1
-                ;;
+                shift ;;
+            --) shift; break ;;
+            *) echo "未知参数: $1"; exit 1 ;;
         esac
     done
 
-    if [[ "X$run_flag" == "Xrun" ]]; then
-        run $@
-    elif [[ "X$run_flag" == "Xtest" ]]; then
-        test $@
-    fi
+    echo "action: $action, run args: $@"
+    case "X$action" in
+        Xupdate) update ;;
+        Xbuild) build ;;
+        Xinstall) install ;;
+        Xclean) run_cmd rm -rf build ;;
+        Xrun) run $@ ;;
+        Xtest) test $@ ;;
+        *) ;;
+    esac
 }
 
 main $*
