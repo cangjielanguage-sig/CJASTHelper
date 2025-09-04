@@ -1,7 +1,7 @@
 /**
  * @file
  *
- * This file declares the basic struct of AstVisitor.
+ * This file declares the basic struct of ConstAstVisitor.
  */
 #pragma once
 

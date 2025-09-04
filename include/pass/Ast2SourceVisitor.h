@@ -7,7 +7,7 @@
 
 #include "utils/Macro.h"
 #include "utils/Printer.h"
-#include "visitor/AstVisitor.h"
+#include "visitor/ConstAstVisitor.h"
 #include <fstream>
 
 /**
@@ -86,9 +86,9 @@ public:
 
 /**
  * @class Ast2SourceVisitor
- * @brief 继承自 `AstVisitor`，用于将AST转换为源代码。
+ * @brief 继承自 `ConstAstVisitor`，用于将AST转换为源代码。
  */
-class Ast2SourceVisitor : public AstVisitor {
+class Ast2SourceVisitor : public ConstAstVisitor {
 public:
     ~Ast2SourceVisitor() override = default;
 

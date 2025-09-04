@@ -1,20 +1,20 @@
 /**
  * @file
  *
- * This file implements the AstVisitor.
+ * This file implements the ConstAstVisitor.
  */
 
-#include "visitor/AstVisitor.h"
+#include "visitor/ConstAstVisitor.h"
 #include "utils/Logger.h"
 #include "utils/Macro.h"
 #include <tuple>
 
-void AstVisitor::RegisterHandler(AstKind kind, BeforeFunc before, VisitFunc visit, AfterFunc after)
+void ConstAstVisitor::RegisterHandler(AstKind kind, BeforeFunc before, VisitFunc visit, AfterFunc after)
 {
     handlers[kind] = {before, visit, after};
 }
 
-VisitResult AstVisitor::BeforeVisit(const AstNode& node)
+VisitResult ConstAstVisitor::BeforeVisit(const AstNode& node)
 {
     auto it = handlers.find(node.astKind);
     if (it != handlers.end() && std::get<0>(it->second)) {
@@ -24,7 +24,7 @@ VisitResult AstVisitor::BeforeVisit(const AstNode& node)
     }
 }
 
-void AstVisitor::Visit(const AstNode& node, VisitResult& res)
+void ConstAstVisitor::Visit(const AstNode& node, VisitResult& res)
 {
     auto it = handlers.find(node.astKind);
     if (it != handlers.end() && std::get<1>(it->second)) {
@@ -34,9 +34,9 @@ void AstVisitor::Visit(const AstNode& node, VisitResult& res)
     }
 }
 
-void AstVisitor::AfterVisit(const AstNode& node, const VisitResult& res)
+void ConstAstVisitor::AfterVisit(const AstNode& node, const VisitResult& res)
 {
-    // Logger::Get().Debug("AstVisitor::AfterVisit", "For ", static_cast<int>(node.astKind));
+    // Logger::Get().Debug("ConstAstVisitor::AfterVisit", "For ", static_cast<int>(node.astKind));
     auto it = handlers.find(node.astKind);
     if (it != handlers.end() && std::get<2>(it->second)) {
         return std::get<2>(it->second)(node, res);
@@ -45,12 +45,12 @@ void AstVisitor::AfterVisit(const AstNode& node, const VisitResult& res)
     }
 }
 
-VisitResult AstVisitor::DefaultBefore(const AstNode& node)
+VisitResult ConstAstVisitor::DefaultBefore(const AstNode& node)
 {
     return VisitResult::Cont();
 }
 
-void AstVisitor::DefaultVisit(const AstNode& node, VisitResult& res)
+void ConstAstVisitor::DefaultVisit(const AstNode& node, VisitResult& res)
 {
     // 遍历子节点
     for (auto& child : AstNodeHelper::GetChildren(node)) {
@@ -58,6 +58,6 @@ void AstVisitor::DefaultVisit(const AstNode& node, VisitResult& res)
     }
 }
 
-void AstVisitor::DefaultAfter(const AstNode& node, const VisitResult& res)
+void ConstAstVisitor::DefaultAfter(const AstNode& node, const VisitResult& res)
 {
 }

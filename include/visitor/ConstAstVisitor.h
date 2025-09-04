@@ -10,7 +10,7 @@
 #include <map>
 #include <tuple>
 
-class AstVisitor : public AstVisitorBase {
+class ConstAstVisitor : public AstVisitorBase {
 public:
     /**
      * @brief 使用 std::function 定义 BeforeVisit 的回调函数类型。
@@ -27,13 +27,13 @@ public:
 
 public:
     /**
-     * @brief 构造函数，初始化 AstVisitor 对象。
+     * @brief 构造函数，初始化 ConstAstVisitor 对象。
      */
-    AstVisitor() = default;
+    ConstAstVisitor() = default;
     /**
      * @brief 虚析构函数，确保派生类能正确析构
      */
-    virtual ~AstVisitor() = default;
+    virtual ~ConstAstVisitor() = default;
     /**
      * @brief 注册处理程序以处理特定类型的 AST 节点。
      *
