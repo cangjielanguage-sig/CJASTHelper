@@ -622,6 +622,12 @@ template <std::derived_from<AstNode> T> inline void TrySwap(OwnedPtr<T>& dst, Ow
 template <typename T> using OwnedVec = std::vector<OwnedPtr<T>>;
 using OwnedNodeIter = OwnedVec<AstNode>::iterator;
 
+template <std::derived_from<AstNode> T> inline void ReplaceNode(OwnedPtr<T>& dst, OwnedNodeIter& pos)
+{
+    TrySwap(dst, *pos);
+    pos++;
+}
+
 template <std::derived_from<AstNode> T>
 inline void ReplaceRange(OwnedVec<T>& dst, OwnedNodeIter& begin, const OwnedNodeIter& end)
 {
@@ -630,10 +636,11 @@ inline void ReplaceRange(OwnedVec<T>& dst, OwnedNodeIter& begin, const OwnedNode
     }
 }
 
-template <std::derived_from<AstNode> T> inline void ReplaceNode(OwnedPtr<T>& dst, OwnedNodeIter& pos)
+inline void ReplaceRange(Decl& decl, OwnedNodeIter& begin)
 {
-    TrySwap(dst, *pos);
-    pos++;
+    ReplaceRange(decl.annotations, begin, begin + decl.annotations.size());
+    ReplaceNode(decl.annotationsArray, begin);
+    ReplaceNode(decl.generic, begin);
 }
 } // namespace
 
@@ -649,12 +656,573 @@ void AstNodeHelper::RegReplaceHandlers()
                 ReplaceRange(file.imports, it, it + file.imports.size());
                 ReplaceRange(file.decls, it, it + file.decls.size());
             })
-        .Reg<ReplaceFunc>(AstKind::FUNC_DECL, [](AstNode& node, OwnedVec<AstNode>& children) {
-            auto& fn = Cast<FuncDecl&>(node);
+        .Reg<ReplaceFunc>(AstKind::PACKAGE,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& pkg = Cast<Package&>(node);
+                auto it = children.begin();
+                ReplaceRange(pkg.files, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::PACKAGE_SPEC,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& ps = Cast<PackageSpec&>(node);
+                auto it = children.begin();
+                ReplaceNode(ps.modifier, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::IMPORT_SPEC,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& is = Cast<ImportSpec&>(node);
+                auto it = children.begin();
+                ReplaceNode(is.modifier, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::INTERFACE_BODY,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& body = Cast<InterfaceBody&>(node);
+                auto it = children.begin();
+                ReplaceRange(body.decls, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::CLASS_BODY,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& body = Cast<ClassBody&>(node);
+                auto it = children.begin();
+                ReplaceRange(body.decls, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::STRUCT_BODY,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& body = Cast<StructBody&>(node);
+                auto it = children.begin();
+                ReplaceRange(body.decls, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::FUNC_BODY,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& body = Cast<FuncBody&>(node);
+                auto it = children.begin();
+                ReplaceNode(body.paramLists[0], it);
+                ReplaceNode(body.generic, it);
+                ReplaceNode(body.retType, it);
+                ReplaceNode(body.body, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::FUNC_PARAM_LIST,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& paramList = Cast<FuncParamList&>(node);
+                auto it = children.begin();
+                ReplaceRange(paramList.params, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::FUNC_ARG,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& arg = Cast<FuncArg&>(node);
+                auto it = children.begin();
+                ReplaceNode(arg.expr, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::MATCH_CASE_OTHER,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& mco = Cast<MatchCaseOther&>(node);
+                OwnedNodeIter it = children.begin();
+                ReplaceNode(mco.matchExpr, it);
+                ReplaceNode(mco.exprOrDecls, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::MATCH_CASE,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& mc = Cast<MatchCase&>(node);
+                auto it = children.begin();
+                ReplaceRange(mc.patterns, it, it + mc.patterns.size());
+                ReplaceNode(mc.patternGuard, it);
+                ReplaceNode(mc.exprOrDecls, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::GENERIC_CONSTRAINT,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& gc = Cast<GenericConstraint&>(node);
+                auto it = children.begin();
+                ReplaceNode(gc.type, it);
+                ReplaceRange(gc.upperBounds, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::GENERIC,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& generic = Cast<Generic&>(node);
+                auto it = children.begin();
+                ReplaceRange(generic.typeParameters, it, it + generic.typeParameters.size());
+                ReplaceRange(generic.genericConstraints, it, it + generic.genericConstraints.size());
+            })
+        .Reg<ReplaceFunc>(AstKind::MACRO_EXPAND_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<MacroExpandExpr&>(node);
+                auto it = children.begin();
+                ReplaceRange(expr.annotations, it, it + expr.annotations.size());
+            })
+        .Reg<ReplaceFunc>(AstKind::SYNCHRONIZED_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<SynchronizedExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.mutex, it);
+                ReplaceNode(expr.body, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::SPAWN_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<SpawnExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.futureObj, it);
+                ReplaceNode(expr.task, it);
+                ReplaceNode(expr.arg, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::THROW_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<ThrowExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.expr, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::TYPE_CONV_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<TypeConvExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.type, it);
+                ReplaceNode(expr.expr, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::DO_WHILE_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<DoWhileExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.body, it);
+                ReplaceNode(expr.condExpr, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::FOR_IN_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<ForInExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.pattern, it);
+                ReplaceNode(expr.patternGuard, it);
+                ReplaceNode(expr.inExpression, it);
+                ReplaceNode(expr.body, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::TRAIL_CLOSURE_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<TrailingClosureExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.expr, it);
+                ReplaceNode(expr.lambda, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::LAMBDA_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<FuncDecl&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.funcBody, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::WHILE_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<WhileExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.condExpr, it);
+                ReplaceNode(expr.body, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::TRY_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<TryExpr&>(node);
+                auto it = children.begin();
+                ReplaceRange(expr.resourceSpec, it, it + expr.resourceSpec.size());
+                ReplaceNode(expr.tryBlock, it);
+                ReplaceRange(expr.catchPatterns, it, it + expr.catchPatterns.size());
+                ReplaceRange(expr.catchBlocks, it, it + expr.catchBlocks.size());
+                ReplaceNode(expr.finallyBlock, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::QUOTE_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<QuoteExpr&>(node);
+                auto it = children.begin();
+                ReplaceRange(expr.exprs, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::LET_PATTERN_DESTRUCTOR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<LetPatternDestructor&>(node);
+                auto it = children.begin();
+                ReplaceRange(expr.patterns, it, it + expr.patterns.size());
+                ReplaceNode(expr.initializer, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::IF_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<IfExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.condExpr, it);
+                ReplaceNode(expr.thenBody, it);
+                ReplaceNode(expr.elseBody, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::BLOCK,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<Block&>(node);
+                auto it = children.begin();
+                ReplaceRange(expr.body, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::MATCH_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<MatchExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.selector, it);
+                ReplaceRange(expr.matchCases, it, it + expr.matchCases.size());
+                ReplaceRange(expr.matchCaseOthers, it, it + expr.matchCaseOthers.size());
+            })
+        .Reg<ReplaceFunc>(AstKind::TUPLE_LIT,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<TupleLit&>(node);
+                auto it = children.begin();
+                ReplaceRange(expr.children, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::POINTER_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<PointerExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.type, it);
+                ReplaceNode(expr.arg, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::ARRAY_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<ArrayExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.type, it);
+                ReplaceRange(expr.args, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::ARRAY_LIT,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<ArrayLit&>(node);
+                auto it = children.begin();
+                ReplaceRange(expr.children, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::RANGE_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<RangeExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.startExpr, it);
+                ReplaceNode(expr.stopExpr, it);
+                ReplaceNode(expr.stepExpr, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::AS_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<AsExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.leftExpr, it);
+                ReplaceNode(expr.asType, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::IS_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<IsExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.leftExpr, it);
+                ReplaceNode(expr.isType, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::SUBSCRIPT_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<SubscriptExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.baseExpr, it);
+                ReplaceRange(expr.indexExprs, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::INC_OR_DEC_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<IncOrDecExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.expr, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::BINARY_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<BinaryExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.leftExpr, it);
+                ReplaceNode(expr.rightExpr, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::UNARY_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<UnaryExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.expr, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::ASSIGN_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<AssignExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.leftValue, it);
+                ReplaceNode(expr.rightExpr, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::STR_INTERPOLATION_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<StrInterpolationExpr&>(node);
+                auto it = children.begin();
+                ReplaceRange(expr.strPartExprs, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::INTERPOLATION_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<InterpolationExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.block, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::LIT_CONST_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<LitConstExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.ref, it);
+                ReplaceNode(expr.siExpr, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::RETURN_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<ReturnExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.expr, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::OPTIONAL_CHAIN_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<OptionalChainExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.expr, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::OPTIONAL_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<OptionalExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.baseExpr, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::REF_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<RefExpr&>(node);
+                auto it = children.begin();
+                ReplaceRange(expr.typeArguments, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::MEMBER_ACCESS,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<MemberAccess&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.baseExpr, it);
+                ReplaceRange(expr.typeArguments, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::PAREN_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<ParenExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.expr, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::CALL_EXPR,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& expr = Cast<CallExpr&>(node);
+                auto it = children.begin();
+                ReplaceNode(expr.baseFunc, it);
+                ReplaceRange(expr.args, it, it + expr.args.size());
+                ReplaceRange(expr.defaultArgs, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::TUPLE_TYPE,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& ty = Cast<TupleType&>(node);
+                auto it = children.begin();
+                ReplaceRange(ty.fieldTypes, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::FUNC_TYPE,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& ty = Cast<FuncType&>(node);
+                auto it = children.begin();
+                ReplaceRange(ty.paramTypes, it, it + ty.paramTypes.size());
+                ReplaceNode(ty.retType, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::PAREN_TYPE,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& ty = Cast<ParenType&>(node);
+                auto it = children.begin();
+                ReplaceNode(ty.type, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::VARRAY_TYPE,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& ty = Cast<VArrayType&>(node);
+                auto it = children.begin();
+                ReplaceNode(ty.typeArgument, it);
+                ReplaceNode(ty.constantType, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::CONSTANT_TYPE,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& ty = Cast<ConstantType&>(node);
+                auto it = children.begin();
+                ReplaceNode(ty.constantExpr, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::OPTION_TYPE,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& ty = Cast<OptionType&>(node);
+                auto it = children.begin();
+                ReplaceNode(ty.componentType, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::QUALIFIED_TYPE,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& ty = Cast<QualifiedType&>(node);
+                auto it = children.begin();
+                ReplaceNode(ty.baseType, it);
+                ReplaceRange(ty.typeArguments, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::REF_TYPE,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& ty = Cast<RefType&>(node);
+                auto it = children.begin();
+                ReplaceRange(ty.typeArguments, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::EXCEPT_TYPE_PATTERN,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& pat = Cast<ExceptTypePattern&>(node);
+                auto it = children.begin();
+                ReplaceNode(pat.pattern, it);
+                ReplaceRange(pat.types, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::TYPE_PATTERN,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& pat = Cast<TypePattern&>(node);
+                auto it = children.begin();
+                ReplaceNode(pat.pattern, it);
+                ReplaceNode(pat.type, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::VAR_OR_ENUM_PATTERN,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& pat = Cast<VarOrEnumPattern&>(node);
+                auto it = children.begin();
+                ReplaceNode(pat.pattern, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::ENUM_PATTERN,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& pat = Cast<EnumPattern&>(node);
+                auto it = children.begin();
+                ReplaceNode(pat.constructor, it);
+                ReplaceRange(pat.patterns, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::TUPLE_PATTERN,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& pat = Cast<TuplePattern&>(node);
+                auto it = children.begin();
+                ReplaceRange(pat.patterns, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::CONST_PATTERN,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& pat = Cast<ConstPattern&>(node);
+                auto it = children.begin();
+                ReplaceNode(pat.literal, it);
+                ReplaceNode(pat.operatorCallExpr, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::VAR_PATTERN,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& pat = Cast<VarPattern&>(node);
+                auto it = children.begin();
+                ReplaceNode(pat.varDecl, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::MACRO_EXPAND_DECL,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& decl = Cast<MacroExpandDecl&>(node);
+                auto it = children.begin();
+                ReplaceRange(decl, it);
+                ReplaceNode(decl.invocation.decl, it);
+                ReplaceRange(decl.invocation.nodes, it, children.end());
+            })
+        .Reg<ReplaceFunc>(AstKind::GENERIC_PARAM_DECL,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& decl = Cast<GenericParamDecl&>(node);
+                auto it = children.begin();
+                ReplaceRange(decl, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::VAR_WITH_PATTERN_DECL,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& decl = Cast<VarWithPatternDecl&>(node);
+                auto it = children.begin();
+                ReplaceRange(decl, it);
+                ReplaceNode(decl.irrefutablePattern, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::FUNC_PARAM,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& decl = Cast<FuncParam&>(node);
+                auto it = children.begin();
+                ReplaceRange(decl, it);
+                ReplaceNode(decl.assignment, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::PROP_DECL,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& decl = Cast<PropDecl&>(node);
+                auto it = children.begin();
+                ReplaceRange(decl, it);
+                ReplaceRange(decl.getters, it, it + decl.getters.size());
+                ReplaceRange(decl.setters, it, it + decl.setters.size());
+            })
+        .Reg<ReplaceFunc>(AstKind::VAR_DECL,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& decl = Cast<VarDecl&>(node);
+                auto it = children.begin();
+                ReplaceRange(decl, it);
+                ReplaceNode(decl.type, it);
+                ReplaceNode(decl.initializer, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::BUILTIN_DECL,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& decl = Cast<BuiltInDecl&>(node);
+                auto it = children.begin();
+                ReplaceRange(decl, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::PRIMARY_CTOR_DECL,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& decl = Cast<PrimaryCtorDecl&>(node);
+                auto it = children.begin();
+                ReplaceRange(decl, it);
+                ReplaceNode(decl.funcBody, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::TYPE_ALIAS_DECL,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& decl = Cast<TypeAliasDecl&>(node);
+                auto it = children.begin();
+                ReplaceRange(decl, it);
+                ReplaceNode(decl.type, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::STRUCT_DECL,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& decl = Cast<StructDecl&>(node);
+                auto it = children.begin();
+                ReplaceRange(decl, it);
+                ReplaceRange(decl.inheritedTypes, it, it + decl.inheritedTypes.size());
+                ReplaceNode(decl.body, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::ENUM_DECL,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& decl = Cast<EnumDecl&>(node);
+                auto it = children.begin();
+                ReplaceRange(decl, it);
+                ReplaceRange(decl.inheritedTypes, it, it + decl.inheritedTypes.size());
+                ReplaceRange(decl.constructors, it, it + decl.constructors.size());
+                ReplaceRange(decl.members, it, it + decl.members.size());
+            })
+        .Reg<ReplaceFunc>(AstKind::EXTEND_DECL,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& decl = Cast<ExtendDecl&>(node);
+                auto it = children.begin();
+                ReplaceRange(decl, it);
+                ReplaceNode(decl.extendedType, it);
+                ReplaceRange(decl.inheritedTypes, it, it + decl.inheritedTypes.size());
+                ReplaceRange(decl.members, it, it + decl.members.size());
+            })
+        .Reg<ReplaceFunc>(AstKind::INTERFACE_DECL,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& decl = Cast<InterfaceDecl&>(node);
+                auto it = children.begin();
+                ReplaceRange(decl, it);
+                ReplaceRange(decl.inheritedTypes, it, it + decl.inheritedTypes.size());
+                ReplaceNode(decl.body, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::CLASS_DECL,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& decl = Cast<ClassDecl&>(node);
+                auto it = children.begin();
+                ReplaceRange(decl, it);
+                ReplaceRange(decl.inheritedTypes, it, it + decl.inheritedTypes.size());
+                ReplaceNode(decl.body, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::MACRO_DECL,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& decl = Cast<MacroDecl&>(node);
+                auto it = children.begin();
+                ReplaceRange(decl, it);
+                ReplaceNode(decl.funcBody, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::FUNC_DECL,
+            [](AstNode& node, OwnedVec<AstNode>& children) {
+                auto& decl = Cast<FuncDecl&>(node);
+                auto it = children.begin();
+                ReplaceRange(decl, it);
+                ReplaceNode(decl.funcBody, it);
+            })
+        .Reg<ReplaceFunc>(AstKind::MAIN_DECL, [](AstNode& node, OwnedVec<AstNode>& children) {
+            auto& decl = Cast<MainDecl&>(node);
             auto it = children.begin();
-            ReplaceRange(fn.annotations, it, it + fn.annotations.size());
-            ReplaceNode(fn.annotationsArray, it);
-            ReplaceNode(fn.generic, it);
-            ReplaceNode(fn.funcBody, it);
+            ReplaceRange(decl, it);
+            ReplaceNode(decl.funcBody, it);
         });
 }
