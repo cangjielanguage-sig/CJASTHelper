@@ -7,7 +7,8 @@
 
 #include "cangjie/AST/Clone.h"
 #include "cangjie/AST/Node.h"
-#include "utils/Macro.h"
+#include "utils/CallbackManger.h"
+#include <memory>
 
 using AstNode = Cangjie::AST::Node;
 using AstKind = Cangjie::AST::ASTKind;
@@ -61,4 +62,19 @@ public:
     {
         return AstCloner::Clone<T>(&node);
     }
+
+    using CollectFunc = std::function<void(const AstNode&, std::vector<Ptr<AstNode>>&)>;
+    using ReplaceFunc = std::function<void(AstNode&, std::vector<OwnedPtr<AstNode>>&)>;
+
+private:
+    AstNodeHelper();
+
+    void RegCollectHandlers();
+    void RegReplaceHandlers();
+
+private:
+    static AstNodeHelper& GetInstance();
+    static std::unique_ptr<AstNodeHelper> helper;
+
+    CallbackManager<AstKind, std::tuple<CollectFunc, ReplaceFunc>> handlers;
 };

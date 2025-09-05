@@ -5,7 +5,7 @@
  */
 #include "AstHelper.h"
 #include "pass/Ast2SourceVisitor.h"
-#include "pass/TestPass.h"
+#include "pass/ReplaceDesugarPass.h"
 #include "utils/ArgumentParser.h"
 #include "utils/Logger.h"
 #include "visitor/MutAstVisitor.h"
@@ -305,7 +305,7 @@ void AstHelper::RegisterPass(std::string name, std::unique_ptr<MutAstVisitorBase
  */
 void AstHelper::RegisterPasses()
 {
-    RegisterPass("test", std::make_unique<TestPass>());
+    RegisterPass("test", std::make_unique<ReplaceDesugarPass>());
 }
 
 /**
