@@ -64,4 +64,11 @@ void MutAstVisitor::DefaultAfter(AstNode& node, const ValuedResult& res)
 
 void MutAstVisitor::DefaultMergeResult(AstNode& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes)
 {
+    std::vector<OwnedPtr<AstNode>> children;
+    for (auto& child : childrenRes) {
+        if (auto val = child.TryGet<OwnedNodeValue>()) {
+            children.push_back(std::move(*val));
+        }
+    }
+    AstNodeHelper::ReplaceChildren(node, children);
 }
