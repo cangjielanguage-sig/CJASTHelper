@@ -7,6 +7,7 @@
 #pragma once
 
 #include "VisitorBase.h"
+#include "utils/CallbackManger.h"
 #include <functional>
 #include <map>
 #include <tuple>
@@ -40,17 +41,7 @@ public:
      * @brief 虚析构函数，确保派生类能正确析构
      */
     ~MutAstVisitor() override = default;
-    /**
-     * @brief 注册处理程序以处理特定类型的 AST 节点。
-     *
-     * @param kind AST 节点的种类。
-     * @param before 访问节点之前的回调函数。
-     * @param visit 访问节点时的回调函数，默认为 nullptr。
-     * @param after 访问节点之后的回调函数，默认为 nullptr。
-     * @param merge MergeResult回调函数， 默认为 nullptr。
-     */
-    void RegisterHandler(AstKind kind, BeforeFunc before, VisitFunc visit = nullptr, AfterFunc after = nullptr,
-        MergeFunc merge = nullptr);
+
     /**
      * @brief 在访问节点之前调用的方法。
      *
@@ -117,5 +108,5 @@ protected:
     /**
      * @brief 存储每个 AST 节点种类对应的处理程序。
      */
-    std::unordered_map<AstKind, std::tuple<BeforeFunc, VisitFunc, AfterFunc, MergeFunc>> handlers;
+    CallbackManager<AstKind, std::tuple<BeforeFunc, VisitFunc, AfterFunc, MergeFunc>> handlers;
 };

@@ -74,28 +74,6 @@ const char* Ast2SourceException::what() const noexcept
     return message.c_str();
 }
 
-///  Ast2SourceConfig 实现函数
-
-// 默认配置
-Ast2SourceConfig::Ast2SourceConfig() : indent(4), out("."), suffix("_source.cj"), flags(0)
-{
-}
-
-inline bool Ast2SourceConfig::Desugar() const
-{
-    return flags & DESUGAR_FLAG;
-}
-
-inline bool Ast2SourceConfig::Sema() const
-{
-    return flags & SEMA_FLAG;
-}
-
-bool Ast2SourceConfig::Focus(const Decl& decl) const
-{
-    return (focusDecls.empty() || focusDecls.count(decl.astKind)) && !ignoreDecls.count(decl.identifier.Val());
-}
-
 namespace {
 /*
  * 获取文件名不包括后缀： xxx.cj -> xxx
@@ -976,7 +954,7 @@ void CreateDirIfNotExists(const std::string& path)
 }
 } // namespace
 
-Ast2SourceVisitor::Ast2SourceVisitor(Ast2SourceConfig config) : config(config), prt(ofs, config.indent)
+Ast2SourceVisitor::Ast2SourceVisitor(PassConfig config) : config(config), prt(ofs, config.indent)
 {
     CreateDirIfNotExists(config.out);
     RegisterHandlers();
@@ -989,45 +967,46 @@ void Ast2SourceVisitor::RegisterHandlers()
 #include "wrapper/AstInfo.inc"
 #undef AST_INFO
     };
-    // 定义注册代码片段
-#define GEN_REG_HANDLER(N)                                                                                             \
-    RegisterHandler(name2kind.at(#N), nullptr,                                                                         \
-        [this](const AstNode& node, VisitResult& res) { this->Visit(Cast<const N&>(node), res); })
+// 定义注册代码片段
+#define GEN_REG_BEFORE_HANDLER(N)                                                                                      \
+    handlers.Reg<BeforeFunc>(                                                                                          \
+        name2kind.at(#N), [this](const AstNode& node) { return this->Before(Cast<const N&>(node)); })
 
-#define GEN_REG_HANDLER2(N)                                                                                            \
-    RegisterHandler(                                                                                                   \
-        name2kind.at(#N), [this](const AstNode& node) { return this->Before(Cast<const N&>(node)); },                  \
-        [this](const AstNode& node, VisitResult& res) { this->Visit(Cast<const N&>(node), res); })
+#define GEN_REG_VISIT_HANDLER(N)                                                                                       \
+    handlers.Reg<VisitFunc>(                                                                                           \
+        name2kind.at(#N), [this](const AstNode& node, VisitResult& res) { this->Visit(Cast<const N&>(node), res); })
 
     // 使用宏生成代码
     // 递归展开需要重写的解糖节点
-    EXPAND4(GEN_REG_HANDLER2, MainDecl, AssignExpr, UnaryExpr, BinaryExpr);
-    EXPAND3(GEN_REG_HANDLER2, RefExpr, SubscriptExpr, OptionType);
+    EXPAND4(GEN_REG_BEFORE_HANDLER, MainDecl, AssignExpr, UnaryExpr, BinaryExpr);
+    EXPAND3(GEN_REG_BEFORE_HANDLER, RefExpr, SubscriptExpr, OptionType);
 
     // 递归展开需要重写的节点
-    EXPAND3(GEN_REG_HANDLER, Annotation, Modifier, File);
-    EXPAND3(GEN_REG_HANDLER, PackageSpec, ImportSpec, ImportContent);
+    EXPAND3(GEN_REG_VISIT_HANDLER, Annotation, Modifier, File);
+    EXPAND3(GEN_REG_VISIT_HANDLER, PackageSpec, ImportSpec, ImportContent);
     // Decl
-    EXPAND4(GEN_REG_HANDLER, VarDecl, VarWithPatternDecl, PropDecl, FuncParam);
-    EXPAND3(GEN_REG_HANDLER, FuncParamList, FuncBody, FuncDecl);
-    EXPAND4(GEN_REG_HANDLER, PrimaryCtorDecl, ClassDecl, InterfaceDecl, StructDecl);
-    EXPAND3(GEN_REG_HANDLER, EnumDecl, ExtendDecl, TypeAliasDecl);
+    EXPAND4(GEN_REG_VISIT_HANDLER, VarDecl, VarWithPatternDecl, PropDecl, FuncParam);
+    EXPAND4(GEN_REG_VISIT_HANDLER, FuncParamList, FuncBody, FuncDecl, MainDecl);
+    EXPAND4(GEN_REG_VISIT_HANDLER, PrimaryCtorDecl, ClassDecl, InterfaceDecl, StructDecl);
+    EXPAND3(GEN_REG_VISIT_HANDLER, EnumDecl, ExtendDecl, TypeAliasDecl);
     // Type
-    EXPAND3(GEN_REG_HANDLER, PrimitiveType, RefType, TupleType);
-    EXPAND4(GEN_REG_HANDLER, QualifiedType, ThisType, VArrayType, ParenType);
-    EXPAND2(GEN_REG_HANDLER, ConstantType, FuncType);
+    EXPAND4(GEN_REG_VISIT_HANDLER, PrimitiveType, RefType, TupleType, OptionType);
+    EXPAND4(GEN_REG_VISIT_HANDLER, QualifiedType, ThisType, VArrayType, ParenType);
+    EXPAND2(GEN_REG_VISIT_HANDLER, ConstantType, FuncType);
     // Pattern
-    EXPAND4(GEN_REG_HANDLER, WildcardPattern, ConstPattern, EnumPattern, VarPattern);
-    EXPAND3(GEN_REG_HANDLER, TypePattern, VarOrEnumPattern, TuplePattern);
+    EXPAND4(GEN_REG_VISIT_HANDLER, WildcardPattern, ConstPattern, EnumPattern, VarPattern);
+    EXPAND3(GEN_REG_VISIT_HANDLER, TypePattern, VarOrEnumPattern, TuplePattern);
     // Expr
-    EXPAND4(GEN_REG_HANDLER, Block, FuncArg, MatchCase, MatchCaseOther);
-    EXPAND4(GEN_REG_HANDLER, MemberAccess, CallExpr, IncOrDecExpr, RangeExpr);
-    EXPAND4(GEN_REG_HANDLER, LitConstExpr, ArrayLit, ReturnExpr, LambdaExpr);
-    EXPAND4(GEN_REG_HANDLER, MatchExpr, IsExpr, AsExpr, ThrowExpr);
-    EXPAND4(GEN_REG_HANDLER, JumpExpr, LetPatternDestructor, TupleLit, TypeConvExpr);
-    EXPAND4(GEN_REG_HANDLER, IfExpr, DoWhileExpr, WhileExpr, ForInExpr);
+    EXPAND4(GEN_REG_VISIT_HANDLER, Block, FuncArg, MatchCase, MatchCaseOther);
+    EXPAND4(GEN_REG_VISIT_HANDLER, MemberAccess, CallExpr, IncOrDecExpr, RangeExpr);
+    EXPAND4(GEN_REG_VISIT_HANDLER, LitConstExpr, ArrayLit, ReturnExpr, LambdaExpr);
+    EXPAND4(GEN_REG_VISIT_HANDLER, MatchExpr, IsExpr, AsExpr, ThrowExpr);
+    EXPAND4(GEN_REG_VISIT_HANDLER, JumpExpr, LetPatternDestructor, TupleLit, TypeConvExpr);
+    EXPAND4(GEN_REG_VISIT_HANDLER, IfExpr, DoWhileExpr, WhileExpr, ForInExpr);
+    EXPAND4(GEN_REG_VISIT_HANDLER, AssignExpr, UnaryExpr, BinaryExpr, RefExpr);
+    EXPAND1(GEN_REG_VISIT_HANDLER, SubscriptExpr);
     // Generic
-    EXPAND3(GEN_REG_HANDLER, Generic, GenericParamDecl, GenericConstraint);
+    EXPAND3(GEN_REG_VISIT_HANDLER, Generic, GenericParamDecl, GenericConstraint);
 }
 
 // 辅助打印函数
@@ -1749,13 +1728,13 @@ Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::Indent(int indent)
 
 Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::EnableDesugar()
 {
-    config.flags |= Ast2SourceConfig::DESUGAR_FLAG;
+    config.flags |= PassConfig::DESUGAR_FLAG;
     return *this;
 }
 
 Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::EnableSema()
 {
-    config.flags |= Ast2SourceConfig::SEMA_FLAG;
+    config.flags |= PassConfig::SEMA_FLAG;
     return *this;
 }
 

@@ -36,3 +36,17 @@ VisitResult Traverse(const AstNode& node, AstVisitorBase& visitor)
     }
     return res;
 }
+
+// MutTraverse 实现方法
+ValuedResult MutTraverse(AstNode& node, MutAstVisitorBase& visitor)
+{
+    ValuedResult res = visitor.BeforeVisit(node);
+    if (!res.status) {
+        return res;
+    }
+    visitor.Visit(node, res);
+    if (res.status) {
+        visitor.AfterVisit(node, res);
+    }
+    return res;
+}

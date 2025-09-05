@@ -6,11 +6,12 @@
 #pragma once
 
 #include "VisitorBase.h"
+#include "utils/CallbackManger.h"
 #include <functional>
 #include <map>
 #include <tuple>
 
-class AstVisitor : public AstVisitorBase {
+class ConstAstVisitor : public AstVisitorBase {
 public:
     /**
      * @brief 使用 std::function 定义 BeforeVisit 的回调函数类型。
@@ -27,22 +28,14 @@ public:
 
 public:
     /**
-     * @brief 构造函数，初始化 AstVisitor 对象。
+     * @brief 构造函数，初始化 ConstAstVisitor 对象。
      */
-    AstVisitor() = default;
+    ConstAstVisitor() = default;
     /**
      * @brief 虚析构函数，确保派生类能正确析构
      */
-    virtual ~AstVisitor() = default;
-    /**
-     * @brief 注册处理程序以处理特定类型的 AST 节点。
-     *
-     * @param kind AST 节点的种类。
-     * @param before 访问节点之前的回调函数。
-     * @param visit 访问节点时的回调函数，默认为 nullptr。
-     * @param after 访问节点之后的回调函数，默认为 nullptr。
-     */
-    void RegisterHandler(AstKind kind, BeforeFunc before, VisitFunc visit = nullptr, AfterFunc after = nullptr);
+    virtual ~ConstAstVisitor() = default;
+
     /**
      * @brief 在访问节点之前调用的方法。
      *
@@ -120,5 +113,5 @@ protected:
     /**
      * @brief 存储每个 AST 节点种类对应的处理程序。
      */
-    std::map<AstKind, std::tuple<BeforeFunc, VisitFunc, AfterFunc>> handlers;
+    CallbackManager<AstKind, std::tuple<BeforeFunc, VisitFunc, AfterFunc>> handlers;
 };
