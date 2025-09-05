@@ -5,27 +5,11 @@
  */
 
 #include "visitor/ConstAstVisitor.h"
-#include "utils/Logger.h"
-#include "utils/Macro.h"
-#include <tuple>
 
-void ConstAstVisitor::RegisterBeforeHandler(AstKind kind, BeforeFunc before)
-{
-    beforeHandlers.emplace(kind, before);
-}
-void ConstAstVisitor::RegisterVisitHandler(AstKind kind, VisitFunc visit)
-{
-    visitHandlers.emplace(kind, visit);
-}
-void ConstAstVisitor::RegisterAfterHandler(AstKind kind, AfterFunc after)
-{
-    afterHandlers.emplace(kind, after);
-}
 VisitResult ConstAstVisitor::BeforeVisit(const AstNode& node)
 {
-    auto it = beforeHandlers.find(node.astKind);
-    if (it != beforeHandlers.end()) {
-        return it->second(node);
+    if (auto fn = handlers.get<BeforeFunc>(node.astKind)) {
+        return fn->get()(node);
     } else {
         return DefaultBefore(node);
     }
@@ -33,9 +17,8 @@ VisitResult ConstAstVisitor::BeforeVisit(const AstNode& node)
 
 void ConstAstVisitor::Visit(const AstNode& node, VisitResult& res)
 {
-    auto it = visitHandlers.find(node.astKind);
-    if (it != visitHandlers.end()) {
-        it->second(node, res);
+    if (auto fn = handlers.get<VisitFunc>(node.astKind)) {
+        fn->get()(node, res);
     } else {
         DefaultVisit(node, res);
     }
@@ -43,9 +26,8 @@ void ConstAstVisitor::Visit(const AstNode& node, VisitResult& res)
 
 void ConstAstVisitor::AfterVisit(const AstNode& node, const VisitResult& res)
 {
-    auto it = afterHandlers.find(node.astKind);
-    if (it != afterHandlers.end()) {
-        it->second(node, res);
+    if (auto fn = handlers.get<AfterFunc>(node.astKind)) {
+        fn->get()(node, res);
     } else {
         DefaultAfter(node, res);
     }
