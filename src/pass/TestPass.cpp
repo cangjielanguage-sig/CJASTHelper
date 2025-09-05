@@ -1,3 +1,9 @@
+/**
+ * @file
+ *
+ * This file implements the TestPass.
+ */
+
 #include "pass/TestPass.h"
 #include "utils/Cast.h"
 #include "utils/Logger.h"

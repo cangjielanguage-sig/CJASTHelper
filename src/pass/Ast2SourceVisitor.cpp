@@ -74,28 +74,6 @@ const char* Ast2SourceException::what() const noexcept
     return message.c_str();
 }
 
-///  Ast2SourceConfig 实现函数
-
-// 默认配置
-Ast2SourceConfig::Ast2SourceConfig() : indent(4), out("."), suffix("_source.cj"), flags(0)
-{
-}
-
-inline bool Ast2SourceConfig::Desugar() const
-{
-    return flags & DESUGAR_FLAG;
-}
-
-inline bool Ast2SourceConfig::Sema() const
-{
-    return flags & SEMA_FLAG;
-}
-
-bool Ast2SourceConfig::Focus(const Decl& decl) const
-{
-    return (focusDecls.empty() || focusDecls.count(decl.astKind)) && !ignoreDecls.count(decl.identifier.Val());
-}
-
 namespace {
 /*
  * 获取文件名不包括后缀： xxx.cj -> xxx
@@ -976,7 +954,7 @@ void CreateDirIfNotExists(const std::string& path)
 }
 } // namespace
 
-Ast2SourceVisitor::Ast2SourceVisitor(Ast2SourceConfig config) : config(config), prt(ofs, config.indent)
+Ast2SourceVisitor::Ast2SourceVisitor(PassConfig config) : config(config), prt(ofs, config.indent)
 {
     CreateDirIfNotExists(config.out);
     RegisterHandlers();
@@ -1750,13 +1728,13 @@ Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::Indent(int indent)
 
 Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::EnableDesugar()
 {
-    config.flags |= Ast2SourceConfig::DESUGAR_FLAG;
+    config.flags |= PassConfig::DESUGAR_FLAG;
     return *this;
 }
 
 Ast2SourceVisitorBuilder& Ast2SourceVisitorBuilder::EnableSema()
 {
-    config.flags |= Ast2SourceConfig::SEMA_FLAG;
+    config.flags |= PassConfig::SEMA_FLAG;
     return *this;
 }
 
