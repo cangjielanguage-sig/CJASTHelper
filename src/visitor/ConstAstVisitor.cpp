@@ -8,7 +8,7 @@
 
 VisitResult ConstAstVisitor::BeforeVisit(const AstNode& node)
 {
-    if (auto fn = handlers.get<BeforeFunc>(node.astKind)) {
+    if (auto fn = handlers.TryGet<BeforeFunc>(node.astKind)) {
         return fn->get()(node);
     } else {
         return DefaultBefore(node);
@@ -17,7 +17,7 @@ VisitResult ConstAstVisitor::BeforeVisit(const AstNode& node)
 
 void ConstAstVisitor::Visit(const AstNode& node, VisitResult& res)
 {
-    if (auto fn = handlers.get<VisitFunc>(node.astKind)) {
+    if (auto fn = handlers.TryGet<VisitFunc>(node.astKind)) {
         fn->get()(node, res);
     } else {
         DefaultVisit(node, res);
@@ -26,7 +26,7 @@ void ConstAstVisitor::Visit(const AstNode& node, VisitResult& res)
 
 void ConstAstVisitor::AfterVisit(const AstNode& node, const VisitResult& res)
 {
-    if (auto fn = handlers.get<AfterFunc>(node.astKind)) {
+    if (auto fn = handlers.TryGet<AfterFunc>(node.astKind)) {
         fn->get()(node, res);
     } else {
         DefaultAfter(node, res);

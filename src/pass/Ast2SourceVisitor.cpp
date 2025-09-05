@@ -991,11 +991,11 @@ void Ast2SourceVisitor::RegisterHandlers()
     };
 // 定义注册代码片段
 #define GEN_REG_BEFORE_HANDLER(N)                                                                                      \
-    handlers.reg<BeforeFunc>(                                                                                          \
+    handlers.Reg<BeforeFunc>(                                                                                          \
         name2kind.at(#N), [this](const AstNode& node) { return this->Before(Cast<const N&>(node)); })
 
 #define GEN_REG_VISIT_HANDLER(N)                                                                                       \
-    handlers.reg<VisitFunc>(                                                                                           \
+    handlers.Reg<VisitFunc>(                                                                                           \
         name2kind.at(#N), [this](const AstNode& node, VisitResult& res) { this->Visit(Cast<const N&>(node), res); })
 
     // 使用宏生成代码

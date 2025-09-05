@@ -113,5 +113,5 @@ protected:
     /**
      * @brief 存储每个 AST 节点种类对应的处理程序。
      */
-    CallBackManager<AstKind, std::variant<BeforeFunc, VisitFunc, AfterFunc>> handlers;
+    CallbackManager<AstKind, std::tuple<BeforeFunc, VisitFunc, AfterFunc>> handlers;
 };
