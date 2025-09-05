@@ -5,32 +5,11 @@
  */
 
 #include "visitor/MutAstVisitor.h"
-#include "utils/Logger.h"
-#include "utils/Macro.h"
-#include <tuple>
-
-void MutAstVisitor::RegisterBeforeHandler(AstKind kind, BeforeFunc before)
-{
-    beforeHandlers.emplace(kind, before);
-}
-void MutAstVisitor::RegisterVisitHandler(AstKind kind, VisitFunc visit)
-{
-    visitHandlers.emplace(kind, visit);
-}
-void MutAstVisitor::RegisterAfterHandler(AstKind kind, AfterFunc after)
-{
-    afterHandlers.emplace(kind, after);
-}
-void MutAstVisitor::RegisterMergeHandler(AstKind kind, MergeFunc merge)
-{
-    mergeHandlers.emplace(kind, merge);
-}
 
 ValuedResult MutAstVisitor::BeforeVisit(AstNode& node)
 {
-    auto it = beforeHandlers.find(node.astKind);
-    if (it != beforeHandlers.end()) {
-        return it->second(node);
+    if (auto fn = handlers.TryGet<BeforeFunc>(node.astKind)) {
+        return fn->get()(node);
     } else {
         return DefaultBefore(node);
     }
@@ -38,9 +17,8 @@ ValuedResult MutAstVisitor::BeforeVisit(AstNode& node)
 
 void MutAstVisitor::Visit(AstNode& node, ValuedResult& res)
 {
-    auto it = visitHandlers.find(node.astKind);
-    if (it != visitHandlers.end()) {
-        it->second(node, res);
+    if (auto fn = handlers.TryGet<VisitFunc>(node.astKind)) {
+        fn->get()(node, res);
     } else {
         DefaultVisit(node, res);
     }
@@ -48,9 +26,8 @@ void MutAstVisitor::Visit(AstNode& node, ValuedResult& res)
 
 void MutAstVisitor::AfterVisit(AstNode& node, const ValuedResult& res)
 {
-    auto it = afterHandlers.find(node.astKind);
-    if (it != afterHandlers.end()) {
-        it->second(node, res);
+    if (auto fn = handlers.TryGet<AfterFunc>(node.astKind)) {
+        fn->get()(node, res);
     } else {
         DefaultAfter(node, res);
     }
@@ -58,9 +35,8 @@ void MutAstVisitor::AfterVisit(AstNode& node, const ValuedResult& res)
 
 void MutAstVisitor::MergeResult(AstNode& node, ValuedResult& res, std::vector<ValuedResult>& childrenRes)
 {
-    auto it = mergeHandlers.find(node.astKind);
-    if (it != mergeHandlers.end()) {
-        it->second(node, res, childrenRes);
+    if (auto fn = handlers.TryGet<MergeFunc>(node.astKind)) {
+        fn->get()(node, res, childrenRes);
     } else {
         DefaultMergeResult(node, res, childrenRes);
     }
@@ -74,7 +50,6 @@ ValuedResult MutAstVisitor::DefaultBefore(AstNode& node)
 void MutAstVisitor::DefaultVisit(AstNode& node, ValuedResult& res)
 {
     auto children = AstNodeHelper::GetChildren(node);
-    Logger::Get().Debug("MutAstVisitor::DefaultVisit", AstKind2Str(node.astKind), " : ", children.size());
     std::vector<ValuedResult> childrenRes;
     // 遍历子节点
     for (auto& child : children) {
