@@ -11,7 +11,7 @@
 #include <map>
 #include <tuple>
 
-class ConstAstVisitor : public AstVisitorBase {
+class ConstAstVisitor : public ConstAstVisitorBase {
 public:
     /**
      * @brief 使用 std::function 定义 BeforeVisit 的回调函数类型。
@@ -80,34 +80,9 @@ public:
      */
     virtual void DefaultAfter(const AstNode& node, const VisitResult& res);
 
-protected:
-    /**
-     * @brief 遍历单个节点。
-     *
-     * @tparam Ptr 指针类型模板。
-     * @tparam T 节点的具体类型。
-     * @param pnode 要遍历的节点指针。
-     */
-    template <template <typename> class Ptr, typename T> inline void VisitNode(const Ptr<T>& pnode)
-    {
-        if (pnode) {
-            Traverse(*pnode, *this);
-        }
-    }
-
-    /**
-     * @brief 遍历一组节点。
-     *
-     * @tparam Ptr 指针类型模板。
-     * @tparam T 节点的具体类型。
-     * @param nodes 要遍历的节点指针数组。
-     */
-    template <template <typename> class Ptr, typename T> inline void VisitNodes(const std::vector<Ptr<T>>& nodes)
-    {
-        for (auto& node : nodes) {
-            Traverse(*node, *this);
-        }
-    }
+    void RegBefore(AstKind kind, BeforeFunc&& before);
+    void RegVisit(AstKind kind, VisitFunc&& visit);
+    void RegAfter(AstKind kind, AfterFunc&& after);
 
 protected:
     /**

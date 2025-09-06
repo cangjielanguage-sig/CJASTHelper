@@ -31,7 +31,7 @@ struct VisitResult {
 };
 
 // 抽象访问器接口 (const 版本)
-class AstVisitorBase {
+class ConstAstVisitorBase {
 public:
     /**
      * @brief 在访问节点之前调用的方法。
@@ -57,17 +57,17 @@ public:
     /**
      * @brief 虚析构函数，确保派生类正确销毁。
      */
-    virtual ~AstVisitorBase() = default;
+    virtual ~ConstAstVisitorBase() = default;
 };
 
 /**
  * @brief 通用遍历接口，递归地遍历 AST 节点并应用访问器。
  *
  * @param node 要遍历的 AST 节点。
- * @param visitor 访问器对象，实现了 AstVisitorBase 接口。
+ * @param visitor 访问器对象，实现了 ConstAstVisitorBase 接口。
  * @return 遍历结果，指示整个遍历过程的状态。
  */
-VisitResult Traverse(const AstNode& node, AstVisitorBase& visitor);
+VisitResult Traverse(const AstNode& node, ConstAstVisitorBase& visitor);
 
 using DefaultValue = int;
 using OwnedNodeValue = OwnedPtr<AstNode>;

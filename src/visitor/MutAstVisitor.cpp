@@ -33,6 +33,23 @@ void MutAstVisitor::AfterVisit(AstNode& node, const ValuedResult& res)
     }
 }
 
+void MutAstVisitor::RegBefore(AstKind kind, BeforeFunc&& before)
+{
+    handlers.Reg<BeforeFunc>(kind, std::forward<BeforeFunc>(before));
+}
+void MutAstVisitor::RegVisit(AstKind kind, VisitFunc&& visit)
+{
+    handlers.Reg<VisitFunc>(kind, std::forward<VisitFunc>(visit));
+}
+void MutAstVisitor::RegAfter(AstKind kind, AfterFunc&& after)
+{
+    handlers.Reg<AfterFunc>(kind, std::forward<AfterFunc>(after));
+}
+void MutAstVisitor::RegMerge(AstKind kind, MergeFunc&& merge)
+{
+    handlers.Reg<MergeFunc>(kind, std::forward<MergeFunc>(merge));
+}
+
 void MutAstVisitor::MergeResult(AstNode& node, ValuedResult& res, std::vector<ValuedResult>& childrenRes)
 {
     if (auto fn = handlers.TryGet<MergeFunc>(node.astKind)) {
@@ -63,6 +80,10 @@ void MutAstVisitor::DefaultAfter(AstNode& node, const ValuedResult& res)
 }
 
 void MutAstVisitor::DefaultMergeResult(AstNode& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes)
+{
+}
+
+void ReplaceAstVisitor::DefaultMergeResult(AstNode& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes)
 {
     std::vector<OwnedPtr<AstNode>> children;
     for (auto& child : childrenRes) {

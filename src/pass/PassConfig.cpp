@@ -1,7 +1,7 @@
 /**
  * @file
  *
- * This file implements the Ast2SourceVisitor.
+ * This file implements the ToSourcePass.
  */
 #include "pass/PassConfig.h"
 

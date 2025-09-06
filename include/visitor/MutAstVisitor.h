@@ -62,6 +62,11 @@ public:
      */
     void AfterVisit(AstNode& node, const ValuedResult& res) override;
 
+    void RegBefore(AstKind kind, BeforeFunc&& before);
+    void RegVisit(AstKind kind, VisitFunc&& visit);
+    void RegAfter(AstKind kind, AfterFunc&& after);
+    void RegMerge(AstKind kind, MergeFunc&& merge);
+
 protected:
     /**
      * @brief 合并子节点遍历结果。
@@ -109,4 +114,20 @@ protected:
      * @brief 存储每个 AST 节点种类对应的处理程序。
      */
     CallbackManager<AstKind, std::tuple<BeforeFunc, VisitFunc, AfterFunc, MergeFunc>> handlers;
+};
+
+class ReplaceAstVisitor : public MutAstVisitor {
+public:
+    ReplaceAstVisitor() = default;
+
+protected:
+    /**
+     * @brief 合并子节点的遍历结果。
+     *
+     * @param node 父节点。
+     * @param base 父节点的遍历结果对象，用于存储合并后的结果。
+     * @param childrenRes 子节点的遍历结果列表。
+     * @return 合并后的遍历结果。
+     */
+    void DefaultMergeResult(AstNode& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes) override;
 };

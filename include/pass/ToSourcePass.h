@@ -1,19 +1,19 @@
 /**
  * @file
  *
- * This file declares the Ast2SourceVisitor.
+ * This file declares the ToSourcePass.
  */
 #pragma once
 
+#include "pass/Pass.h"
 #include "utils/Macro.h"
 #include "utils/Printer.h"
 #include "visitor/ConstAstVisitor.h"
-#include "pass/PassConfig.h"
 #include <fstream>
 
 /**
  * @class Ast2SourceException
- * @brief 自定义异常类，用于处理 `Ast2SourceVisitor` 中的异常。
+ * @brief 自定义异常类，用于处理 `ToSourcePass` 中的异常。
  */
 class Ast2SourceException : public std::exception {
 private:
@@ -34,12 +34,14 @@ public:
 };
 
 /**
- * @class Ast2SourceVisitor
+ * @class ToSourcePass
  * @brief 继承自 `ConstAstVisitor`，用于将AST转换为源代码。
  */
-class Ast2SourceVisitor : public ConstAstVisitor {
+class ToSourcePass : public Pass {
 public:
-    ~Ast2SourceVisitor() override = default;
+    ~ToSourcePass() override = default;
+
+    void Run(AstNode& node) override;
 
 protected:
 #define GEN_BEFORE_OVERRIDE(N) VisitResult Before(const N& node)
@@ -77,13 +79,42 @@ protected:
     // Generic
     EXPAND3(GEN_VISIT_OVERRIDE, Generic, GenericParamDecl, GenericConstraint);
 
+protected:
+    /**
+     * @brief 遍历单个节点。
+     *
+     * @tparam Ptr 指针类型模板。
+     * @tparam T 节点的具体类型。
+     * @param pnode 要遍历的节点指针。
+     */
+    template <template <typename> class Ptr, typename T> inline void VisitNode(const Ptr<T>& pnode)
+    {
+        if (pnode) {
+            Traverse(*pnode, visitor);
+        }
+    }
+
+    /**
+     * @brief 遍历一组节点。
+     *
+     * @tparam Ptr 指针类型模板。
+     * @tparam T 节点的具体类型。
+     * @param nodes 要遍历的节点指针数组。
+     */
+    template <template <typename> class Ptr, typename T> inline void VisitNodes(const std::vector<Ptr<T>>& nodes)
+    {
+        for (auto& node : nodes) {
+            Traverse(*node, visitor);
+        }
+    }
+
 private:
-    friend class Ast2SourceVisitorBuilder;
+    friend class ToSourcePassBuilder;
     /**
      * @brief 构造函数，初始化输出文件、缩进和标志。
      * @param config Ast2SourceConfig对象，包含输出文件、缩进和标志信息。
      */
-    Ast2SourceVisitor(PassConfig config);
+    ToSourcePass(PassConfig config);
 
     void RegisterHandlers();
 
@@ -212,77 +243,77 @@ private:
     Printer& PRT();
 
 private:
-    PassConfig config;                                         /**< 配置对象 */
     std::fstream ofs;                                                /**< 输出文件流 */
     Printer prt;                                                     /**< 打印器实例 */
     std::unordered_map<Ptr<const Decl>, std::string> desugaredVarId; /**< 解糖变量名字表 */
+    ConstAstVisitor visitor;                                         /**< 抽象语法树遍历器 */
 };
 
 /**
- * @class Ast2SourceVisitorBuilder
- * @brief 构建 `Ast2SourceVisitor` 的辅助类。
+ * @class ToSourcePassBuilder
+ * @brief 构建 `ToSourcePass` 的辅助类。
  */
-class Ast2SourceVisitorBuilder {
+class ToSourcePassBuilder {
 public:
-    Ast2SourceVisitorBuilder() = default;
+    ToSourcePassBuilder() = default;
     /**
      * @brief 设置输出文件路径。
      * @param out 输出文件路径。
      * @return 返回当前构建器实例的引用，支持链式调用。
      */
-    Ast2SourceVisitorBuilder& Output(const std::string& out);
+    ToSourcePassBuilder& Output(const std::string& out);
     /**
      * @brief 设置输出文件后缀。
      * @param suffix 输出文件后缀名。
      * @return 返回当前构建器实例的引用，支持链式调用。
      */
-    Ast2SourceVisitorBuilder& Suffix(const std::string& suffix);
+    ToSourcePassBuilder& Suffix(const std::string& suffix);
     /**
      * @brief 设置输出缩进大小。
      * @param indent 缩进大小。
      * @return 返回当前构建器实例的引用，支持链式调用。
      */
-    Ast2SourceVisitorBuilder& Indent(int indent);
+    ToSourcePassBuilder& Indent(int indent);
     /**
      * @brief 启用解糖功能。
      */
-    Ast2SourceVisitorBuilder& EnableDesugar();
+    ToSourcePassBuilder& EnableDesugar();
     /**
      * @brief 启用语义分析功能。
      */
-    Ast2SourceVisitorBuilder& EnableSema();
+    ToSourcePassBuilder& EnableSema();
     /**
      * @brief 设置关注的顶层声明类型。
      * @param kinds 关注的声明类型名称列表。
      */
-    Ast2SourceVisitorBuilder& Focus(const std::vector<std::string>& kinds);
+    ToSourcePassBuilder& Focus(const std::vector<std::string>& kinds);
     /**
      * @brief 设置关注的注解属性。
      * @param attrs 关注的注解属性名称列表。
      */
-    Ast2SourceVisitorBuilder& FocusAnnotationAttrs(const std::vector<std::string>& attrs);
+    ToSourcePassBuilder& FocusAnnotationAttrs(const std::vector<std::string>& attrs);
     /**
      * @brief 设置关注的修饰符属性。
      * @param attrs 关注的修饰符属性名称列表。
      * @param kinds 关注的修饰符属性所在的声明类型名称列表（白名单）。
      */
-    Ast2SourceVisitorBuilder& FocusModifierAttrs(
+    ToSourcePassBuilder& FocusModifierAttrs(
         const std::vector<std::string>& attrs, const std::vector<std::string>& kinds);
     /**
      * @brief 设置忽略的顶层声明。
      * @param decls 忽略的声明标识符列表。
      */
-    Ast2SourceVisitorBuilder& IgnoreDecls(const std::vector<std::string>& decls);
+    ToSourcePassBuilder& IgnoreDecls(const std::vector<std::string>& decls);
     /**
      * @brief 设置忽略的注解。
      * @param annos 忽略的注解名称列表。
      */
-    Ast2SourceVisitorBuilder& IgnoreAnnotations(const std::vector<std::string>& annos);
+    ToSourcePassBuilder& IgnoreAnnotations(const std::vector<std::string>& annos);
     /**
-     * @brief 构建 `Ast2SourceVisitor` 实例。
-     * @return 返回构建好的 `Ast2SourceVisitor` 实例。
+     * @brief 构建 `ToSourcePass` 实例。
+     * @return 返回构建好的 `ToSourcePass` 实例。
      */
-    Ast2SourceVisitor Build();
+    ToSourcePass Build();
 
 private:
     PassConfig config;

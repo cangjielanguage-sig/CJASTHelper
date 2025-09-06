@@ -8,10 +8,16 @@
 #include "utils/Cast.h"
 #include "utils/Logger.h"
 
-ReplaceDesugarPass::ReplaceDesugarPass(PassConfig config) : config(config)
+ReplaceDesugarPass::ReplaceDesugarPass(PassConfig config) : Pass(config)
 {
-    handlers.Reg<VisitFunc>(
+    visitor.RegVisit(
         AstKind::OPTION_TYPE, [this](AstNode& node, ValuedResult& res) { Visit(Cast<OptionType&>(node), res); });
+}
+
+void ReplaceDesugarPass::Run(AstNode& node)
+{
+    Logger::Get().Debug("ReplaceDesugarPass::Run");
+    MutTraverse(node, visitor);
 }
 
 void ReplaceDesugarPass::Visit(OptionType& node, ValuedResult& res)
