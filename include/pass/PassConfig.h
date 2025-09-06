@@ -10,7 +10,7 @@
 
 /**
  * @class PassConfig
- * @brief 配置 `Ast2SourceVisitor` 的参数。
+ * @brief 配置 `ToSourcePass` 的参数。
  */
 class PassConfig {
 public:

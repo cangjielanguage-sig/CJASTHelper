@@ -24,7 +24,7 @@ VisitResult VisitResult::Skip()
 }
 
 // Traverse 实现方法
-VisitResult Traverse(const AstNode& node, AstVisitorBase& visitor)
+VisitResult Traverse(const AstNode& node, ConstAstVisitorBase& visitor)
 {
     auto res = visitor.BeforeVisit(node);
     if (!res.status) {
