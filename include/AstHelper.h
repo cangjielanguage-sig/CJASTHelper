@@ -5,8 +5,8 @@
  */
 #pragma once
 
+#include "pass/Pass.h"
 #include "utils/Printer.h"
-#include "visitor/VisitorBase.h"
 #include "wrapper/WrapperCangjieFrontend.h"
 #include <memory>
 #include <unordered_map>
@@ -102,7 +102,7 @@ private:
     /**
      * 注册一个分析pass
      */
-    void RegisterPass(std::string name, std::unique_ptr<MutAstVisitorBase> visitor);
+    void RegisterPass(std::string name, std::unique_ptr<Pass> pass);
     void RegisterPasses();
 
     using StageFunc = std::function<bool()>;
@@ -122,8 +122,8 @@ private:
 
     std::vector<std::string> passes; /**< 配置需要执行的 passes 列表 */
 
-    std::unordered_map<std::string, std::unique_ptr<MutAstVisitorBase>> passMap; /**< 注册的分析pass: name -> visitor */
-    std::unordered_map<SourceStage, std::function<bool()>> stageMap;             /**< 注册的 stage 回调函数 */
+    std::unordered_map<std::string, std::unique_ptr<Pass>> passMap;  /**< 注册的分析pass: name -> Pass */
+    std::unordered_map<SourceStage, std::function<bool()>> stageMap; /**< 注册的 stage 回调函数 */
 };
 
 /**
