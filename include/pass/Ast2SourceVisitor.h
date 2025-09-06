@@ -5,10 +5,10 @@
  */
 #pragma once
 
+#include "pass/Pass.h"
 #include "utils/Macro.h"
 #include "utils/Printer.h"
 #include "visitor/ConstAstVisitor.h"
-#include "pass/PassConfig.h"
 #include <fstream>
 
 /**
@@ -37,9 +37,11 @@ public:
  * @class Ast2SourceVisitor
  * @brief 继承自 `ConstAstVisitor`，用于将AST转换为源代码。
  */
-class Ast2SourceVisitor : public ConstAstVisitor {
+class Ast2SourceVisitor : public Pass {
 public:
     ~Ast2SourceVisitor() override = default;
+
+    void Run(AstNode& node) override;
 
 protected:
 #define GEN_BEFORE_OVERRIDE(N) VisitResult Before(const N& node)
@@ -76,6 +78,35 @@ protected:
     EXPAND2(GEN_VISIT_OVERRIDE, TupleLit, TypeConvExpr);
     // Generic
     EXPAND3(GEN_VISIT_OVERRIDE, Generic, GenericParamDecl, GenericConstraint);
+
+protected:
+    /**
+     * @brief 遍历单个节点。
+     *
+     * @tparam Ptr 指针类型模板。
+     * @tparam T 节点的具体类型。
+     * @param pnode 要遍历的节点指针。
+     */
+    template <template <typename> class Ptr, typename T> inline void VisitNode(const Ptr<T>& pnode)
+    {
+        if (pnode) {
+            Traverse(*pnode, visitor);
+        }
+    }
+
+    /**
+     * @brief 遍历一组节点。
+     *
+     * @tparam Ptr 指针类型模板。
+     * @tparam T 节点的具体类型。
+     * @param nodes 要遍历的节点指针数组。
+     */
+    template <template <typename> class Ptr, typename T> inline void VisitNodes(const std::vector<Ptr<T>>& nodes)
+    {
+        for (auto& node : nodes) {
+            Traverse(*node, visitor);
+        }
+    }
 
 private:
     friend class Ast2SourceVisitorBuilder;
@@ -212,10 +243,10 @@ private:
     Printer& PRT();
 
 private:
-    PassConfig config;                                         /**< 配置对象 */
     std::fstream ofs;                                                /**< 输出文件流 */
     Printer prt;                                                     /**< 打印器实例 */
     std::unordered_map<Ptr<const Decl>, std::string> desugaredVarId; /**< 解糖变量名字表 */
+    ConstAstVisitor visitor;                                         /**< 抽象语法树遍历器 */
 };
 
 /**

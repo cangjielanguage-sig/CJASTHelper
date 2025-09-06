@@ -88,6 +88,12 @@ std::string GetFileNameWithoutSuffix(const std::string& fname)
     }
 }
 } // namespace
+
+void Ast2SourceVisitor::Run(AstNode& node)
+{
+    Traverse(node, visitor);
+}
+
 /// Ast2SourceVisitor 实现函数
 void Ast2SourceVisitor::Visit(const File& node, VisitResult&)
 {
@@ -100,13 +106,13 @@ void Ast2SourceVisitor::Visit(const File& node, VisitResult&)
     // package declaration
     TryPrintNode(node.package.get());
     // import statements
-    PRT().PVec<ImportSpec>(node.imports, [this](const ImportSpec& imp) { Traverse(imp, *this); }, "", "", "\n");
+    PRT().PVec<ImportSpec>(node.imports, [this](const ImportSpec& imp) { Traverse(imp, visitor); }, "", "", "\n");
     // toplevel decls
     PRT().PVec<Decl>(node.decls, [this](const Decl& decl) {
         if (!config.Focus(decl)) {
             return;
         }
-        Traverse(decl, *this);
+        Traverse(decl, visitor);
         PRT().PNL(2);
     });
     ofs.close();
@@ -159,7 +165,7 @@ void Ast2SourceVisitor::Visit(const ImportSpec& node, VisitResult&)
     VisitNodes(node.annotations);
     TryPrintNode(node.modifier.get(), "", " ");
     PRT().PVal("import ");
-    Traverse(node.content, *this);
+    Traverse(node.content, visitor);
     PRT().PNL();
 }
 
@@ -182,7 +188,7 @@ void Ast2SourceVisitor::Visit(const Annotation& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For Annotation");
     PRT().PVals("@", Id(node.identifier));
-    PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, *this); }, ", ", "[", "]");
+    PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "[", "]");
     PRT().PNL();
 }
 
@@ -281,7 +287,7 @@ void Ast2SourceVisitor::Visit(const FuncParamList& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncParamList: ", node.params.size());
     PRT().PVec<FuncParam>(
-        node.params, [this](const FuncParam& param) { Traverse(param, *this); }, ", ", "(", ")", true);
+        node.params, [this](const FuncParam& param) { Traverse(param, visitor); }, ", ", "(", ")", true);
 }
 
 namespace {
@@ -393,7 +399,7 @@ void Ast2SourceVisitor::Visit(const EnumDecl& node, VisitResult&)
     PRT().PValNL(" {").Indent();
     PRT().PVec<Decl>(node.constructors, [this](const Decl& decl) {
         PRT().PVal("| ");
-        Traverse(decl, *this);
+        Traverse(decl, visitor);
         PRT().PNL();
     });
     PRT().PNL();
@@ -437,7 +443,8 @@ void Ast2SourceVisitor::Visit(const RefType& node, VisitResult& res)
         PrintTy(*node.ty);
     } else {
         PRT().PVal(Id(node.ref.identifier));
-        PRT().PVec<AstNode>(node.typeArguments, [this](const AstNode& node) { Traverse(node, *this); }, ", ", "<", ">");
+        PRT().PVec<AstNode>(
+            node.typeArguments, [this](const AstNode& node) { Traverse(node, visitor); }, ", ", "<", ">");
     }
 }
 
@@ -462,7 +469,7 @@ void Ast2SourceVisitor::Visit(const OptionType& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const TupleType& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For TupleType");
-    PRT().PVec<Type>(node.fieldTypes, [this](const Type& tp) { Traverse(tp, *this); }, ", ", "(", ")");
+    PRT().PVec<Type>(node.fieldTypes, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "(", ")");
 }
 
 void Ast2SourceVisitor::Visit(const QualifiedType& node, VisitResult&)
@@ -470,7 +477,7 @@ void Ast2SourceVisitor::Visit(const QualifiedType& node, VisitResult&)
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For QualifiedType");
     VisitNode(node.baseType);
     PRT().PVals(".", Id(node.field));
-    PRT().PVec<Type>(node.typeArguments, [this](const Type& tp) { Traverse(tp, *this); }, ", ", "<", ">");
+    PRT().PVec<Type>(node.typeArguments, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "<", ">");
 }
 
 void Ast2SourceVisitor::Visit(const ThisType& node, VisitResult&)
@@ -504,7 +511,7 @@ void Ast2SourceVisitor::Visit(const ConstantType& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const FuncType& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For FuncType");
-    PRT().PVec<Type>(node.paramTypes, [this](const Type& tp) { Traverse(tp, *this); }, ", ", "(", ")", true);
+    PRT().PVec<Type>(node.paramTypes, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "(", ")", true);
     TryPrintNode(node.retType.get(), " -> ");
 }
 
@@ -535,7 +542,7 @@ void Ast2SourceVisitor::Visit(const EnumPattern& node, VisitResult&)
     } else {
         VisitNode(ctor);
     }
-    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, *this); }, ", ", "(", ")");
+    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, ", ", "(", ")");
 }
 
 void Ast2SourceVisitor::Visit(const VarPattern& node, VisitResult&)
@@ -562,7 +569,7 @@ void Ast2SourceVisitor::Visit(const TypePattern& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const TuplePattern& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For TuplePattern");
-    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, *this); }, ", ", "(", ")");
+    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, ", ", "(", ")");
 }
 
 // Expr
@@ -570,7 +577,7 @@ void Ast2SourceVisitor::Visit(const Block& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For Block: ", node.body.size());
     PRT().PVec<AstNode>(node.body, [this](const AstNode& node) {
-        auto res = Traverse(node, *this);
+        auto res = Traverse(node, visitor);
         PRT().PNL();
     });
 }
@@ -610,7 +617,7 @@ void Ast2SourceVisitor::Visit(const CallExpr& node, VisitResult&)
     }
     // General func call
     VisitNode(node.baseFunc);
-    PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, *this); }, ", ", "(", ")", true);
+    PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")", true);
 }
 
 void Ast2SourceVisitor::Visit(const ReturnExpr& node, VisitResult& res)
@@ -638,13 +645,13 @@ void Ast2SourceVisitor::Visit(const LitConstExpr& node, VisitResult&)
 void Ast2SourceVisitor::Visit(const ArrayLit& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For ArrayLit");
-    PRT().PVec<AstNode>(node.children, [this](const AstNode& expr) { Traverse(expr, *this); }, ", ", "[", "]", true);
+    PRT().PVec<AstNode>(node.children, [this](const AstNode& expr) { Traverse(expr, visitor); }, ", ", "[", "]", true);
 }
 
 void Ast2SourceVisitor::Visit(const TupleLit& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For TupleLit");
-    PRT().PVec<AstNode>(node.children, [this](const AstNode& expr) { Traverse(expr, *this); }, ", ", "(", ")", true);
+    PRT().PVec<AstNode>(node.children, [this](const AstNode& expr) { Traverse(expr, visitor); }, ", ", "(", ")", true);
 }
 
 void Ast2SourceVisitor::Visit(const TypeConvExpr& node, VisitResult&)
@@ -682,7 +689,7 @@ void Ast2SourceVisitor::Visit(const LambdaExpr& node, VisitResult&)
     PRT().PVal("{");
     AH_ASSERT(body.paramLists.size() == 1);
     auto& params = body.paramLists[0]->params;
-    PRT().PVec<FuncParam>(params, [this](const FuncParam& param) { Traverse(param, *this); }, ", ", " ");
+    PRT().PVec<FuncParam>(params, [this](const FuncParam& param) { Traverse(param, visitor); }, ", ", " ");
     PRT().PWI([this, &body] { VisitNode(body.body); }, " =>", "}");
 }
 
@@ -690,7 +697,7 @@ void Ast2SourceVisitor::Visit(const MatchCase& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For MatchCase");
     PRT().PVal("case ");
-    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, *this); }, " | ");
+    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, " | ");
     TryPrintNode(node.patternGuard.get(), " where ");
     PRT().PWI([this, &node] { VisitNode(node.exprOrDecls); }, " =>");
 }
@@ -709,8 +716,8 @@ void Ast2SourceVisitor::Visit(const MatchExpr& node, VisitResult&)
     // match with selector
     TryPrintNode(node.selector.get(), "(", ")");
     PRT().PValNL(" {").Indent();
-    PRT().PVec<MatchCase>(node.matchCases, [this](const MatchCase& mc) { Traverse(mc, *this); });
-    PRT().PVec<MatchCaseOther>(node.matchCaseOthers, [this](const MatchCaseOther& mco) { Traverse(mco, *this); });
+    PRT().PVec<MatchCase>(node.matchCases, [this](const MatchCase& mc) { Traverse(mc, visitor); });
+    PRT().PVec<MatchCaseOther>(node.matchCaseOthers, [this](const MatchCaseOther& mco) { Traverse(mco, visitor); });
     PRT().Unindent();
     PRT().PVal("}");
 }
@@ -738,7 +745,7 @@ VisitResult Ast2SourceVisitor::Before(const AssignExpr& node)
     }
     Logger::Get().Debug("Ast2SourceVisitor::Before", "For AssignExpr");
     if (config.Desugar()) {
-        Traverse(*node.desugarExpr, *this);
+        Traverse(*node.desugarExpr, visitor);
     } else {
         // desugared: x.[](i, y) -> x[i] = v
         auto& callExpr = Cast<const CallExpr&>(node.desugarExpr.get());
@@ -774,7 +781,7 @@ VisitResult Ast2SourceVisitor::Before(const UnaryExpr& node)
     }
     Logger::Get().Debug("Ast2SourceVisitor::Before", "For UnaryExpr");
     if (config.Desugar()) {
-        Traverse(*node.desugarExpr, *this);
+        Traverse(*node.desugarExpr, visitor);
     } else {
         // desugared: val.!() -> !val
         auto& callExpr = Cast<const CallExpr&>(node.desugarExpr.get());
@@ -799,7 +806,7 @@ VisitResult Ast2SourceVisitor::Before(const BinaryExpr& node)
     }
     Logger::Get().Debug("Ast2SourceVisitor::Before", "For BinaryExpr");
     if (config.Desugar()) {
-        Traverse(*node.desugarExpr, *this);
+        Traverse(*node.desugarExpr, visitor);
     } else {
         auto& callExpr = Cast<const CallExpr&>(node.desugarExpr.get());
         AH_ASSERT(callExpr.args.size() == 0);
@@ -832,7 +839,7 @@ VisitResult Ast2SourceVisitor::Before(const SubscriptExpr& node)
     }
     Logger::Get().Debug("Ast2SourceVisitor::Before", "For SubscriptExpr");
     if (config.Desugar()) {
-        Traverse(*node.desugarExpr, *this);
+        Traverse(*node.desugarExpr, visitor);
     } else {
         // desugared: a.[](i) -> a[i]
         auto& callExpr = Cast<const CallExpr&>(node.desugarExpr.get());
@@ -849,7 +856,7 @@ void Ast2SourceVisitor::Visit(const SubscriptExpr& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For SubscriptExpr");
     VisitNode(node.baseExpr);
-    PRT().PVec<Expr>(node.indexExprs, [this](const Expr& expr) { Traverse(expr, *this); }, ", ", "[", "]");
+    PRT().PVec<Expr>(node.indexExprs, [this](const Expr& expr) { Traverse(expr, visitor); }, ", ", "[", "]");
 }
 
 void Ast2SourceVisitor::Visit(const JumpExpr& node, VisitResult&)
@@ -875,7 +882,7 @@ void Ast2SourceVisitor::Visit(const LetPatternDestructor& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For LetPatternDestructor");
     PRT().PVal("let ");
-    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, *this); }, " | ");
+    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, " | ");
     TryPrintNode(node.initializer, " <- ");
 }
 
@@ -921,9 +928,9 @@ void Ast2SourceVisitor::Visit(const Generic& node, VisitResult&)
 {
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For Generic");
     PRT().PVec<GenericParamDecl>(
-        node.typeParameters, [this](const GenericParamDecl& gpd) { Traverse(gpd, *this); }, ", ", "<", ">");
+        node.typeParameters, [this](const GenericParamDecl& gpd) { Traverse(gpd, visitor); }, ", ", "<", ">");
     PRT().PVec<GenericConstraint>(
-        node.genericConstraints, [this](const GenericConstraint& gc) { Traverse(gc, *this); }, ", ", " where ");
+        node.genericConstraints, [this](const GenericConstraint& gc) { Traverse(gc, visitor); }, ", ", " where ");
 }
 
 void Ast2SourceVisitor::Visit(const GenericParamDecl& node, VisitResult&)
@@ -937,7 +944,7 @@ void Ast2SourceVisitor::Visit(const GenericConstraint& node, VisitResult&)
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For GenericConstraint");
     VisitNode(node.type);
     PRT().PVal(" <: ");
-    PRT().PVec<Type>(node.upperBounds, [this](const Type& tp) { Traverse(tp, *this); }, " & ");
+    PRT().PVec<Type>(node.upperBounds, [this](const Type& tp) { Traverse(tp, visitor); }, " & ");
 }
 
 /// 私有实现函数
@@ -954,7 +961,7 @@ void CreateDirIfNotExists(const std::string& path)
 }
 } // namespace
 
-Ast2SourceVisitor::Ast2SourceVisitor(PassConfig config) : config(config), prt(ofs, config.indent)
+Ast2SourceVisitor::Ast2SourceVisitor(PassConfig config) : Pass(config), prt(ofs, config.indent)
 {
     CreateDirIfNotExists(config.out);
     RegisterHandlers();
@@ -969,11 +976,10 @@ void Ast2SourceVisitor::RegisterHandlers()
     };
 // 定义注册代码片段
 #define GEN_REG_BEFORE_HANDLER(N)                                                                                      \
-    handlers.Reg<BeforeFunc>(                                                                                          \
-        name2kind.at(#N), [this](const AstNode& node) { return this->Before(Cast<const N&>(node)); })
+    visitor.RegBefore(name2kind.at(#N), [this](const AstNode& node) { return this->Before(Cast<const N&>(node)); })
 
 #define GEN_REG_VISIT_HANDLER(N)                                                                                       \
-    handlers.Reg<VisitFunc>(                                                                                           \
+    visitor.RegVisit(                                                                                                  \
         name2kind.at(#N), [this](const AstNode& node, VisitResult& res) { this->Visit(Cast<const N&>(node), res); })
 
     // 使用宏生成代码
@@ -1024,7 +1030,7 @@ inline void Ast2SourceVisitor::TryPrintNode(
         return;
     }
     PRT().PVal(pre);
-    Traverse(*pnode, *this);
+    Traverse(*pnode, visitor);
     PRT().PVal(suf);
     if (withNL) {
         PRT().PNL();
@@ -1063,7 +1069,7 @@ void Ast2SourceVisitor::PrintAnnotations(const Decl& node)
     for (auto& anno : node.annotations) {
         auto& annoName = anno->identifier.Val();
         if (!config.ignoreAnnotations.count(annoName)) {
-            Traverse(*anno, *this);
+            Traverse(*anno, visitor);
             annotations.insert(annoName);
         }
     }
@@ -1109,7 +1115,7 @@ void Ast2SourceVisitor::PrintModifiers(const Decl& node)
         node.modifiers,
         [this, &modifiers](const Modifier& mod) {
             modifiers.insert(Tk2Str(mod.modifier));
-            Traverse(mod, *this);
+            Traverse(mod, visitor);
         },
         " ", "", " ");
 
@@ -1134,7 +1140,7 @@ inline void Ast2SourceVisitor::PrintBlock(const Ptr<Block> pnode)
     if (!pnode) {
         return;
     }
-    PRT().PWI([this, pnode] { Traverse(*pnode, *this); }, " {", "}");
+    PRT().PWI([this, pnode] { Traverse(*pnode, visitor); }, " {", "}");
 }
 
 /**
@@ -1224,7 +1230,7 @@ bool Ast2SourceVisitor::TryPrintEnumConstructor(const FuncDecl& node)
  */
 inline void Ast2SourceVisitor::PrintInheritedTypes(const std::vector<OwnedPtr<Type>>& types)
 {
-    PRT().PVec<Type>(types, [this](const Type& ty) { Traverse(ty, *this); }, " & ", " <: ");
+    PRT().PVec<Type>(types, [this](const Type& ty) { Traverse(ty, visitor); }, " & ", " <: ");
 }
 
 /**
@@ -1246,7 +1252,7 @@ void Ast2SourceVisitor::PrintInheritableDeclHeader(const InheritableDecl& node, 
 inline void Ast2SourceVisitor::PrintDecls(const std::vector<OwnedPtr<Decl>>& decls)
 {
     PRT().PVec<Decl>(decls, [this](const Decl& decl) {
-        Traverse(decl, *this);
+        Traverse(decl, visitor);
         PRT().PNL(2);
     });
 }
@@ -1274,7 +1280,7 @@ void Ast2SourceVisitor::TryPrintGenericParams(Ptr<Generic> generic)
     }
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For GenericParams");
     PRT().PVec<GenericParamDecl>(
-        generic->typeParameters, [this](const GenericParamDecl& gpd) { Traverse(gpd, *this); }, ", ", "<", ">");
+        generic->typeParameters, [this](const GenericParamDecl& gpd) { Traverse(gpd, visitor); }, ", ", "<", ">");
 }
 
 /**
@@ -1288,7 +1294,7 @@ void Ast2SourceVisitor::TryPrintGenericConstraints(Ptr<Generic> generic)
     }
     Logger::Get().Debug("Ast2SourceVisitor::Visit", "For GenericConstraints");
     PRT().PVec<GenericConstraint>(
-        generic->genericConstraints, [this](const GenericConstraint& gc) { Traverse(gc, *this); }, ", ", " where ");
+        generic->genericConstraints, [this](const GenericConstraint& gc) { Traverse(gc, visitor); }, ", ", " where ");
 }
 
 /**
@@ -1299,7 +1305,7 @@ void Ast2SourceVisitor::TryPrintGenericConstraints(Ptr<Generic> generic)
 void Ast2SourceVisitor::PrintInstArgs(const NameReferenceExpr& ref, bool isPattern)
 {
     if (!ref.typeArguments.empty()) {
-        PRT().PVec<Type>(ref.typeArguments, [this](const Type& tp) { Traverse(tp, *this); }, ", ", "<", ">");
+        PRT().PVec<Type>(ref.typeArguments, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "<", ">");
     } else if (config.Sema() && !isPattern) {
         PRT().PVec<Ty>(ref.instTys, [this](const Ty& ty) { PrintTy(ty); }, ", ", "<", ">");
     }
@@ -1327,7 +1333,7 @@ bool Ast2SourceVisitor::TryPrintType(const Ptr<Type> type)
     if (type->astKind != AstKind::TYPE) {
         // 合法的 Type 语法节点
         PRT().PVal(": ");
-        Traverse(*type, *this);
+        Traverse(*type, visitor);
         return true;
     }
     if (config.Sema()) {
@@ -1466,7 +1472,7 @@ bool Ast2SourceVisitor::TryPrintInitCall(const CallExpr& node)
     // 构造函数调用 init() -> A(), TODO: 应该缩小下范围， 构造函数内的init不需要替换
     // 特殊场景处理: init() -> ??A 是解糖表达式
     PrintTy(*TryGetBaseTy(node.ty));
-    PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, *this); }, ", ", "(", ")", true);
+    PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")", true);
     return true;
 }
 
@@ -1496,7 +1502,7 @@ bool Ast2SourceVisitor::TryRecoverOverloadCallExpr(const CallExpr& node)
         TryPrintNode(base, "!");
     } else if (op == TokenKind::LSQUARE) {
         // []
-        Traverse(*base, *this);
+        Traverse(*base, visitor);
         AH_ASSERT(node.args.size() == 1 || node.args.size() == 2);
         if (node.args.size() == 1) {
             // x[i]
@@ -1509,18 +1515,18 @@ bool Ast2SourceVisitor::TryRecoverOverloadCallExpr(const CallExpr& node)
         }
     } else if (op == TokenKind::LPAREN) {
         // ()
-        Traverse(*base, *this);
-        PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, *this); }, ", ", "(", ")");
+        Traverse(*base, visitor);
+        PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")");
     } else {
         // 二元： + - * / % ** << >> < <= > >= == != & ^ |
-        Traverse(*base, *this);
+        Traverse(*base, visitor);
         AH_ASSERT(node.args.size() == 1);
         TryPrintNode(node.args[0].get(), " " + Tk2Str(op) + " ");
     }
     // 打印个注释在这里
     PRT().PVal(" /* Desugared ");
-    Traverse(ma, *this);
-    PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, *this); }, ", ", "(", ")", true);
+    Traverse(ma, visitor);
+    PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")", true);
     PRT().PVal(" */ ");
     return true;
 }
@@ -1625,7 +1631,7 @@ void Ast2SourceVisitor::PrintDesugaredForInRange(const ForInExpr& node)
     TryPrintNode(block.body[3], "while (", ") {", true);
     PRT().Indent();
     TryPrintNode(varPat.varDecl, "", "", true); // let i = $iter-i;
-    Traverse(*node.body, *this);                // foo(i);
+    Traverse(*node.body, visitor);              // foo(i);
     TryPrintNode(block.body[2], "", "", true);  // $iter-i += stepExpr;
     PRT().Unindent();
     PRT().PVal("}");
@@ -1656,7 +1662,7 @@ void Ast2SourceVisitor::PrintDesugaredForInIterator(const ForInExpr& node)
     AH_ASSERT(node.desugarExpr->astKind == AstKind::BLOCK);
     auto& block = Cast<const Block&>(node.desugarExpr.get());
     AH_ASSERT(block.body.size() == 2);
-    Traverse(block, *this);
+    Traverse(block, visitor);
 }
 
 /**
@@ -1696,7 +1702,7 @@ void Ast2SourceVisitor::PrintDesugaredForInString(const ForInExpr& node)
     PRT().PVals("while (", loopVar, " < ", Id(stopVar.identifier), ") {").PNL();
     PRT().Indent();
     TryPrintNode(varPat.varDecl, "", "", true); // let i = $iter-i;
-    Traverse(*node.body, *this);                // foo(i);
+    Traverse(*node.body, visitor);              // foo(i);
     PRT().PVals(loopVar, " = ", loopVar, " + 1").PNL();
     PRT().Unindent();
     PRT().PVal("}");

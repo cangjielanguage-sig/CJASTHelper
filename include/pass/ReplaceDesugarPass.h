@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "pass/PassConfig.h"
+#include "pass/Pass.h"
 #include "visitor/MutAstVisitor.h"
 
 /**
@@ -15,17 +15,19 @@
  * Replace desugared AST nodes with their original AST nodes.
  * For example, replace `?Int64` with `Option<Int64>` if desugar option is true.
  */
-class ReplaceDesugarPass : public MutAstVisitor {
+class ReplaceDesugarPass : public Pass {
 public:
     ReplaceDesugarPass(PassConfig config = PassConfig());
     ~ReplaceDesugarPass() override = default;
 
-public:
+    void Run(AstNode& node) override;
+
+private:
     void Visit(OptionType& node, ValuedResult& res);
 
     void Merge(FuncDecl& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes);
     void Merge(VarDecl& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes);
 
 private:
-    PassConfig config;
+    ReplaceAstVisitor visitor;
 };

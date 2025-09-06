@@ -189,7 +189,7 @@ bool AstHelper::DoAnalysis()
         if (auto visitor = passMap.find(pass); visitor != passMap.end()) {
             Logger::Get().Debug("AstHelper::DoAnalysis", "do pass: ", pass);
             for (auto& pkg : pkgs) {
-                MutTraverse(*pkg, *visitor->second);
+                visitor->second->Run(*pkg);
             }
         }
     }
@@ -231,7 +231,7 @@ bool AstHelper::DoTransform() const
     UpdateAst2SourceVisitorBuilder(asvBuilder, options);
     Ast2SourceVisitor ast2SourceVisitor = asvBuilder.Build();
     for (auto pkg : pkgs) {
-        Traverse(*pkg, ast2SourceVisitor);
+        ast2SourceVisitor.Run(*pkg);
     }
     return true;
 }
@@ -295,9 +295,9 @@ void AstHelper::ParseArgs(const std::vector<std::string>& args)
 /**
  * 注册一个分析pass
  */
-void AstHelper::RegisterPass(std::string name, std::unique_ptr<MutAstVisitorBase> visitor)
+void AstHelper::RegisterPass(std::string name, std::unique_ptr<Pass> pass)
 {
-    passMap.emplace(name, std::move(visitor));
+    passMap.emplace(name, std::move(pass));
 }
 
 /**

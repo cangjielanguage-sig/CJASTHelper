@@ -49,3 +49,16 @@ void ConstAstVisitor::DefaultVisit(const AstNode& node, VisitResult& res)
 void ConstAstVisitor::DefaultAfter(const AstNode& node, const VisitResult& res)
 {
 }
+
+void ConstAstVisitor::RegBefore(AstKind kind, BeforeFunc&& before)
+{
+    handlers.Reg<BeforeFunc>(kind, std::forward<BeforeFunc>(before));
+}
+void ConstAstVisitor::RegVisit(AstKind kind, VisitFunc&& visit)
+{
+    handlers.Reg<VisitFunc>(kind, std::forward<VisitFunc>(visit));
+}
+void ConstAstVisitor::RegAfter(AstKind kind, AfterFunc&& after)
+{
+    handlers.Reg<AfterFunc>(kind, std::forward<AfterFunc>(after));
+}
