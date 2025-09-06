@@ -4,8 +4,8 @@
  * This file implements the AstHelper.
  */
 #include "AstHelper.h"
-#include "pass/Ast2SourceVisitor.h"
 #include "pass/ReplaceDesugarPass.h"
+#include "pass/ToSourcePass.h"
 #include "utils/ArgumentParser.h"
 #include "utils/Logger.h"
 #include "visitor/MutAstVisitor.h"
@@ -200,7 +200,7 @@ namespace {
 /**
  *  @brief 根据用户输入的选项更新 Builder 配置
  */
-inline void UpdateAst2SourceVisitorBuilder(Ast2SourceVisitorBuilder& builder, const AstHelper::Options& options)
+inline void UpdateToSourcePassBuilder(ToSourcePassBuilder& builder, const AstHelper::Options& options)
 {
     // --dump-desugar=true or false (默认不开启解糖: 尽可能恢复用户源码)
     if (options.enableDesugar) {
@@ -225,13 +225,13 @@ inline void UpdateAst2SourceVisitorBuilder(Ast2SourceVisitorBuilder& builder, co
 bool AstHelper::DoTransform() const
 {
     Logger::Get().Debug("AstHelper::Run", "Get pkgs: ", pkgs.size());
-    Ast2SourceVisitorBuilder asvBuilder;
+    ToSourcePassBuilder asvBuilder;
     asvBuilder.Output(GetOutputDir());
     // 更新Builder
-    UpdateAst2SourceVisitorBuilder(asvBuilder, options);
-    Ast2SourceVisitor ast2SourceVisitor = asvBuilder.Build();
+    UpdateToSourcePassBuilder(asvBuilder, options);
+    ToSourcePass ToSourcePass = asvBuilder.Build();
     for (auto pkg : pkgs) {
-        ast2SourceVisitor.Run(*pkg);
+        ToSourcePass.Run(*pkg);
     }
     return true;
 }

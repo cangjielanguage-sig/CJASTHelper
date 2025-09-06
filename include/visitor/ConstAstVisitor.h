@@ -11,7 +11,7 @@
 #include <map>
 #include <tuple>
 
-class ConstAstVisitor : public AstVisitorBase {
+class ConstAstVisitor : public ConstAstVisitorBase {
 public:
     /**
      * @brief 使用 std::function 定义 BeforeVisit 的回调函数类型。
