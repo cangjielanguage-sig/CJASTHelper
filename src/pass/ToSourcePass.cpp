@@ -1805,7 +1805,7 @@ ToSourcePassBuilder& ToSourcePassBuilder::IgnoreAnnotations(const std::vector<st
     return *this;
 }
 
-ToSourcePass ToSourcePassBuilder::Build()
+std::unique_ptr<ToSourcePass> ToSourcePassBuilder::Build()
 {
-    return ToSourcePass(config);
+    return std::unique_ptr<ToSourcePass>(new ToSourcePass(config));
 }

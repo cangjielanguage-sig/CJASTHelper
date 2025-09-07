@@ -142,10 +142,6 @@ void AstHelper::Run()
         Logger::Get().Error("AstHelper::Run", "DoAnalysis failed.");
         return;
     }
-    if (!DoTransform()) {
-        Logger::Get().Error("AstHelper::Run", "DoTransform failed.");
-        return;
-    }
 }
 
 /**
@@ -184,54 +180,8 @@ bool AstHelper::DoParse()
 bool AstHelper::DoAnalysis()
 {
     Logger::Get().Debug("AstHelper::DoAnalysis");
-    // passes.push_back("test");
-    for (auto& pass : passes) {
-        if (auto visitor = passMap.find(pass); visitor != passMap.end()) {
-            Logger::Get().Debug("AstHelper::DoAnalysis", "do pass: ", pass);
-            for (auto& pkg : pkgs) {
-                visitor->second->Run(*pkg);
-            }
-        }
-    }
-    return true;
-}
-
-namespace {
-/**
- *  @brief 根据用户输入的选项更新 Builder 配置
- */
-inline void UpdateToSourcePassBuilder(ToSourcePassBuilder& builder, const AstHelper::Options& options)
-{
-    // --dump-desugar=true or false (默认不开启解糖: 尽可能恢复用户源码)
-    if (options.enableDesugar) {
-        builder.EnableDesugar();
-    }
-    if (options.stage >= AstHelper::SourceStage::IMPORT) {
-        builder.EnableSema();
-    }
-    builder.Focus(options.filterDecls);
-    // TODO: 默认白名单
-    builder.FocusAnnotationAttrs({"C"});
-    builder.FocusModifierAttrs({"public", "protected", "internal", "private"}, {"func", "var"});
-    builder.IgnoreDecls(options.ignoreDecls);
-    builder.IgnoreAnnotations(options.ignoreAnnotations);
-}
-} // namespace
-
-/**
- * @brief 执行转换阶段, 获取AST并转换为源代码
- * @return 转换阶段执行成功返回true，否则返回false
- */
-bool AstHelper::DoTransform() const
-{
-    Logger::Get().Debug("AstHelper::Run", "Get pkgs: ", pkgs.size());
-    ToSourcePassBuilder asvBuilder;
-    asvBuilder.Output(GetOutputDir());
-    // 更新Builder
-    UpdateToSourcePassBuilder(asvBuilder, options);
-    ToSourcePass ToSourcePass = asvBuilder.Build();
-    for (auto pkg : pkgs) {
-        ToSourcePass.Run(*pkg);
+    for (auto& pkg : pkgs) {
+        passManager.Run(*pkg, options.passes);
     }
     return true;
 }
@@ -292,20 +242,38 @@ void AstHelper::ParseArgs(const std::vector<std::string>& args)
 }
 
 // 私有函数实现
+namespace {
 /**
- * 注册一个分析pass
+ *  @brief 根据用户输入的选项更新 Builder 配置
  */
-void AstHelper::RegisterPass(std::string name, std::unique_ptr<Pass> pass)
+inline void UpdateToSourcePassBuilder(ToSourcePassBuilder& builder, const AstHelper::Options& options)
 {
-    passMap.emplace(name, std::move(pass));
+    // --dump-desugar=true or false (默认不开启解糖: 尽可能恢复用户源码)
+    if (options.enableDesugar) {
+        builder.EnableDesugar();
+    }
+    if (options.stage >= AstHelper::SourceStage::IMPORT) {
+        builder.EnableSema();
+    }
+    builder.Focus(options.filterDecls);
+    // TODO: 默认白名单
+    builder.FocusAnnotationAttrs({"C"});
+    builder.FocusModifierAttrs({"public", "protected", "internal", "private"}, {"func", "var"});
+    builder.IgnoreDecls(options.ignoreDecls);
+    builder.IgnoreAnnotations(options.ignoreAnnotations);
 }
-
+} // namespace
 /**
  * 注册所有分析pass
  */
 void AstHelper::RegisterPasses()
 {
-    RegisterPass("test", std::make_unique<ReplaceDesugarPass>());
+    passManager.RegisterPass("replace-desugar", std::make_unique<ReplaceDesugarPass>());
+    ToSourcePassBuilder asvBuilder;
+    asvBuilder.Output(GetOutputDir());
+    // 更新Builder
+    UpdateToSourcePassBuilder(asvBuilder, options);
+    passManager.RegisterPass("to-source", asvBuilder.Build());
 }
 
 /**

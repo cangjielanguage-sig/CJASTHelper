@@ -40,6 +40,7 @@ public:
         std::vector<std::string> ignoreDecls;         /**< 忽略打印decl配置 */
         std::vector<std::string> ignoreAnnotations;   /**< 忽略打印annotations配置 */
         std::unordered_set<std::string> importedPkgs; /**< --dump-imported: 期望打印导入包的包名 */
+        std::vector<std::string> passes{"to-source"}; /**< TODO: 配置需要执行的 passes 列表 */
     };
 
 public:
@@ -86,11 +87,6 @@ protected:
      * @return 分析阶段执行成功返回true，否则返回false
      */
     bool DoAnalysis();
-    /**
-     * @brief 执行转换阶段, 获取AST并转换为源代码
-     * @return 转换阶段执行成功返回true，否则返回false
-     */
-    bool DoTransform() const;
 
 private:
     /**
@@ -100,9 +96,8 @@ private:
     void ParseArgs(const std::vector<std::string>& args);
 
     /**
-     * 注册一个分析pass
+     * 注册分析pass
      */
-    void RegisterPass(std::string name, std::unique_ptr<Pass> pass);
     void RegisterPasses();
 
     using StageFunc = std::function<bool()>;
@@ -120,9 +115,7 @@ private:
     Options options;                /**< 用户选项 */
     std::vector<Ptr<Package>> pkgs; /**< 分析结果包列表 */
 
-    std::vector<std::string> passes; /**< 配置需要执行的 passes 列表 */
-
-    std::unordered_map<std::string, std::unique_ptr<Pass>> passMap;  /**< 注册的分析pass: name -> Pass */
+    PassManager passManager;
     std::unordered_map<SourceStage, std::function<bool()>> stageMap; /**< 注册的 stage 回调函数 */
 };
 
