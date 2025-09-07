@@ -115,6 +115,7 @@ public:
         PDomain(domain);
         p.PVals(std::forward<Args>(args)...);
         p.PNL();
+        p.Flush();
 #endif
     }
 

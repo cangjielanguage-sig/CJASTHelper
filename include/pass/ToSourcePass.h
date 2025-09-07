@@ -311,9 +311,9 @@ public:
     ToSourcePassBuilder& IgnoreAnnotations(const std::vector<std::string>& annos);
     /**
      * @brief 构建 `ToSourcePass` 实例。
-     * @return 返回构建好的 `ToSourcePass` 实例。
+     * @return 返回构建成功的 `ToSourcePass` 智能指针。
      */
-    ToSourcePass Build();
+    std::unique_ptr<ToSourcePass> Build();
 
 private:
     PassConfig config;

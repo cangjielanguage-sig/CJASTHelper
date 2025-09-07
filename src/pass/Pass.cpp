@@ -3,7 +3,7 @@
  *
  * This file implements the ToSourcePass.
  */
-#include "pass/PassConfig.h"
+#include "pass/Pass.h"
 
 // 默认配置
 PassConfig::PassConfig() : indent(4), out("."), suffix("_source.cj"), flags(0)
@@ -23,4 +23,12 @@ bool PassConfig::Sema() const
 bool PassConfig::Focus(const Decl& decl) const
 {
     return (focusDecls.empty() || focusDecls.count(decl.astKind)) && !ignoreDecls.count(decl.identifier.Val());
+}
+
+/**
+ * 注册一个分析pass
+ */
+void PassManager::RegisterPass(std::string name, std::unique_ptr<Pass> pass)
+{
+    passMap.emplace(name, std::move(pass));
 }
