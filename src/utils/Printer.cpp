@@ -18,7 +18,7 @@ void Printer::Indent()
 Printer& Printer::PNL(int n)
 {
     for (int i = 0; i < n; i++) {
-        os_ << std::endl;
+        os_ << "\n";
     }
     needIndent_ = true;
     return *this;

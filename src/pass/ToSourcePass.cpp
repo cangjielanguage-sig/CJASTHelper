@@ -115,6 +115,7 @@ void ToSourcePass::Visit(const File& node, VisitResult&)
         Traverse(decl, visitor);
         PRT().PNL(2);
     });
+    PRT().Flush();
     ofs.close();
 }
 
