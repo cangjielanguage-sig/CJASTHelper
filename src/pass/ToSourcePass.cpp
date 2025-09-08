@@ -106,7 +106,8 @@ void ToSourcePass::Visit(const File& node, VisitResult&)
     // package declaration
     TryPrintNode(node.package.get());
     // import statements
-    PRT().PVec<ImportSpec>(node.imports, [this](const ImportSpec& imp) { Traverse(imp, visitor); }, "", "", "\n");
+    PRT().PVec<ImportSpec>(
+        node.imports, [this](const ImportSpec& imp) { Traverse(imp, visitor); }, "", "", "\n");
     // toplevel decls
     PRT().PVec<Decl>(node.decls, [this](const Decl& decl) {
         if (!config.Focus(decl)) {
@@ -124,7 +125,8 @@ void ToSourcePass::Visit(const PackageSpec& node, VisitResult&)
     Logger::Get().Debug("ToSourcePass::Visit", "For PackageSpec: ", node.packageName.Val());
     TryPrintNode(node.modifier.get(), "", " ");
     PRT().PVal("package ");
-    PRT().PVec<std::string>(node.prefixPaths, [this](const std::string& pre) { PRT().PVal(pre); }, ".", "", ".");
+    PRT().PVec<std::string>(
+        node.prefixPaths, [this](const std::string& pre) { PRT().PVal(pre); }, ".", "", ".");
     PRT().PVal(Id(node.packageName));
     PRT().PNL(2);
 }
@@ -173,7 +175,8 @@ void ToSourcePass::Visit(const ImportSpec& node, VisitResult&)
 void ToSourcePass::Visit(const ImportContent& node, VisitResult&)
 {
     Logger::Get().Debug("ToSourcePass::Visit", "For ImportContent");
-    PRT().PVec<std::string>(node.prefixPaths, [this](const std::string& pre) { PRT().PVal(pre); }, ".", "", ".");
+    PRT().PVec<std::string>(
+        node.prefixPaths, [this](const std::string& pre) { PRT().PVal(pre); }, ".", "", ".");
     if (node.kind == ImportKind::IMPORT_SINGLE) {
         // import xxx.a
         PRT().PVal(Id(node.identifier));
@@ -189,7 +192,8 @@ void ToSourcePass::Visit(const Annotation& node, VisitResult&)
 {
     Logger::Get().Debug("ToSourcePass::Visit", "For Annotation");
     PRT().PVals("@", Id(node.identifier));
-    PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "[", "]");
+    PRT().PVec<FuncArg>(
+        node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "[", "]");
     PRT().PNL();
 }
 
@@ -470,7 +474,8 @@ void ToSourcePass::Visit(const OptionType& node, VisitResult&)
 void ToSourcePass::Visit(const TupleType& node, VisitResult&)
 {
     Logger::Get().Debug("ToSourcePass::Visit", "For TupleType");
-    PRT().PVec<Type>(node.fieldTypes, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "(", ")");
+    PRT().PVec<Type>(
+        node.fieldTypes, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "(", ")");
 }
 
 void ToSourcePass::Visit(const QualifiedType& node, VisitResult&)
@@ -478,7 +483,8 @@ void ToSourcePass::Visit(const QualifiedType& node, VisitResult&)
     Logger::Get().Debug("ToSourcePass::Visit", "For QualifiedType");
     VisitNode(node.baseType);
     PRT().PVals(".", Id(node.field));
-    PRT().PVec<Type>(node.typeArguments, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "<", ">");
+    PRT().PVec<Type>(
+        node.typeArguments, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "<", ">");
 }
 
 void ToSourcePass::Visit(const ThisType& node, VisitResult&)
@@ -512,7 +518,8 @@ void ToSourcePass::Visit(const ConstantType& node, VisitResult&)
 void ToSourcePass::Visit(const FuncType& node, VisitResult&)
 {
     Logger::Get().Debug("ToSourcePass::Visit", "For FuncType");
-    PRT().PVec<Type>(node.paramTypes, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "(", ")", true);
+    PRT().PVec<Type>(
+        node.paramTypes, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "(", ")", true);
     TryPrintNode(node.retType.get(), " -> ");
 }
 
@@ -543,7 +550,8 @@ void ToSourcePass::Visit(const EnumPattern& node, VisitResult&)
     } else {
         VisitNode(ctor);
     }
-    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, ", ", "(", ")");
+    PRT().PVec<Pattern>(
+        node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, ", ", "(", ")");
 }
 
 void ToSourcePass::Visit(const VarPattern& node, VisitResult&)
@@ -570,7 +578,8 @@ void ToSourcePass::Visit(const TypePattern& node, VisitResult&)
 void ToSourcePass::Visit(const TuplePattern& node, VisitResult&)
 {
     Logger::Get().Debug("ToSourcePass::Visit", "For TuplePattern");
-    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, ", ", "(", ")");
+    PRT().PVec<Pattern>(
+        node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, ", ", "(", ")");
 }
 
 // Expr
@@ -618,7 +627,8 @@ void ToSourcePass::Visit(const CallExpr& node, VisitResult&)
     }
     // General func call
     VisitNode(node.baseFunc);
-    PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")", true);
+    PRT().PVec<FuncArg>(
+        node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")", true);
 }
 
 void ToSourcePass::Visit(const ReturnExpr& node, VisitResult& res)
@@ -646,13 +656,15 @@ void ToSourcePass::Visit(const LitConstExpr& node, VisitResult&)
 void ToSourcePass::Visit(const ArrayLit& node, VisitResult&)
 {
     Logger::Get().Debug("ToSourcePass::Visit", "For ArrayLit");
-    PRT().PVec<AstNode>(node.children, [this](const AstNode& expr) { Traverse(expr, visitor); }, ", ", "[", "]", true);
+    PRT().PVec<AstNode>(
+        node.children, [this](const AstNode& expr) { Traverse(expr, visitor); }, ", ", "[", "]", true);
 }
 
 void ToSourcePass::Visit(const TupleLit& node, VisitResult&)
 {
     Logger::Get().Debug("ToSourcePass::Visit", "For TupleLit");
-    PRT().PVec<AstNode>(node.children, [this](const AstNode& expr) { Traverse(expr, visitor); }, ", ", "(", ")", true);
+    PRT().PVec<AstNode>(
+        node.children, [this](const AstNode& expr) { Traverse(expr, visitor); }, ", ", "(", ")", true);
 }
 
 void ToSourcePass::Visit(const TypeConvExpr& node, VisitResult&)
@@ -690,7 +702,8 @@ void ToSourcePass::Visit(const LambdaExpr& node, VisitResult&)
     PRT().PVal("{");
     AH_ASSERT(body.paramLists.size() == 1);
     auto& params = body.paramLists[0]->params;
-    PRT().PVec<FuncParam>(params, [this](const FuncParam& param) { Traverse(param, visitor); }, ", ", " ");
+    PRT().PVec<FuncParam>(
+        params, [this](const FuncParam& param) { Traverse(param, visitor); }, ", ", " ");
     PRT().PWI([this, &body] { VisitNode(body.body); }, " =>", "}");
 }
 
@@ -698,7 +711,8 @@ void ToSourcePass::Visit(const MatchCase& node, VisitResult&)
 {
     Logger::Get().Debug("ToSourcePass::Visit", "For MatchCase");
     PRT().PVal("case ");
-    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, " | ");
+    PRT().PVec<Pattern>(
+        node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, " | ");
     TryPrintNode(node.patternGuard.get(), " where ");
     PRT().PWI([this, &node] { VisitNode(node.exprOrDecls); }, " =>");
 }
@@ -857,7 +871,8 @@ void ToSourcePass::Visit(const SubscriptExpr& node, VisitResult&)
 {
     Logger::Get().Debug("ToSourcePass::Visit", "For SubscriptExpr");
     VisitNode(node.baseExpr);
-    PRT().PVec<Expr>(node.indexExprs, [this](const Expr& expr) { Traverse(expr, visitor); }, ", ", "[", "]");
+    PRT().PVec<Expr>(
+        node.indexExprs, [this](const Expr& expr) { Traverse(expr, visitor); }, ", ", "[", "]");
 }
 
 void ToSourcePass::Visit(const JumpExpr& node, VisitResult&)
@@ -883,7 +898,8 @@ void ToSourcePass::Visit(const LetPatternDestructor& node, VisitResult&)
 {
     Logger::Get().Debug("ToSourcePass::Visit", "For LetPatternDestructor");
     PRT().PVal("let ");
-    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, " | ");
+    PRT().PVec<Pattern>(
+        node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, " | ");
     TryPrintNode(node.initializer, " <- ");
 }
 
@@ -945,7 +961,8 @@ void ToSourcePass::Visit(const GenericConstraint& node, VisitResult&)
     Logger::Get().Debug("ToSourcePass::Visit", "For GenericConstraint");
     VisitNode(node.type);
     PRT().PVal(" <: ");
-    PRT().PVec<Type>(node.upperBounds, [this](const Type& tp) { Traverse(tp, visitor); }, " & ");
+    PRT().PVec<Type>(
+        node.upperBounds, [this](const Type& tp) { Traverse(tp, visitor); }, " & ");
 }
 
 /// 私有实现函数
@@ -1231,7 +1248,8 @@ bool ToSourcePass::TryPrintEnumConstructor(const FuncDecl& node)
  */
 inline void ToSourcePass::PrintInheritedTypes(const std::vector<OwnedPtr<Type>>& types)
 {
-    PRT().PVec<Type>(types, [this](const Type& ty) { Traverse(ty, visitor); }, " & ", " <: ");
+    PRT().PVec<Type>(
+        types, [this](const Type& ty) { Traverse(ty, visitor); }, " & ", " <: ");
 }
 
 /**
@@ -1306,9 +1324,11 @@ void ToSourcePass::TryPrintGenericConstraints(Ptr<Generic> generic)
 void ToSourcePass::PrintInstArgs(const NameReferenceExpr& ref, bool isPattern)
 {
     if (!ref.typeArguments.empty()) {
-        PRT().PVec<Type>(ref.typeArguments, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "<", ">");
+        PRT().PVec<Type>(
+            ref.typeArguments, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "<", ">");
     } else if (config.Sema() && !isPattern) {
-        PRT().PVec<Ty>(ref.instTys, [this](const Ty& ty) { PrintTy(ty); }, ", ", "<", ">");
+        PRT().PVec<Ty>(
+            ref.instTys, [this](const Ty& ty) { PrintTy(ty); }, ", ", "<", ">");
     }
 }
 
@@ -1370,17 +1390,20 @@ void ToSourcePass::PrintTy(const Ty& ty)
             return;
         case TypeKind::TYPE_POINTER:
             PRT().PVal("CPointer");
-            PRT().PVec<Ty>(ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "<", ">");
+            PRT().PVec<Ty>(
+                ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "<", ">");
             return;
         case TypeKind::TYPE_CLASS:
         case TypeKind::TYPE_INTERFACE:
         case TypeKind::TYPE_STRUCT:
         case TypeKind::TYPE_ENUM:
             PRT().PVal(ty.name);
-            PRT().PVec<Ty>(ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "<", ">");
+            PRT().PVec<Ty>(
+                ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "<", ">");
             return;
         case TypeKind::TYPE_TUPLE:
-            PRT().PVec<Ty>(ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "(", ")");
+            PRT().PVec<Ty>(
+                ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "(", ")");
             return;
         case TypeKind::TYPE_GENERICS:
             PRT().PVal(ty.name);
@@ -1473,7 +1496,8 @@ bool ToSourcePass::TryPrintInitCall(const CallExpr& node)
     // 构造函数调用 init() -> A(), TODO: 应该缩小下范围， 构造函数内的init不需要替换
     // 特殊场景处理: init() -> ??A 是解糖表达式
     PrintTy(*TryGetBaseTy(node.ty));
-    PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")", true);
+    PRT().PVec<FuncArg>(
+        node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")", true);
     return true;
 }
 
@@ -1517,7 +1541,8 @@ bool ToSourcePass::TryRecoverOverloadCallExpr(const CallExpr& node)
     } else if (op == TokenKind::LPAREN) {
         // ()
         Traverse(*base, visitor);
-        PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")");
+        PRT().PVec<FuncArg>(
+            node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")");
     } else {
         // 二元： + - * / % ** << >> < <= > >= == != & ^ |
         Traverse(*base, visitor);
@@ -1527,7 +1552,8 @@ bool ToSourcePass::TryRecoverOverloadCallExpr(const CallExpr& node)
     // 打印个注释在这里
     PRT().PVal(" /* Desugared ");
     Traverse(ma, visitor);
-    PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")", true);
+    PRT().PVec<FuncArg>(
+        node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")", true);
     PRT().PVal(" */ ");
     return true;
 }
@@ -1712,101 +1738,4 @@ void ToSourcePass::PrintDesugaredForInString(const ForInExpr& node)
 Printer& ToSourcePass::PRT()
 {
     return prt;
-}
-
-/// ToSourcePassBuilder 实现方法
-ToSourcePassBuilder& ToSourcePassBuilder::Output(const std::string& out)
-{
-    config.out = out;
-    return *this;
-}
-
-ToSourcePassBuilder& ToSourcePassBuilder::Suffix(const std::string& suffix)
-{
-    config.suffix = suffix;
-    return *this;
-}
-
-ToSourcePassBuilder& ToSourcePassBuilder::Indent(int indent)
-{
-    config.indent = indent;
-    return *this;
-}
-
-ToSourcePassBuilder& ToSourcePassBuilder::EnableDesugar()
-{
-    config.flags |= PassConfig::DESUGAR_FLAG;
-    return *this;
-}
-
-ToSourcePassBuilder& ToSourcePassBuilder::EnableSema()
-{
-    config.flags |= PassConfig::SEMA_FLAG;
-    return *this;
-}
-
-namespace {
-/**
- * @brief 将字符串键映射到AstKind
- */
-const std::unordered_map<std::string, AstKind> key2DeclKind{{"func", AstKind::FUNC_DECL},
-    {"class", AstKind::CLASS_DECL}, {"interface", AstKind::INTERFACE_DECL}, {"struct", AstKind::STRUCT_DECL},
-    {"var", AstKind::VAR_DECL}};
-} // namespace
-
-ToSourcePassBuilder& ToSourcePassBuilder::Focus(const std::vector<std::string>& kinds)
-{
-    for (auto& kind : kinds) {
-        config.focusDecls.insert(key2DeclKind.at(kind));
-    }
-    return *this;
-}
-
-/**
- * @brief 设置关注的注解属性。
- * @param attrs 关注的注解属性名称列表。
- */
-ToSourcePassBuilder& ToSourcePassBuilder::FocusAnnotationAttrs(const std::vector<std::string>& attrs)
-{
-    config.focusAnnotationAttrs.insert(attrs.begin(), attrs.end());
-    return *this;
-}
-
-/**
- * @brief 设置关注的修饰符属性。
- * @param attrs 关注的修饰符属性名称列表。
- */
-ToSourcePassBuilder& ToSourcePassBuilder::FocusModifierAttrs(
-    const std::vector<std::string>& attrs, const std::vector<std::string>& kinds)
-{
-    config.focusModifierAttrs.insert(attrs.begin(), attrs.end());
-    for (auto& kind : kinds) {
-        config.focusModifierWhiteList.insert(key2DeclKind.at(kind));
-    }
-    return *this;
-}
-
-/**
- * @brief 设置忽略的顶层声明。
- * @param decls 忽略的声明标识符列表。
- */
-ToSourcePassBuilder& ToSourcePassBuilder::IgnoreDecls(const std::vector<std::string>& decls)
-{
-    config.ignoreDecls.insert(decls.begin(), decls.end());
-    return *this;
-}
-
-/**
- * @brief 设置忽略的注解。
- * @param annos 忽略的注解名称列表。
- */
-ToSourcePassBuilder& ToSourcePassBuilder::IgnoreAnnotations(const std::vector<std::string>& annos)
-{
-    config.ignoreAnnotations.insert(annos.begin(), annos.end());
-    return *this;
-}
-
-std::unique_ptr<ToSourcePass> ToSourcePassBuilder::Build()
-{
-    return std::unique_ptr<ToSourcePass>(new ToSourcePass(config));
 }

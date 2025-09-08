@@ -6,11 +6,10 @@
 #pragma once
 
 #include "pass/Pass.h"
+#include "utils/ArgHelper.h"
 #include "utils/Printer.h"
 #include "wrapper/WrapperCangjieFrontend.h"
 #include <memory>
-#include <unordered_map>
-#include <unordered_set>
 
 /**
  * 封装了对Cangjie前端工具的操作
@@ -18,38 +17,11 @@
 class AstHelper {
 public:
     /**
-     * @enum SourceStage
-     * 表示源代码处理的不同阶段
-     */
-    enum class SourceStage {
-        DEFAULT = 0,     /**< No Source. */
-        PARSE,           /**< Source of parsed ast. */
-        DESUGARED_PARSE, /**< Source of desugared parsed ast. */
-        IMPORT,          /**< Import Depend Packages for dump imports. */
-        SEMA,            /**< Source of typechecked ast. */
-        DESUGARED_SEMA,  /**< Source of desugared typechecked ast. */
-    };
-
-    /**
-     * @brief helper 自定义选项定义
-     */
-    struct Options {
-        SourceStage stage = SourceStage::DEFAULT;     /**< 当前的源代码阶段 */
-        bool enableDesugar = false;                   /**< 是否启用语法糖打印 */
-        std::vector<std::string> filterDecls;         /**< 过滤打印decl配置 */
-        std::vector<std::string> ignoreDecls;         /**< 忽略打印decl配置 */
-        std::vector<std::string> ignoreAnnotations;   /**< 忽略打印annotations配置 */
-        std::unordered_set<std::string> importedPkgs; /**< --dump-imported: 期望打印导入包的包名 */
-        std::vector<std::string> passes{"to-source"}; /**< TODO: 配置需要执行的 passes 列表 */
-    };
-
-public:
-    /**
      * @brief 构造AstHelper实例
      * @param args 命令行参数的向量
      * @param env 环境变量的映射
      */
-    explicit AstHelper(const std::vector<std::string>& args, const std::unordered_map<std::string, std::string>& env);
+    AstHelper(const Options& options);
 
     /**
      * @brief 默认析构函数
@@ -66,15 +38,6 @@ public:
      * @brief 根据当前配置执行相应的阶段
      */
     void Run();
-
-    /**
-     * @brief 获取当前的源代码阶段
-     * @return 当前的源代码阶段
-     */
-    SourceStage GetStage() const
-    {
-        return options.stage;
-    }
 
 protected:
     /**
@@ -118,20 +81,3 @@ private:
     PassManager passManager;
     std::unordered_map<SourceStage, std::function<bool()>> stageMap; /**< 注册的 stage 回调函数 */
 };
-
-/**
- * @brief 解析命令行参数
- * @param argc 参数数量
- * @param argv 参数字符串数组
- * @return 解析后的参数向量
- */
-std::vector<std::string> ParseArgs(int argc, const char* const* argv);
-
-/**
- * @brief 解析环境变量
- * @param envp 环境变量字符串数组
- * @param focus 需要关注的键集合
- * @return 解析后的环境变量映射
- */
-std::unordered_map<std::string, std::string> ParseEnv(
-    const char* const* envp, const std::unordered_set<std::string>& focus);

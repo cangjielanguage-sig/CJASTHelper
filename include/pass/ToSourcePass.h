@@ -39,6 +39,11 @@ public:
  */
 class ToSourcePass : public Pass {
 public:
+    /**
+     * @brief 构造函数，初始化输出文件、缩进和标志。
+     * @param config Ast2SourceConfig对象，包含输出文件、缩进和标志信息。
+     */
+    ToSourcePass(PassConfig config);
     ~ToSourcePass() override = default;
 
     void Run(AstNode& node) override;
@@ -110,11 +115,6 @@ protected:
 
 private:
     friend class ToSourcePassBuilder;
-    /**
-     * @brief 构造函数，初始化输出文件、缩进和标志。
-     * @param config Ast2SourceConfig对象，包含输出文件、缩进和标志信息。
-     */
-    ToSourcePass(PassConfig config);
 
     void RegisterHandlers();
 
@@ -247,74 +247,4 @@ private:
     Printer prt;                                                     /**< 打印器实例 */
     std::unordered_map<Ptr<const Decl>, std::string> desugaredVarId; /**< 解糖变量名字表 */
     ConstAstVisitor visitor;                                         /**< 抽象语法树遍历器 */
-};
-
-/**
- * @class ToSourcePassBuilder
- * @brief 构建 `ToSourcePass` 的辅助类。
- */
-class ToSourcePassBuilder {
-public:
-    ToSourcePassBuilder() = default;
-    /**
-     * @brief 设置输出文件路径。
-     * @param out 输出文件路径。
-     * @return 返回当前构建器实例的引用，支持链式调用。
-     */
-    ToSourcePassBuilder& Output(const std::string& out);
-    /**
-     * @brief 设置输出文件后缀。
-     * @param suffix 输出文件后缀名。
-     * @return 返回当前构建器实例的引用，支持链式调用。
-     */
-    ToSourcePassBuilder& Suffix(const std::string& suffix);
-    /**
-     * @brief 设置输出缩进大小。
-     * @param indent 缩进大小。
-     * @return 返回当前构建器实例的引用，支持链式调用。
-     */
-    ToSourcePassBuilder& Indent(int indent);
-    /**
-     * @brief 启用解糖功能。
-     */
-    ToSourcePassBuilder& EnableDesugar();
-    /**
-     * @brief 启用语义分析功能。
-     */
-    ToSourcePassBuilder& EnableSema();
-    /**
-     * @brief 设置关注的顶层声明类型。
-     * @param kinds 关注的声明类型名称列表。
-     */
-    ToSourcePassBuilder& Focus(const std::vector<std::string>& kinds);
-    /**
-     * @brief 设置关注的注解属性。
-     * @param attrs 关注的注解属性名称列表。
-     */
-    ToSourcePassBuilder& FocusAnnotationAttrs(const std::vector<std::string>& attrs);
-    /**
-     * @brief 设置关注的修饰符属性。
-     * @param attrs 关注的修饰符属性名称列表。
-     * @param kinds 关注的修饰符属性所在的声明类型名称列表（白名单）。
-     */
-    ToSourcePassBuilder& FocusModifierAttrs(
-        const std::vector<std::string>& attrs, const std::vector<std::string>& kinds);
-    /**
-     * @brief 设置忽略的顶层声明。
-     * @param decls 忽略的声明标识符列表。
-     */
-    ToSourcePassBuilder& IgnoreDecls(const std::vector<std::string>& decls);
-    /**
-     * @brief 设置忽略的注解。
-     * @param annos 忽略的注解名称列表。
-     */
-    ToSourcePassBuilder& IgnoreAnnotations(const std::vector<std::string>& annos);
-    /**
-     * @brief 构建 `ToSourcePass` 实例。
-     * @return 返回构建成功的 `ToSourcePass` 智能指针。
-     */
-    std::unique_ptr<ToSourcePass> Build();
-
-private:
-    PassConfig config;
 };
