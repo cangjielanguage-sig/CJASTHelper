@@ -4,9 +4,45 @@
  * This file implements the AstHelper.
  */
 #include "AstHelper.h"
+#include "pass/CheckDesugarPass.h"
 #include "pass/ReplaceDesugarPass.h"
 #include "pass/ToSourcePass.h"
 #include "utils/Logger.h"
+
+namespace {
+// Debug
+std::string ToString(const Options& opt)
+{
+#ifdef NDEBUG
+    return "";
+#else
+    std::ostringstream oss;
+    Printer p(oss, 4);
+    p << "Options: {";
+    p.PNL().Indent();
+    p.PVals("enableDesugar: ", opt.enableDesugar).PNL();
+    p.PVec<std::string>(
+         opt.filterDecls, [](const std::string& decl) { return decl; }, ", ", "filterDecls: {", "}", true)
+        .PNL();
+    p.PVec<std::string>(
+         opt.ignoreDecls, [](const std::string& anno) { return anno; }, ", ", "ignoreDecls: {", "}", true)
+        .PNL();
+    p.PVec<std::string>(
+         opt.ignoreAnnotations, [](const std::string& anno) { return anno; }, ", ", "ignoreAnnotations: {", "}", true)
+        .PNL();
+    p.PVec<std::string>(
+         opt.importedPkgs, [](const std::string& pkg) { return pkg; }, ", ", "importedPkgs: {", "}", true)
+        .PNL();
+    p.PVec<std::string>(
+         opt.passes, [](const std::string& pass) { return pass; }, ", ", "passes: {", "}")
+        .PNL();
+
+    p.Unindent();
+    p << "}\n";
+    return oss.str();
+#endif
+}
+} // namespace
 
 AstHelper::AstHelper(const Options& options) : options(options)
 {
@@ -26,6 +62,7 @@ std::string AstHelper::GetOutputDir() const
 
 void AstHelper::Run()
 {
+    Logger::Get().Debug("AstHelper::Run", ToString(options));
     if (!DoParse()) {
         Logger::Get().Error("AstHelper::Run", "DoParse failed.");
         return;
@@ -118,7 +155,9 @@ inline PassConfig GetPassConfig(const Options& options)
 void AstHelper::RegisterPasses()
 {
     PassConfig config = GetPassConfig(this->options);
-    // passManager.RegisterPass("replace-desugar", std::make_unique<ReplaceDesugarPass>(config));
+    passManager.RegisterPass("replace-desugar", std::make_unique<ReplaceDesugarPass>(config));
+
+    passManager.RegisterPass("check-desugar", std::make_unique<CheckDesugarPass>(config));
 
     config.Output(GetOutputDir());
     passManager.RegisterPass("to-source", std::make_unique<ToSourcePass>(config));

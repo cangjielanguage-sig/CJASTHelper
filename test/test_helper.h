@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <vector>
 
 using ConStr = const std::string;

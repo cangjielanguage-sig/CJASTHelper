@@ -116,6 +116,22 @@ protected:
     CallbackManager<AstKind, std::tuple<BeforeFunc, VisitFunc, AfterFunc, MergeFunc>> handlers;
 };
 
+class CounterAstVisitor : public MutAstVisitor {
+public:
+    CounterAstVisitor() = default;
+
+protected:
+    /**
+     * @brief 合并子节点的遍历结果。
+     *
+     * @param node 父节点。
+     * @param base 父节点的遍历结果对象，用于存储合并后的结果。
+     * @param childrenRes 子节点的遍历结果列表。
+     * @return 合并后的遍历结果。
+     */
+    void DefaultMergeResult(AstNode& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes) override;
+};
+
 class ReplaceAstVisitor : public MutAstVisitor {
 public:
     ReplaceAstVisitor() = default;

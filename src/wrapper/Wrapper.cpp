@@ -4,6 +4,7 @@
  * This file implements the wrapper ast nodes.
  */
 
+#include "cangjie/AST/PrintNode.h"
 #include "utils/Cast.h"
 #include "utils/Logger.h"
 #include "utils/Macro.h"
@@ -25,9 +26,9 @@ std::vector<Ptr<AstNode>> AstNodeHelper::GetChildren(const AstNode& node)
     if (auto fn = AstNodeHelper::GetInstance().handlers.TryGet<CollectFunc>(node.astKind)) {
         fn->get()(node, result);
     } else {
-        Logger::Get().Warn("AstNodeHelper::GetChildren", "unregistered kind ", AstKind2Str(node.astKind));
+        // Logger::Get().Warn("AstNodeHelper::GetChildren", "unregistered kind ", AstKind2Str(node.astKind));
     }
-    return std::move(result);
+    return result;
 }
 
 void AstNodeHelper::ReplaceChildren(AstNode& node, std::vector<OwnedPtr<AstNode>>& children)
@@ -35,8 +36,23 @@ void AstNodeHelper::ReplaceChildren(AstNode& node, std::vector<OwnedPtr<AstNode>
     if (auto fn = AstNodeHelper::GetInstance().handlers.TryGet<ReplaceFunc>(node.astKind)) {
         fn->get()(node, children);
     } else {
-        Logger::Get().Warn("AstNodeHelper::ReplaceChildren", "unregistered kind ", AstKind2Str(node.astKind));
+        // Logger::Get().Warn("AstNodeHelper::ReplaceChildren", "unregistered kind ", AstKind2Str(node.astKind));
     }
+}
+
+void AstNodeHelper::DumpAst(const AstNode& node, const std::string& out)
+{
+    std::ofstream file(out);
+    if (!file.is_open()) {
+        Logger::Get().Error("AstNodeHelper::DumpAst", "open file failed: ", out);
+        return;
+    }
+    Logger::Get().Debug("AstNodeHelper::DumpAst", "open file success! ", out);
+    std::streambuf* original_cout_buf = std::cout.rdbuf();
+    std::cout.rdbuf(file.rdbuf());
+    Cangjie::PrintNode(&node);
+    std::cout.rdbuf(original_cout_buf);
+    file.close();
 }
 
 std::unique_ptr<AstNodeHelper> AstNodeHelper::helper;
@@ -606,17 +622,18 @@ template <typename T> OwnedPtr<T> OwnedCast(OwnedPtr<AstNode>&& base)
  * @param src 源节点指针，将被替换为dst的内容
  * @note 仅当src和dst都非空且src可以转换为T类型时才执行交换
  */
-template <std::derived_from<AstNode> T> inline void TrySwap(OwnedPtr<T>& dst, OwnedPtr<AstNode>& src)
+template <std::derived_from<AstNode> T> inline bool TrySwap(OwnedPtr<T>& dst, OwnedPtr<AstNode>& src)
 {
-    if (src == nullptr || dst == nullptr) {
-        return;
+    if (!dst || !src) {
+        return false;
     }
     if (T* ptr = dynamic_cast<T*>(src.get().get()); !ptr) {
-        return;
+        return false;
     }
     T* tmp = static_cast<T*>(src.release());
     src.reset(dst.release());
     dst.reset(tmp);
+    return true;
 }
 
 template <typename T> using OwnedVec = std::vector<OwnedPtr<T>>;
@@ -624,8 +641,9 @@ using OwnedNodeIter = OwnedVec<AstNode>::iterator;
 
 template <std::derived_from<AstNode> T> inline void ReplaceNode(OwnedPtr<T>& dst, OwnedNodeIter& pos)
 {
-    TrySwap(dst, *pos);
-    pos++;
+    if (TrySwap(dst, *pos)) {
+        pos++;
+    }
 }
 
 template <std::derived_from<AstNode> T>
@@ -1215,6 +1233,7 @@ void AstNodeHelper::RegReplaceHandlers()
         .Reg<ReplaceFunc>(AstKind::FUNC_DECL,
             [](AstNode& node, OwnedVec<AstNode>& children) {
                 auto& decl = Cast<FuncDecl&>(node);
+                AH_ASSERT(children.size() >= AstNodeHelper::GetChildren(decl).size());
                 auto it = children.begin();
                 ReplaceRange(decl, it);
                 ReplaceNode(decl.funcBody, it);
