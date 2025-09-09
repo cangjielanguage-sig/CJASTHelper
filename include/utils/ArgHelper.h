@@ -1,12 +1,15 @@
 /**
  * @file
  *
- * This file declares the AstHelper ArgParser.
+ * This file declares the ArgParser & AstHelper.
  */
 
 #pragma once
-#include "utils/ArgumentParser.h"
 #include "utils/Printer.h"
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 using StrVec = std::vector<std::string>;
 using StrSet = std::unordered_set<std::string>;
@@ -14,6 +17,61 @@ using StrMap = std::unordered_map<std::string, std::string>;
 using StrPair = std::pair<std::string, std::string>;
 using StrPairVec = std::vector<StrPair>;
 using ConStr = const std::string;
+
+// Invalid Argument Exception
+class InvalidArgumentException : public std::exception {
+private:
+    std::string message;
+
+public:
+    explicit InvalidArgumentException(const std::string& msg) noexcept;
+    const char* what() const noexcept override;
+};
+
+/**
+ * @class ArgumentParser
+ * @brief 用于解析命令行参数的类。
+ */
+class ArgumentParser {
+public:
+    /**
+     * @brief 构造函数，初始化合法选项及其取值范围。
+     * @param validOptions 合法选项及其对应的取值集合。
+     */
+    explicit ArgumentParser(const std::unordered_map<std::string, std::unordered_set<std::string>>& validOptions);
+
+    /**
+     * @brief 解析命令行参数。
+     * @param args 命令行参数列表。
+     */
+    void Parse(const std::vector<std::string>& args);
+
+    /**
+     * @brief 获取单值选项的值。
+     * @param option 选项名称。
+     * @param dv 如果不存在的话，返回默认值。
+     * @return 选项的值。
+     */
+    std::string GetSingleValue(const std::string& option, const std::string& dv = "") const;
+
+    /**
+     * @brief 获取多值选项的值，不存在返回空列表。
+     * @param option 选项名称。
+     * @return 选项的值列表。
+     */
+    std::vector<std::string> GetMultiValue(const std::string& option) const;
+
+private:
+    std::unordered_map<std::string, std::unordered_set<std::string>> validOptions; // 合法选项及其取值范围
+    std::unordered_map<std::string, std::vector<std::string>> parsedOptions;       // 已解析的选项及其值
+
+    /**
+     * @brief 检查选项和值的合法性。
+     * @param option 选项名称。
+     * @param values 选项的值列表。
+     */
+    void ValidateOption(const std::string& option, const std::vector<std::string>& values) const;
+};
 
 /**
  * @enum SourceStage
@@ -54,12 +112,12 @@ struct Options {
 };
 
 struct OptionDesc {
-    std::string key;
-    StrVec values;
-    std::string mainDesc;
-    StrPairVec subDesc;
-    bool single;
-    bool visible;
+    std::string key;      /**< key of option */
+    StrVec values;        /**< values of option */
+    std::string mainDesc; /**< main description of option */
+    StrPairVec subDesc;   /**< sub description of option */
+    bool single;          /**< whether option is single */
+    bool visible;         /**< whether option is visible */
 
     OptionDesc& Key(std::string&& key);
     OptionDesc& Values(StrVec&& values);
@@ -73,7 +131,6 @@ struct OptionDesc {
  * @brief 命令行参数解析器 & helper 信息打印
  */
 class ArgHelper {
-public:
 public:
     /**
      * @brief 构造ArgHelper实例
@@ -91,6 +148,9 @@ public:
      */
     Options ParseArgs(int argc, const char* const* argv, const char* const* envp);
 
+    /**
+     * Show helper info
+     */
     void ShowHelperInfo();
 
 private:
@@ -101,5 +161,5 @@ private:
 private:
     std::unordered_map<std::string, OptionDesc> validOptions; /* key: option, value: description */
     Printer p;
-    int width = 32; // 对齐宽度
+    int width = 32; // 左对齐宽度
 };

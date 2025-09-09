@@ -1,3 +1,9 @@
+/**
+ * @file
+ *
+ * This file declares the Basic Pass.
+ */
+
 #pragma once
 
 #include "wrapper/WrapperAst.h"

@@ -4,9 +4,7 @@
  * This file implements the AstHelper.
  */
 #include "AstHelper.h"
-#include "pass/CheckDesugarPass.h"
-#include "pass/ReplaceDesugarPass.h"
-#include "pass/ToSourcePass.h"
+#include "pass/AllPasses.h"
 #include "utils/Logger.h"
 
 AstHelper::AstHelper(const Options& options) : options(options)
