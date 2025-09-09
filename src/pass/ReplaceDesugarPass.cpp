@@ -16,8 +16,10 @@ ReplaceDesugarPass::ReplaceDesugarPass(PassConfig config) : Pass(config)
 
 void ReplaceDesugarPass::Run(AstNode& node)
 {
+    // AstNodeHelper::DumpAst(node, "input.txt");
     Logger::Get().Debug("ReplaceDesugarPass::Run");
     MutTraverse(node, visitor);
+    // AstNodeHelper::DumpAst(node, "input_ReplaceDesugarPass.txt");
 }
 
 void ReplaceDesugarPass::Visit(OptionType& node, ValuedResult& res)

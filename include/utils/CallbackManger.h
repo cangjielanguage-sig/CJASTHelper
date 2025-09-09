@@ -51,26 +51,6 @@ template <typename T> consteval bool is_unique_tuple()
 template <typename T>
 concept unique_callable_tuple = is_specialization_v<T, std::tuple> && is_unique_tuple<T>() && is_callable_tuple<T>();
 
-// tuple 中是否有元素类型
-template <typename U, typename Tuple> constexpr bool in_tuple()
-{
-    constexpr std::size_t N = std::tuple_size_v<Tuple>;
-    return [&]<std::size_t... I>(std::index_sequence<I...>) consteval {
-        return (std::is_same_v<U, std::tuple_element_t<I, Tuple>> || ...);
-    }(std::make_index_sequence<N>{});
-}
-
-// tuple 中元素类型的索引
-template <typename U, typename Tuple> consteval std::size_t tuple_index()
-{
-    constexpr std::size_t N = std::tuple_size_v<Tuple>;
-    std::size_t result = N; // 默认未找到
-    [&]<std::size_t... I>(std::index_sequence<I...>) consteval {
-        ((std::is_same_v<U, std::tuple_element_t<I, Tuple>> ? result = I : I), ...);
-    }(std::make_index_sequence<N>{});
-    return result;
-}
-
 // Concept：enum 类型
 template <typename T>
 concept enum_type = std::is_enum_v<T>;
@@ -83,17 +63,15 @@ private:
 public:
     template <is_functional Callback> CallbackManager& Reg(Key key, Callback&& cb)
     {
-        static_assert(in_tuple<Callback, Callbacks>(), "CallbackManager: Invalid callback type");
-        std::get<tuple_index<Callback, Callbacks>()>(callbacks[key]) = std::forward<Callback>(cb);
+        std::get<Callback>(callbacks[key]) = std::forward<Callback>(cb);
         return *this;
     }
 
     template <is_functional Callback> std::optional<std::reference_wrapper<Callback>> TryGet(Key key)
     {
-        static_assert(in_tuple<Callback, Callbacks>(), "CallbackManager: Invalid callback type");
         // 获取对应位置的回调函数指针
         if (auto it = callbacks.find(key); it != callbacks.end())
-            if (auto& fn = std::get<tuple_index<Callback, Callbacks>()>(it->second); fn) {
+            if (auto& fn = std::get<Callback>(it->second); fn) {
                 return std::ref(fn);
             }
         return std::nullopt;

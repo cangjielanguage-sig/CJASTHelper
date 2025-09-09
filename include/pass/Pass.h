@@ -4,10 +4,11 @@
 
 /**
  * @class PassConfig
- * @brief 配置 `ToSourcePass` 的参数。
+ * @brief 配置 `Pass` 的参数。
+ *
+ * TODO: 拆分 PassConfig
  */
-class PassConfig {
-public:
+struct PassConfig {
     PassConfig();
 
     /**
@@ -28,7 +29,59 @@ public:
      */
     bool Focus(const Decl& decl) const;
 
-public:
+    /**
+     * @brief 设置输出文件路径。
+     * @param out 输出文件路径。
+     * @return 返回当前构建器实例的引用，支持链式调用。
+     */
+    PassConfig& Output(const std::string& out);
+    /**
+     * @brief 设置输出文件后缀。
+     * @param suffix 输出文件后缀名。
+     * @return 返回当前构建器实例的引用，支持链式调用。
+     */
+    PassConfig& Suffix(const std::string& suffix);
+    /**
+     * @brief 设置输出缩进大小。
+     * @param indent 缩进大小。
+     * @return 返回当前构建器实例的引用，支持链式调用。
+     */
+    PassConfig& Indent(int indent);
+    /**
+     * @brief 启用解糖功能。
+     */
+    PassConfig& EnableDesugar();
+    /**
+     * @brief 启用语义分析功能。
+     */
+    PassConfig& EnableSema();
+    /**
+     * @brief 设置关注的顶层声明类型。
+     * @param kinds 关注的声明类型名称列表。
+     */
+    PassConfig& Focus(const std::unordered_set<std::string>& kinds);
+    /**
+     * @brief 设置关注的注解属性。
+     * @param attrs 关注的注解属性名称列表。
+     */
+    PassConfig& FocusAnnotationAttrs(const std::vector<std::string>& attrs);
+    /**
+     * @brief 设置关注的修饰符属性。
+     * @param attrs 关注的修饰符属性名称列表。
+     * @param kinds 关注的修饰符属性所在的声明类型名称列表（白名单）。
+     */
+    PassConfig& FocusModifierAttrs(const std::vector<std::string>& attrs, const std::vector<std::string>& kinds);
+    /**
+     * @brief 设置忽略的顶层声明。
+     * @param decls 忽略的声明标识符列表。
+     */
+    PassConfig& IgnoreDecls(const std::unordered_set<std::string>& decls);
+    /**
+     * @brief 设置忽略的注解。
+     * @param annos 忽略的注解名称列表。
+     */
+    PassConfig& IgnoreAnnotations(const std::unordered_set<std::string>& annos);
+
     /**
      * @typedef Flag
      * @brief 定义标志类型，用于控制功能开关。

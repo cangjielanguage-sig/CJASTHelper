@@ -63,6 +63,8 @@ public:
         return AstCloner::Clone<T>(&node);
     }
 
+    static void DumpAst(const AstNode& node, const std::string& out);
+
     using CollectFunc = std::function<void(const AstNode&, std::vector<Ptr<AstNode>>&)>;
     using ReplaceFunc = std::function<void(AstNode&, std::vector<OwnedPtr<AstNode>>&)>;
 

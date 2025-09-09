@@ -15,7 +15,9 @@
 // 概念：U 可被解引用
 template <typename U>
 concept dereferenceable = requires(U&& u) {
-    { *std::forward<U>(u) };
+    {
+        *std::forward<U>(u)
+    };
 };
 
 // 工具：获取解引用后的类型
@@ -246,6 +248,7 @@ public:
     inline Printer& PVec(const C& con, const CB& cb, const std::string& sep = "", const std::string& pre = "",
         const std::string& suf = "", bool b = false)
     {
+        EnsureIndent();
         printcc<T>(os_, con, cb, sep, pre, suf, b);
         return *this;
     }

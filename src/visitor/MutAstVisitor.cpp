@@ -83,12 +83,29 @@ void MutAstVisitor::DefaultMergeResult(AstNode& node, ValuedResult& base, std::v
 {
 }
 
+//
+void CounterAstVisitor::DefaultMergeResult(AstNode& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes)
+{
+    DefaultValue res = 0;
+    for (auto& child : childrenRes) {
+        if (auto val = child.TryGet<DefaultValue>()) {
+            res += *val;
+        }
+    }
+    if (auto val = base.TryGet<DefaultValue>()) {
+        res += *val;
+    }
+    base.Set<DefaultValue>(std::move(res));
+}
+
 void ReplaceAstVisitor::DefaultMergeResult(AstNode& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes)
 {
     std::vector<OwnedPtr<AstNode>> children;
     for (auto& child : childrenRes) {
         if (auto val = child.TryGet<OwnedNodeValue>()) {
             children.push_back(std::move(*val));
+        } else {
+            children.push_back(nullptr);
         }
     }
     AstNodeHelper::ReplaceChildren(node, children);
