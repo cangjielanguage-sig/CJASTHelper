@@ -1,7 +1,7 @@
 /**
  * @file
  *
- * This file declares the CheckDesugarPass of MutAstVisitor.
+ * This file declares the CheckDesugarPass of CounterAstVisitor.
  */
 
 #pragma once
