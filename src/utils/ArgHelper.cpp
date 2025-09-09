@@ -7,6 +7,7 @@
 #include "utils/Printer.h"
 #include <algorithm>
 #include <iomanip>
+#include <sstream>
 
 /// Option Builder 实现函数
 
@@ -209,8 +210,7 @@ inline void SplitArgs(
  * @param focus 需要关注的键集合
  * @return 解析后的环境变量映射
  */
-std::unordered_map<std::string, std::string> ParseEnv(
-    const char* const* envp, const std::unordered_set<std::string>& focus)
+std::unordered_map<std::string, std::string> ParseEnv(const char* const* envp, const StrSet& focus)
 {
     std::unordered_map<std::string, std::string> env;
     if (!envp) {
@@ -261,10 +261,11 @@ Options ArgHelper::ParseArgs(int argc, const char* const* argv, const char* cons
         options.IgnoreDecls(ap.GetMultiValue("ignore-decls"));
         options.ImportedPkgs(ap.GetMultiValue("dump-import"));
         // config passes
-        // if (options.stage > SourceStage::PARSE) {
-        // TOFIX:
-        //     options.passes.push_back("replace-desugar");
-        // }
+        if (options.stage > SourceStage::PARSE && options.enableDesugar) {
+            options.passes.push_back("check-desugar");
+            options.passes.push_back("replace-desugar");
+            options.passes.push_back("check-desugar");
+        }
         // 添加 to-source 作为最后一个 pass
         options.passes.push_back("to-source");
         // config env
