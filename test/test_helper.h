@@ -27,7 +27,9 @@ bool RemoveFiles(const std::vector<std::string>& files);
 bool CompareFile(ConStr& actual, ConStr& expected);
 
 std::string GetCJAH();
+std::string GetCJHome();
 
-std::string GetFileNameWithoutSuffix(ConStr& fname);
+std::string GetFileNameWithoutExtension(ConStr& fname);
+void RemoveFiles(ConStr& dir, ConStr& ext);
 
 std::vector<std::string> IterateCjah(ConStr& cjahPath, ConStr& src, ConStr& out);

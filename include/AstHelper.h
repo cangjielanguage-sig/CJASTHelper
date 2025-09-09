@@ -39,6 +39,11 @@ public:
      */
     void Run();
 
+    /**
+     * @brief 打印当前配置
+     */
+    void DisplayOptions();
+
 protected:
     /**
      * @brief 执行解析阶段 复用前端的编译器调用，得到AST

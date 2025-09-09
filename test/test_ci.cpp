@@ -1,0 +1,130 @@
+#include "AstHelper.h"
+#include "test_helper.h"
+#include <gtest/gtest.h>
+#include <optional>
+
+struct TestConfig {
+    Options options;
+    std::string inputName;
+    std::optional<std::string> expectedPath;
+};
+
+class CJAHTest : public ::testing::TestWithParam<TestConfig> {
+protected:
+    std::unique_ptr<AstHelper> ah;
+    TestConfig cfg;
+
+    // 构造函数：用于初始化成员变量
+    CJAHTest() : ah(nullptr)
+    {
+    }
+
+    void SetUp() override
+    {
+        // 在每个测试开始前运行的设置代码
+        cfg = GetParam();
+        ah = std::make_unique<AstHelper>(cfg.options);
+    }
+
+    void TearDown() override
+    {
+        // 在每个测试结束后运行的清理代码
+    }
+
+    static void TearDownTestSuite()
+    {
+        RemoveFiles("test/data/output", ".cj");
+    }
+};
+
+static std::unordered_map<SourceStage, std::string> stageMap{{SourceStage::DEFAULT, "default"},
+    {SourceStage::DESUGARED_PARSE, "desugared-parse"}, {SourceStage::DESUGARED_SEMA, "desugared-sema"},
+    {SourceStage::IMPORT, "import"}, {SourceStage::PARSE, "parse"}, {SourceStage::SEMA, "sema"}};
+
+// ✅ 定义 PrintTo 函数（必须在全局命名空间）
+void PrintTo(const TestConfig& data, ::std::ostream* os)
+{
+    *os << "TestConfig{"
+        << "inputName: " << data.inputName << ", stage: " << stageMap.at(data.options.stage)
+        << ", enableDesugar: " << data.options.enableDesugar;
+    if (data.expectedPath) {
+        *os << ", expectedPath: " << *data.expectedPath;
+    }
+    *os << "}";
+}
+
+// Continuous Integration Tests
+
+TEST_P(CJAHTest, CI001)
+{
+    auto expected = cfg.expectedPath;
+    EXPECT_TRUE(ah);
+    // ah->DisplayOptions();
+    ah->Run();
+    std::string outFile = ah->GetOutputDir() + "/" + cfg.inputName + "_source.cj";
+    EXPECT_TRUE(CheckExist(outFile)) << "Output file not found.";
+    if (expected) {
+        EXPECT_TRUE(CheckExist(*expected)) << "Expected file not found.";
+        EXPECT_TRUE(CompareFile(outFile, *expected)) << "Output file is not equal to expected file.";
+    }
+}
+
+TestConfig MKCfg(ConStr& src, ConStr& stage, ConStr& enableDesugar = "false", bool checked = true)
+{
+    std::string name = GetFileNameWithoutExtension(src);
+    std::string out = "test/data/output";
+    std::optional<std::string> expected{};
+    if (checked) {
+        expected = stage == "parse" ? src : "test/data/expected/" + name + "/" + stage + "_" + enableDesugar + ".cj";
+    }
+    Options options;
+    options.Stage(stage);
+    options.EnableDesugar(enableDesugar);
+    options.Passes({"to-source"});
+    options.Args({"cjah", "--output-type=dylib", "--output-dir", out, "-Woff", "unused", "-Woff", "parser", src});
+    options.env = {{"CANGJIE_HOME", GetCJHome()}};
+    return {options, name, expected};
+}
+
+std::vector<TestConfig> GenerateAllStageCfgs(ConStr& demo)
+{
+    std::vector<TestConfig> cfgs;
+    std::vector<std::string> stages = {"parse", "desugared-parse", "sema", "desugared-sema"};
+    std::vector<std::string> enableDesugars = {"false", "true"};
+    for (const auto& stage : stages) {
+        for (const auto& enable : enableDesugars) {
+            cfgs.push_back(MKCfg(demo, stage, enable));
+        }
+    }
+    return cfgs;
+}
+
+std::vector<TestConfig> GenerateFPCfgs(ConStr& demo)
+{
+    std::vector<TestConfig> cfgs;
+    std::string name = GetFileNameWithoutExtension(demo);
+    auto out = "test/data/output/";
+    auto suffix = "_source.cj";
+    cfgs.push_back(MKCfg(demo, "desugared-sema", "true", false));
+    cfgs.push_back(MKCfg(out + name + suffix, "desugared-sema", "true", false));
+    name += "_source";
+    std::string expected = out + name + suffix;
+    // 最后一次迭代校验结果
+    auto lastCfg = MKCfg(out + name + suffix, "desugared-sema", "true", false);
+    lastCfg.expectedPath = expected;
+    cfgs.push_back(lastCfg);
+    return cfgs;
+}
+
+// IterateAllStages/CJAHTest.CI001/*
+INSTANTIATE_TEST_SUITE_P(IterateAllStages, CJAHTest,
+    ::testing::ValuesIn(GenerateAllStageCfgs("test/data/inputs/desugar.cj")),
+    [](const ::testing::TestParamInfo<CJAHTest::ParamType>& info) {
+        return info.param.inputName + std::to_string(info.index);
+    });
+
+// IterateFP/CJAHTest.CI001/*
+INSTANTIATE_TEST_SUITE_P(IterateFP, CJAHTest, ::testing::ValuesIn(GenerateFPCfgs("test/data/inputs/main.cj")),
+    [](const ::testing::TestParamInfo<CJAHTest::ParamType>& info) {
+        return info.param.inputName + std::to_string(info.index);
+    });
