@@ -28,6 +28,17 @@ int GetArgc(const std::vector<char*>& argv)
     return static_cast<int>(argv.size()) - 1; // 减去最后的 nullptr
 }
 
+std::string FileName(ConStr& filePath)
+{
+    return fs::path(filePath).stem();
+}
+
+bool CheckExist(ConStr& file)
+{
+    return fs::exists(file);
+}
+
+namespace {
 // 工具函数：读取文件内容为字符串
 std::string ReadFileToString(ConStr& filename)
 {
@@ -40,48 +51,19 @@ std::string ReadFileToString(ConStr& filename)
     return oss.str();
 }
 
-// Helper function to read from a FILE* into a string
-std::string ExecCmd(const char* cmd)
+void RemoveFiles(ConStr& dir, const std::function<bool(const fs::path&)>& pred)
 {
-    std::array<char, 128> buffer;
-    std::string result;
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
-    if (!pipe) {
-        throw std::runtime_error("popen() failed!");
+    for (const auto& entry : fs::directory_iterator(dir)) {
+        if (pred(entry.path())) {
+            fs::remove(entry.path());
+        }
     }
-    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-        result += buffer.data();
-    }
-    return result;
 }
+} // namespace
 
-void ExecDump(ConStr& cjahPath, ConStr& stage, ConStr& src, ConStr& out, bool desugar)
+void RemoveFiles(ConStr& dir, ConStr& ext)
 {
-    // 构建命令行字符串以运行你的应用
-    std::string command =
-        cjahPath + " --dump-source=" + stage + " " + src + " -Woff unused --output-type=dylib --output-dir " + out;
-    if (desugar) {
-        command += " --enable-desugar=true";
-    } else {
-        command += " --enable-desugar=false";
-    }
-    // 使用 popen 执行命令并捕获输出
-    ExecCmd(command.c_str());
-}
-
-bool CheckExist(ConStr& file)
-{
-    return fs::exists(file);
-}
-
-bool CheckExists(const std::vector<std::string>& files)
-{
-    return std::all_of(files.begin(), files.end(), [](ConStr& file) { return fs::exists(file); });
-}
-
-bool RemoveFiles(const std::vector<std::string>& files)
-{
-    return std::all_of(files.begin(), files.end(), [](ConStr& file) { return fs::remove(file); });
+    RemoveFiles(dir, [&ext](auto& path) { return path.extension() == ext; });
 }
 
 bool CompareFile(ConStr& actual, ConStr& expected)
@@ -106,53 +88,12 @@ bool CompareFile(ConStr& actual, ConStr& expected)
     return removeEmptyLines(content0) == removeEmptyLines(content1);
 }
 
-std::string GetCJAH()
+std::string GetEnv(ConStr& key, ConStr& defaultValue)
 {
-    std::string cjahPath = "build/bin/cjah";
-    const char* envPath = std::getenv("CJAH");
+    std::string cjahPath = defaultValue;
+    const char* envPath = std::getenv(key.c_str());
     if (envPath != nullptr) {
         cjahPath = std::string(envPath);
     }
     return cjahPath;
-}
-
-std::string GetCJHome()
-{
-    const char* cjHome = std::getenv("CANGJIE_HOME");
-    return std::string(cjHome);
-}
-
-std::string GetFileNameWithoutExtension(ConStr& fname)
-{
-    return fs::path(fname).stem();
-}
-
-std::vector<std::string> IterateCjah(ConStr& cjahPath, ConStr& src, ConStr& out)
-{
-    std::string fileName = GetFileNameWithoutExtension(src);
-    std::string outPre = out + "/" + fileName;
-    std::string suffix = "_source";
-    std::string outFile0 = outPre + suffix + ".cj";
-    std::string outFile1 = outPre + suffix + suffix + ".cj";
-    std::string expectedFile = outPre + suffix + suffix + suffix + ".cj";
-    const std::string stage = "desugared-sema";
-    // cjah 测试源文件 经过 3 次迭代 源码维持不变
-    ExecDump(cjahPath, stage, src, out, true);
-    ExecDump(cjahPath, stage, outFile0, out, true);
-    ExecDump(cjahPath, stage, outFile1, out, true);
-    return {outFile0, outFile1, expectedFile};
-}
-
-void RemoveFiles(ConStr& dir, const std::function<bool(const fs::path&)>& pred)
-{
-    for (const auto& entry : fs::directory_iterator(dir)) {
-        if (pred(entry.path())) {
-            fs::remove(entry.path());
-        }
-    }
-}
-
-void RemoveFiles(ConStr& dir, ConStr& ext)
-{
-    RemoveFiles(dir, [&ext](auto& path) { return path.extension() == ext; });
 }

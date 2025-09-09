@@ -71,7 +71,7 @@ TEST_P(CJAHTest, CI001)
 
 TestConfig MKCfg(ConStr& src, ConStr& stage, ConStr& enableDesugar = "false", bool checked = true)
 {
-    std::string name = GetFileNameWithoutExtension(src);
+    std::string name = FileName(src);
     std::string out = "test/data/output";
     std::optional<std::string> expected{};
     if (checked) {
@@ -82,10 +82,18 @@ TestConfig MKCfg(ConStr& src, ConStr& stage, ConStr& enableDesugar = "false", bo
     options.EnableDesugar(enableDesugar);
     options.Passes({"to-source"});
     options.Args({"cjah", "--output-type=dylib", "--output-dir", out, "-Woff", "unused", "-Woff", "parser", src});
-    options.env = {{"CANGJIE_HOME", GetCJHome()}};
+    options.env = {{"CANGJIE_HOME", GetEnv("CANGJIE_HOME", "")}};
     return {options, name, expected};
 }
 
+/**
+ * Generate all stage configs
+ *
+ * 生成 demo 的所有可能阶段和选项的配置
+ * 相当于组合不同选项测试
+ * cjah --dump-source=[parse, desugared-parse, sema, desugared-sema] --enable-desugar=[true, false] demo.cj
+ * 每个组合校验预期结果
+ */
 std::vector<TestConfig> GenerateAllStageCfgs(ConStr& demo)
 {
     std::vector<TestConfig> cfgs;
@@ -99,10 +107,24 @@ std::vector<TestConfig> GenerateAllStageCfgs(ConStr& demo)
     return cfgs;
 }
 
+/**
+ * Generate FP test configs
+ *
+ * 生成 demo 的迭代测试数据
+ * 迭代执行 desugared-sema 3 次
+ * 相当于
+ * # 生成 demo_source.cj
+ * cjah --dump-source=desugared-sema demo.cj --output-dir out
+ * # 迭代执行 demo_source.cj
+ * cjah --dump-source=desugared-sema out/demo_source.cj --output-dir out
+ * # 迭代执行 demo_source_source.cj
+ * cjah --dump-source=desugared-sema out/demo_source_source.cj --output-dir out
+ * 迭代到不动点，校验 demo_source_source_source.cj 和 demo_source_source.cj
+ */
 std::vector<TestConfig> GenerateFPCfgs(ConStr& demo)
 {
     std::vector<TestConfig> cfgs;
-    std::string name = GetFileNameWithoutExtension(demo);
+    std::string name = FileName(demo);
     auto out = "test/data/output/";
     auto suffix = "_source.cj";
     cfgs.push_back(MKCfg(demo, "desugared-sema", "true", false));
