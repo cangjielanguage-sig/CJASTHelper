@@ -1,13 +1,13 @@
 #include "test_helper.h"
 #include <gtest/gtest.h>
 
-TEST(CJAHTest, GetFileNameWithoutSuffix)
+TEST(CjahTest, GetFileNameWithoutSuffix)
 {
-    EXPECT_EQ(GetFileNameWithoutSuffix("test/main.cj"), "main");
+    EXPECT_EQ(GetFileNameWithoutExtension("test/main.cj"), "main");
 }
 
 // Continuous Integration Tests
-TEST(CJAHTest, Integration01)
+TEST(CjahTest, Integration01)
 {
     std::string cjahPath = GetCJAH();
     std::string out = ".";
@@ -20,7 +20,7 @@ TEST(CJAHTest, Integration01)
     EXPECT_TRUE(RemoveFiles(tmpFiles)) << "Remove tmpFiles Failed!.";
 }
 
-TEST(CJAHTest, Integration02)
+TEST(CjahTest, Integration02)
 {
     std::string cjahPath = GetCJAH();
     std::string out = ".";
@@ -31,21 +31,21 @@ TEST(CJAHTest, Integration02)
     EXPECT_TRUE(CheckExist(tmpFile)) << "Output file of parse not found.";
     EXPECT_TRUE(CompareFile(tmpFile, src)) << "Actual output does not match expected.";
     std::vector<std::string> stages{"desugared-parse", "sema", "desugared-sema"};
-    std::string expected = "test/data/expected/desugar/dump_desugar_false/";
+    std::string expected = "test/data/expected/desugar/";
     for (auto& stage : stages) {
         ExecDump(cjahPath, stage, src, out);
         EXPECT_TRUE(CheckExist(tmpFile)) << "Output file of " + stage + " not found.";
-        EXPECT_TRUE(CheckExist(expected + stage + ".cj")) << "Expected file of " + stage + " not found.";
-        EXPECT_TRUE(CompareFile(tmpFile, expected + stage + ".cj"))
+        EXPECT_TRUE(CheckExist(expected + stage + "_false.cj")) << "Expected file of " + stage + " not found.";
+        EXPECT_TRUE(CompareFile(tmpFile, expected + stage + "_false.cj"))
             << "Actual output of " + stage + " does not match expected.";
     }
 
-    expected = "test/data/expected/desugar/dump_desugar_true/";
+    expected = "test/data/expected/desugar/";
     for (auto& stage : stages) {
         ExecDump(cjahPath, stage, src, out, true);
         EXPECT_TRUE(CheckExist(tmpFile)) << "Output file of " + stage + " not found.";
-        EXPECT_TRUE(CheckExist(expected + stage + ".cj")) << "Expected file of " + stage + " not found.";
-        EXPECT_TRUE(CompareFile(tmpFile, expected + stage + ".cj"))
+        EXPECT_TRUE(CheckExist(expected + stage + "_true.cj")) << "Expected file of " + stage + " not found.";
+        EXPECT_TRUE(CompareFile(tmpFile, expected + stage + "_true.cj"))
             << "Actual output of " + stage + " does not match expected.";
     }
 

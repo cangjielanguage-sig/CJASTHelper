@@ -9,41 +9,6 @@
 #include "pass/ToSourcePass.h"
 #include "utils/Logger.h"
 
-namespace {
-// Debug
-std::string ToString(const Options& opt)
-{
-#ifdef NDEBUG
-    return "";
-#else
-    std::ostringstream oss;
-    Printer p(oss, 4);
-    p << "Options: {";
-    p.PNL().Indent();
-    p.PVals("enableDesugar: ", opt.enableDesugar).PNL();
-    p.PVec<std::string>(
-         opt.filterDecls, [](const std::string& decl) { return decl; }, ", ", "filterDecls: {", "}", true)
-        .PNL();
-    p.PVec<std::string>(
-         opt.ignoreDecls, [](const std::string& anno) { return anno; }, ", ", "ignoreDecls: {", "}", true)
-        .PNL();
-    p.PVec<std::string>(
-         opt.ignoreAnnotations, [](const std::string& anno) { return anno; }, ", ", "ignoreAnnotations: {", "}", true)
-        .PNL();
-    p.PVec<std::string>(
-         opt.importedPkgs, [](const std::string& pkg) { return pkg; }, ", ", "importedPkgs: {", "}", true)
-        .PNL();
-    p.PVec<std::string>(
-         opt.passes, [](const std::string& pass) { return pass; }, ", ", "passes: {", "}")
-        .PNL();
-
-    p.Unindent();
-    p << "}\n";
-    return oss.str();
-#endif
-}
-} // namespace
-
 AstHelper::AstHelper(const Options& options) : options(options)
 {
     ci.frontendOptions.ReadPathsFromEnvironmentVars(options.env);
@@ -62,7 +27,7 @@ std::string AstHelper::GetOutputDir() const
 
 void AstHelper::Run()
 {
-    Logger::Get().Debug("AstHelper::Run", ToString(options));
+    DisplayOptions();
     if (!DoParse()) {
         Logger::Get().Error("AstHelper::Run", "DoParse failed.");
         return;
@@ -71,6 +36,40 @@ void AstHelper::Run()
         Logger::Get().Error("AstHelper::Run", "DoAnalysis failed.");
         return;
     }
+}
+
+void AstHelper::DisplayOptions()
+{
+#ifdef NDEBUG
+#else
+    std::ostringstream oss;
+    Printer p(oss, 4);
+    p << "Options: {";
+    p.PNL().Indent();
+    p.PVals("enableDesugar: ", options.enableDesugar).PNL();
+    p.PVec<std::string>(
+         options.filterDecls, [](const std::string& decl) { return decl; }, ", ", "filterDecls: {", "}", true)
+        .PNL();
+    p.PVec<std::string>(
+         options.ignoreDecls, [](const std::string& anno) { return anno; }, ", ", "ignoreDecls: {", "}", true)
+        .PNL();
+    p.PVec<std::string>(
+         options.ignoreAnnotations, [](const std::string& anno) { return anno; }, ", ", "ignoreAnnotations: {", "}",
+         true)
+        .PNL();
+    p.PVec<std::string>(
+         options.importedPkgs, [](const std::string& pkg) { return pkg; }, ", ", "importedPkgs: {", "}", true)
+        .PNL();
+    p.PVec<std::string>(
+         options.passes, [](const std::string& pass) { return pass; }, ", ", "passes: {", "}")
+        .PNL();
+    p.PVec<std::string>(
+         options.args, [](const std::string& arg) { return arg; }, ", ", "args: {", "}")
+        .PNL();
+    p.Unindent();
+    p << "}\n";
+    Logger::Get().Debug("AstHelper::DisplayOptions", oss.str());
+#endif
 }
 
 /**

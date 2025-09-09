@@ -4,6 +4,7 @@
 #include <array>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <sstream>
 
 namespace fs = std::filesystem;
@@ -115,22 +116,20 @@ std::string GetCJAH()
     return cjahPath;
 }
 
-std::string GetFileNameWithoutSuffix(ConStr& fname)
+std::string GetCJHome()
 {
-    size_t start = fname.find_last_of('/');
-    size_t end = fname.find_last_of('.');
-    if (start != std::string::npos) {
-        if (end != std::string::npos) {
-            return fname.substr(start + 1, end - start - 1);
-        }
-        return fname.substr(0, end);
-    }
-    return fname;
+    const char* cjHome = std::getenv("CANGJIE_HOME");
+    return std::string(cjHome);
+}
+
+std::string GetFileNameWithoutExtension(ConStr& fname)
+{
+    return fs::path(fname).stem();
 }
 
 std::vector<std::string> IterateCjah(ConStr& cjahPath, ConStr& src, ConStr& out)
 {
-    std::string fileName = GetFileNameWithoutSuffix(src);
+    std::string fileName = GetFileNameWithoutExtension(src);
     std::string outPre = out + "/" + fileName;
     std::string suffix = "_source";
     std::string outFile0 = outPre + suffix + ".cj";
@@ -142,4 +141,18 @@ std::vector<std::string> IterateCjah(ConStr& cjahPath, ConStr& src, ConStr& out)
     ExecDump(cjahPath, stage, outFile0, out, true);
     ExecDump(cjahPath, stage, outFile1, out, true);
     return {outFile0, outFile1, expectedFile};
+}
+
+void RemoveFiles(ConStr& dir, const std::function<bool(const fs::path&)>& pred)
+{
+    for (const auto& entry : fs::directory_iterator(dir)) {
+        if (pred(entry.path())) {
+            fs::remove(entry.path());
+        }
+    }
+}
+
+void RemoveFiles(ConStr& dir, ConStr& ext)
+{
+    RemoveFiles(dir, [&ext](auto& path) { return path.extension() == ext; });
 }
