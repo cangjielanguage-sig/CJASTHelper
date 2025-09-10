@@ -16,14 +16,14 @@ CheckDesugarPass::CheckDesugarPass(PassConfig config) : Pass(config)
 
 void CheckDesugarPass::Run(AstNode& node)
 {
-    Logger::Get().Debug("CheckDesugarPass::Run");
+    DEBUG();
     auto res = MutTraverse(node, visitor);
-    Logger::Get().Debug("CheckDesugarPass::Run", "res: ", *res.TryGet<DefaultValue>());
+    DEBUG("res: ", *res.TryGet<DefaultValue>());
 }
 
 void CheckDesugarPass::Visit(OptionType& node, ValuedResult& res)
 {
-    Logger::Get().Debug("CheckDesugarPass::Visit", "OptionType");
+    DEBUG("OptionType");
     if (node.desugarType) {
         res.Set<DefaultValue>(1);
     }

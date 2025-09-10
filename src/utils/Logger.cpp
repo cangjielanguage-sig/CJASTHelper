@@ -3,10 +3,10 @@
  *
  * This file implements the Logger.
  */
+#ifdef NDEBUG
+#else
 #include "utils/Logger.h"
 #include <cstdlib>
-
-std::vector<std::unique_ptr<Logger>> Logger::instances(2);
 
 LoggerException::LoggerException(const std::string& msg) noexcept : message(msg)
 {
@@ -17,36 +17,23 @@ const char* LoggerException::what() const noexcept
     return message.c_str();
 }
 
-Logger& Logger::Get(Mode m)
+std::unique_ptr<Logger> Logger::instance = nullptr;
+
+Logger& Logger::Get()
 {
-#ifdef NDEBUG
-#else
     // 注意: 当前实现不是线程安全的
-    if (m == Mode::FILE) {
-        if (!instances.at(1)) {
-            const char* logPath = std::getenv("LOG_PATH");
-            instances[1] = std::unique_ptr<Logger>(new Logger(logPath ? logPath : "log.txt"));
-        }
-        return *instances[1];
+    if (!instance) {
+        const char* logPath = std::getenv("LOG_PATH");
+        instance = std::unique_ptr<Logger>(new Logger(logPath ? logPath : "log.txt"));
     }
-#endif
-    // Default
-    if (!instances.at(0)) {
-        instances[0] = std::unique_ptr<Logger>(new Logger());
-    }
-    return *instances.at(0);
+    return *instance;
 }
 
-void Logger::Close()
+Logger::~Logger()
 {
-    if (instances[1] && instances[1]->fs.is_open()) {
-        instances[1]->fs.close();
-        instances[1] = nullptr;
+    if (fs.is_open()) {
+        fs.close();
     }
-}
-
-Logger::Logger() : p(std::cout, 0)
-{
 }
 
 Logger::Logger(const std::string& path) : p(fs, 0)
@@ -56,28 +43,4 @@ Logger::Logger(const std::string& path) : p(fs, 0)
         throw LoggerException("Failed to open logger file " + path);
     }
 }
-
-void Logger::PLevel(Level level)
-{
-    switch (level) {
-        case Level::DEBUG:
-            p.PVal("[DEBUG]");
-            break;
-        case Level::INFO:
-            p.PVal("[INFO]");
-            break;
-        case Level::WARN:
-            p.PVal("[WARN]");
-            break;
-        case Level::ERROR:
-            p.PVal("[ERROR]");
-            break;
-        default:
-            break;
-    }
-}
-
-void Logger::PDomain(const std::string& domain)
-{
-    p.PVal(" <" + domain + "> ");
-}
+#endif

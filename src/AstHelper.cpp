@@ -27,11 +27,11 @@ void AstHelper::Run()
 {
     DisplayOptions();
     if (!DoParse()) {
-        Logger::Get().Error("AstHelper::Run", "DoParse failed.");
+        DEBUG("DoParse failed.");
         return;
     }
     if (!DoAnalysis()) {
-        Logger::Get().Error("AstHelper::Run", "DoAnalysis failed.");
+        DEBUG("DoAnalysis failed.");
         return;
     }
 }
@@ -66,7 +66,7 @@ void AstHelper::DisplayOptions()
         .PNL();
     p.Unindent();
     p << "}\n";
-    Logger::Get().Debug("AstHelper::DisplayOptions", oss.str());
+    DEBUG(oss.str());
 #endif
 }
 
@@ -76,7 +76,7 @@ void AstHelper::DisplayOptions()
  */
 bool AstHelper::DoParse()
 {
-    Logger::Get().Debug("AstHelper::DoParse");
+    DEBUG();
     // --dump-source 按照 stage 决策执行前端哪些pipeline
     for (int i = 0; i <= static_cast<int>(options.stage); i++) {
         if (i == static_cast<int>(SourceStage::DESUGARED_PARSE) && options.stage > SourceStage::DESUGARED_PARSE) {
@@ -105,7 +105,7 @@ bool AstHelper::DoParse()
  */
 bool AstHelper::DoAnalysis()
 {
-    Logger::Get().Debug("AstHelper::DoAnalysis", "add passes: ", options.passes.size());
+    DEBUG("add passes: ", options.passes.size());
 
     for (auto& pkg : pkgs) {
         passManager.Run(*pkg, options.passes);
@@ -174,32 +174,32 @@ void AstHelper::RegisterStage(SourceStage stage, StageFunc fn)
 void AstHelper::RegisterStages()
 {
     RegisterStage(SourceStage::DEFAULT, [this]() {
-        Logger::Get().Debug("Default Stage", "input files: ", ci.globalOptions.srcFiles.size());
-        Logger::Get().Debug("Parse Stage", "file paths: ", mci->srcFilePaths.size());
-        Logger::Get().Debug("Default Stage", "Output: ", GetOutputDir());
+        DEBUG("input files: ", ci.globalOptions.srcFiles.size());
+        DEBUG("file paths: ", mci->srcFilePaths.size());
+        DEBUG("Output: ", GetOutputDir());
         return true;
     });
     RegisterStage(SourceStage::PARSE, [this]() {
-        Logger::Get().Debug("Parse Stage");
+        DEBUG();
         return mci->PerformParse();
     });
     RegisterStage(SourceStage::DESUGARED_PARSE, [this]() {
-        Logger::Get().Debug("DesugaredParse Stage");
+        DEBUG();
         for (auto& pkg : mci->GetSourcePackages()) {
             PerformDesugarBeforeTypeCheck(*pkg);
         }
         return true;
     });
     RegisterStage(SourceStage::IMPORT, [this]() {
-        Logger::Get().Debug("LoadImports Stage");
+        DEBUG();
         return mci->PerformImportPackage();
     });
     RegisterStage(SourceStage::SEMA, [this]() {
-        Logger::Get().Debug("Sema Stage");
+        DEBUG();
         return mci->PerformSema();
     });
     RegisterStage(SourceStage::DESUGARED_SEMA, [this]() {
-        Logger::Get().Debug("DesugaredSema stage");
+        DEBUG();
         return mci->PerformDesugarAfterSema();
     });
 }
