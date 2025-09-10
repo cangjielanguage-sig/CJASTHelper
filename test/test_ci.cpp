@@ -61,7 +61,7 @@ TEST_P(CJAHTest, CI001)
     EXPECT_TRUE(ah);
     // ah->DisplayOptions();
     ah->Run();
-    std::string outFile = ah->GetOutputDir() + "/" + cfg.inputName + "_source.cj";
+    std::string outFile = "test/data/output/" + cfg.inputName + "_source.cj";
     EXPECT_TRUE(CheckExist(outFile)) << "Output file not found.";
     if (expected) {
         EXPECT_TRUE(CheckExist(*expected)) << "Expected file not found.";

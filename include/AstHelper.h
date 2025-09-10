@@ -29,12 +29,6 @@ public:
     ~AstHelper() = default;
 
     /**
-     * @brief 获取输出目录
-     * @return 表示输出目录的字符串
-     */
-    std::string GetOutputDir() const;
-
-    /**
      * @brief 根据当前配置执行相应的阶段
      */
     void Run();
@@ -58,29 +52,23 @@ protected:
 
 private:
     /**
-     * @brief 解析提供的命令行参数
-     * @param args 命令行参数的向量
+     * @brief CompilerInvocation 解析命令行参数
      */
-    void ParseArgs(const std::vector<std::string>& args);
+    CompilerInvocation& ParseArgs();
 
-    /**
-     * 注册分析pass
-     */
-    void RegisterPasses();
+    std::unique_ptr<PassConfig> MakePassConfig();
 
-    using StageFunc = std::function<bool()>;
     /**
      * 注册stage回调
      */
-    void RegisterStage(SourceStage stage, StageFunc fn);
     void RegisterStages();
 
 private:
     DiagnosticEngine diag;                 /**< 诊断引擎实例 */
     CompilerInvocation ci;                 /**< 编译器调用实例 */
+    Options options;                       /**< 用户选项 */
     std::unique_ptr<CompilerInstance> mci; /**< 编译器实例的智能指针 */
 
-    Options options;                /**< 用户选项 */
     std::vector<Ptr<Package>> pkgs; /**< 分析结果包列表 */
 
     PassManager passManager;
