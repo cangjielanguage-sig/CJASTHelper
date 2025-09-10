@@ -19,7 +19,6 @@ void ReplaceDesugarPass::Run(AstNode& node)
     // AstNodeHelper::DumpAst(node, "input.txt");
     DEBUG();
     MutTraverse(node, visitor);
-    // AstNodeHelper::DumpAst(node, "input_ReplaceDesugarPass.txt");
 }
 
 void ReplaceDesugarPass::Visit(OptionType& node, ValuedResult& res)

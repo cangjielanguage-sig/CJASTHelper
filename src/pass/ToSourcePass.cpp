@@ -74,31 +74,27 @@ const char* Ast2SourceException::what() const noexcept
     return message.c_str();
 }
 
+/// ToSourcePass 实现函数
+
 namespace {
 /*
  * 获取文件名不包括后缀： xxx.cj -> xxx
  */
-std::string GetFileNameWithoutSuffix(const std::string& fname)
+inline std::string FileName(const std::string& fname)
 {
-    size_t pos = fname.find_last_of('.');
-    if (pos != std::string::npos) {
-        return fname.substr(0, pos);
-    } else {
-        return fname;
-    }
+    return fs::path(fname).stem().string();
 }
 } // namespace
 
 void ToSourcePass::Run(AstNode& node)
 {
-    Traverse(node, visitor);
+    (void)Traverse(node, visitor);
 }
 
-/// ToSourcePass 实现函数
 void ToSourcePass::Visit(const File& node, VisitResult&)
 {
     DEBUG("For File imports: ", node.imports.size());
-    std::string fp = config.out + "/" + GetFileNameWithoutSuffix(node.fileName) + config.suffix;
+    std::string fp = config.out + "/" + FileName(node.fileName) + config.suffix;
     ofs.open(fp, std::ios::out);
     if (!ofs.is_open()) {
         throw Ast2SourceException("Failed to open file: " + fp);

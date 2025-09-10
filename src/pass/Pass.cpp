@@ -116,10 +116,28 @@ PassConfig& PassConfig::IgnoreAnnotations(const std::unordered_set<std::string>&
     return *this;
 }
 
-/**
- * 注册一个分析pass
- */
-void PassManager::RegisterPass(std::string name, std::unique_ptr<Pass> pass)
+void PassManager::Run(AstNode& node, const std::vector<std::string>& passes)
 {
-    passMap.emplace(name, std::move(pass));
+    for (auto& name : passes) {
+        if (auto pass = TryGetPass(name)) {
+            pass->Run(node);
+        }
+    }
+}
+
+Pass* PassManager::TryGetPass(const std::string& name)
+{
+    if (auto it = passMap.find(name); it != passMap.end()) {
+        return it->second.get();
+    }
+    if (auto it = passBuilderMap.find(name); it != passBuilderMap.end() && config) {
+        passMap.emplace(name, it->second(*config));
+        return passMap[name].get();
+    }
+    return nullptr;
+}
+
+void PassManager::RegPassBuilder(const std::string& name, const PassBuilder& builder)
+{
+    passBuilderMap.emplace(name, builder);
 }
