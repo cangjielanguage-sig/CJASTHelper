@@ -120,7 +120,7 @@ CompilerInvocation& AstHelper::ParseArgs()
  */
 std::unique_ptr<PassConfig> AstHelper::MakePassConfig()
 {
-    auto config = std::unique_ptr<PassConfig>(new PassConfig());
+    auto config = std::unique_ptr<ToSourcePassConfig>(new ToSourcePassConfig());
     // --dump-desugar=true or false (默认不开启解糖: 尽可能恢复用户源码)
     if (options.enableDesugar) {
         config->EnableDesugar();

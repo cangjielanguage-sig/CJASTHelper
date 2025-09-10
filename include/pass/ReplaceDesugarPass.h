@@ -17,7 +17,7 @@
  */
 class ReplaceDesugarPass : public Pass {
 public:
-    ReplaceDesugarPass(PassConfig config = PassConfig());
+    ReplaceDesugarPass(const PassConfig& config);
     ~ReplaceDesugarPass() override = default;
 
     void Run(AstNode& node) override;

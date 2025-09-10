@@ -18,16 +18,6 @@ using StrPair = std::pair<std::string, std::string>;
 using StrPairVec = std::vector<StrPair>;
 using ConStr = const std::string;
 
-// Invalid Argument Exception
-class InvalidArgumentException : public std::exception {
-private:
-    std::string message;
-
-public:
-    explicit InvalidArgumentException(const std::string& msg) noexcept;
-    const char* what() const noexcept override;
-};
-
 /**
  * @class ArgumentParser
  * @brief 用于解析命令行参数的类。
