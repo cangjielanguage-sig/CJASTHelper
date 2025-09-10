@@ -74,6 +74,96 @@ const char* Ast2SourceException::what() const noexcept
     return message.c_str();
 }
 
+/// ToSourcePassConfig
+
+bool ToSourcePassConfig::Focus(const Decl& decl) const
+{
+    return (focusDecls.empty() || focusDecls.count(decl.astKind)) && !ignoreDecls.count(decl.identifier.Val());
+}
+
+ToSourcePassConfig::ToSourcePassConfig() : indent(4), suffix("_source.cj")
+{
+}
+
+ToSourcePassConfig& ToSourcePassConfig::Output(const std::string& out)
+{
+    this->out = out;
+    return *this;
+}
+
+ToSourcePassConfig& ToSourcePassConfig::Suffix(const std::string& suffix)
+{
+    this->suffix = suffix;
+    return *this;
+}
+
+ToSourcePassConfig& ToSourcePassConfig::Indent(int indent)
+{
+    this->indent = indent;
+    return *this;
+}
+
+/**
+ * @brief 设置关注的注解属性。
+ * @param attrs 关注的注解属性名称列表。
+ */
+ToSourcePassConfig& ToSourcePassConfig::FocusAnnotationAttrs(const std::vector<std::string>& attrs)
+{
+    this->focusAnnotationAttrs.insert(attrs.begin(), attrs.end());
+    return *this;
+}
+
+namespace {
+/**
+ * @brief 将字符串键映射到AstKind
+ */
+const std::unordered_map<std::string, AstKind> key2DeclKind{{"func", AstKind::FUNC_DECL},
+    {"class", AstKind::CLASS_DECL}, {"interface", AstKind::INTERFACE_DECL}, {"struct", AstKind::STRUCT_DECL},
+    {"var", AstKind::VAR_DECL}};
+} // namespace
+
+ToSourcePassConfig& ToSourcePassConfig::Focus(const std::unordered_set<std::string>& kinds)
+{
+    for (auto& kind : kinds) {
+        this->focusDecls.insert(key2DeclKind.at(kind));
+    }
+    return *this;
+}
+
+/**
+ * @brief 设置关注的修饰符属性。
+ * @param attrs 关注的修饰符属性名称列表。
+ */
+ToSourcePassConfig& ToSourcePassConfig::FocusModifierAttrs(
+    const std::vector<std::string>& attrs, const std::vector<std::string>& kinds)
+{
+    this->focusModifierAttrs.insert(attrs.begin(), attrs.end());
+    for (auto& kind : kinds) {
+        this->focusModifierWhiteList.insert(key2DeclKind.at(kind));
+    }
+    return *this;
+}
+
+/**
+ * @brief 设置忽略的顶层声明。
+ * @param decls 忽略的声明标识符列表。
+ */
+ToSourcePassConfig& ToSourcePassConfig::IgnoreDecls(const std::unordered_set<std::string>& decls)
+{
+    this->ignoreDecls = decls;
+    return *this;
+}
+
+/**
+ * @brief 设置忽略的注解。
+ * @param annos 忽略的注解名称列表。
+ */
+ToSourcePassConfig& ToSourcePassConfig::IgnoreAnnotations(const std::unordered_set<std::string>& annos)
+{
+    this->ignoreAnnotations.insert(annos.begin(), annos.end());
+    return *this;
+}
+
 /// ToSourcePass 实现函数
 
 namespace {
@@ -94,7 +184,7 @@ void ToSourcePass::Run(AstNode& node)
 void ToSourcePass::Visit(const File& node, VisitResult&)
 {
     DEBUG("For File imports: ", node.imports.size());
-    std::string fp = config.out + "/" + FileName(node.fileName) + config.suffix;
+    std::string fp = Config().out + "/" + FileName(node.fileName) + Config().suffix;
     ofs.open(fp, std::ios::out);
     if (!ofs.is_open()) {
         throw Ast2SourceException("Failed to open file: " + fp);
@@ -106,7 +196,7 @@ void ToSourcePass::Visit(const File& node, VisitResult&)
         node.imports, [this](const ImportSpec& imp) { Traverse(imp, visitor); }, "", "", "\n");
     // toplevel decls
     PRT().PVec<Decl>(node.decls, [this](const Decl& decl) {
-        if (!config.Focus(decl)) {
+        if (!Config().Focus(decl)) {
             return;
         }
         Traverse(decl, visitor);
@@ -306,7 +396,7 @@ void ToSourcePass::Visit(const FuncBody& node, VisitResult&)
     DEBUG("For FuncBody");
     TryPrintGenericParams(node.generic.get());
     VisitNode(node.paramLists[0]);
-    if (!TryPrintType(node.retType) && config.Sema()) {
+    if (!TryPrintType(node.retType) && Config().Sema()) {
         TryPrintTy(TryGetRetTy(node.ty));
     }
     TryPrintGenericConstraints(node.generic);
@@ -332,7 +422,7 @@ VisitResult ToSourcePass::Before(const MainDecl& node)
     }
     DEBUG("For MainDecl");
     // 存在解糖节点
-    if (config.Desugar()) {
+    if (Config().Desugar()) {
         DEBUG("For Desugared Decl of MainDecl");
         if (node.TestAttr(Attribute::UNSAFE)) {
             PRT().PVal("unsafe ");
@@ -360,7 +450,7 @@ void ToSourcePass::Visit(const MainDecl& node, VisitResult& res)
 void ToSourcePass::Visit(const PrimaryCtorDecl& node, VisitResult&)
 {
     DEBUG("For PrimaryCtorDecl: ", node.identifier.Val());
-    if (config.Sema()) {
+    if (Config().Sema()) {
         return; // PrimaryCtorDecl is desugared in Sema
     }
     PrintDecl(node);
@@ -440,7 +530,7 @@ void ToSourcePass::Visit(const PrimitiveType& node, VisitResult&)
 void ToSourcePass::Visit(const RefType& node, VisitResult& res)
 {
     DEBUG("For RefType");
-    if (node.ref.identifier.Val() == "" && config.Sema() && node.ty) {
+    if (node.ref.identifier.Val() == "" && Config().Sema() && node.ty) {
         PrintTy(*node.ty);
     } else {
         PRT().PVal(Id(node.ref.identifier));
@@ -451,7 +541,7 @@ void ToSourcePass::Visit(const RefType& node, VisitResult& res)
 
 VisitResult ToSourcePass::Before(const OptionType& node)
 {
-    if (!config.Desugar() || !node.desugarType) {
+    if (!Config().Desugar() || !node.desugarType) {
         // desugar is false && node.desugarType is not nullptr is okay, because node.componentType is not nullptr.
         return VisitResult::Cont();
     }
@@ -590,7 +680,7 @@ void ToSourcePass::Visit(const Block& node, VisitResult&)
 
 VisitResult ToSourcePass::Before(const RefExpr& node)
 {
-    if (!config.Sema()) {
+    if (!Config().Sema()) {
         return VisitResult::Cont();
     }
     auto target = node.ref.target;
@@ -686,7 +776,7 @@ void ToSourcePass::Visit(const MemberAccess& node, VisitResult&)
     DEBUG("For MemberAccess");
     VisitNode(node.baseExpr);
     PRT().PVals(".", Id(node.field));
-    if (!config.Sema() || !IsRefEnum(*node.baseExpr)) {
+    if (!Config().Sema() || !IsRefEnum(*node.baseExpr)) {
         PrintInstArgs(node, node.isPattern);
     }
 }
@@ -755,7 +845,7 @@ VisitResult ToSourcePass::Before(const AssignExpr& node)
         return VisitResult::Cont();
     }
     DEBUG("For AssignExpr");
-    if (config.Desugar()) {
+    if (Config().Desugar()) {
         Traverse(*node.desugarExpr, visitor);
     } else {
         // desugared: x.[](i, y) -> x[i] = v
@@ -791,7 +881,7 @@ VisitResult ToSourcePass::Before(const UnaryExpr& node)
         return VisitResult::Cont();
     }
     DEBUG("For UnaryExpr");
-    if (config.Desugar()) {
+    if (Config().Desugar()) {
         Traverse(*node.desugarExpr, visitor);
     } else {
         // desugared: val.!() -> !val
@@ -816,7 +906,7 @@ VisitResult ToSourcePass::Before(const BinaryExpr& node)
         return VisitResult::Cont();
     }
     DEBUG("For BinaryExpr");
-    if (config.Desugar()) {
+    if (Config().Desugar()) {
         Traverse(*node.desugarExpr, visitor);
     } else {
         auto& callExpr = Cast<const CallExpr&>(node.desugarExpr.get());
@@ -849,7 +939,7 @@ VisitResult ToSourcePass::Before(const SubscriptExpr& node)
         return VisitResult::Cont();
     }
     DEBUG("For SubscriptExpr");
-    if (config.Desugar()) {
+    if (Config().Desugar()) {
         Traverse(*node.desugarExpr, visitor);
     } else {
         // desugared: a.[](i) -> a[i]
@@ -975,9 +1065,9 @@ void CreateDirIfNotExists(const std::string& path)
 }
 } // namespace
 
-ToSourcePass::ToSourcePass(PassConfig config) : Pass(config), prt(ofs, config.indent)
+ToSourcePass::ToSourcePass(const ToSourcePassConfig& config) : Pass(config), prt(ofs, Config().indent)
 {
-    CreateDirIfNotExists(config.out);
+    CreateDirIfNotExists(Config().out);
     RegisterHandlers();
 }
 
@@ -1072,29 +1162,29 @@ std::unordered_map<std::string, Attribute> focusAttrsMap = {{"C", Attribute::C},
  * @brief 辅助打印注解列表。
  *  注解打印规则:
  * 1. 用户代码注解列表： node.annotations
- * 2. 配置忽略打印的列表： config.ignoreAnnotations
- * 3. 语义后置的注解列表： config.focusAnnotationAttrs
+ * 2. 配置忽略打印的列表： Config().ignoreAnnotations
+ * 3. 语义后置的注解列表： Config().focusAnnotationAttrs
  * 规则描述:
- * (node.annotations + config.focusAnnotationAttrs) - config.ignoreAnnotations
+ * (node.annotations + Config().focusAnnotationAttrs) - Config().ignoreAnnotations
  */
 void ToSourcePass::PrintAnnotations(const Decl& node)
 {
     std::unordered_set<std::string> annotations;
     for (auto& anno : node.annotations) {
         auto& annoName = anno->identifier.Val();
-        if (!config.ignoreAnnotations.count(annoName)) {
+        if (!Config().ignoreAnnotations.count(annoName)) {
             Traverse(*anno, visitor);
             annotations.insert(annoName);
         }
     }
-    if (!config.Sema()) {
+    if (!Config().Sema()) {
         return;
     }
     // 补充打印语义后的缺少的注解
-    PRT().PVec<std::string>(config.focusAnnotationAttrs, [&node, &annotations, this](const std::string& anno) {
+    PRT().PVec<std::string>(Config().focusAnnotationAttrs, [&node, &annotations, this](const std::string& anno) {
         // node 有关注的属性 没有打印过 也没有忽略
         if (node.TestAttr(focusAttrsMap.at(anno)) && !annotations.count(anno) &&
-            !config.ignoreAnnotations.count(anno)) {
+            !Config().ignoreAnnotations.count(anno)) {
             PRT().PValNL("@" + anno);
         }
     });
@@ -1133,11 +1223,11 @@ void ToSourcePass::PrintModifiers(const Decl& node)
         },
         " ", "", " ");
 
-    if (!config.Sema() || !config.focusModifierWhiteList.count(node.astKind) || !NeedAddMoidifier(node)) {
+    if (!Config().Sema() || !Config().focusModifierWhiteList.count(node.astKind) || !NeedAddMoidifier(node)) {
         return;
     }
     // 补充打印语义后的缺少的修饰符
-    PRT().PVec<std::string>(config.focusModifierAttrs, [&node, &modifiers, this](const std::string& mod) {
+    PRT().PVec<std::string>(Config().focusModifierAttrs, [&node, &modifiers, this](const std::string& mod) {
         // node 有关注的属性 没有打印过
         if (node.TestAttr(focusAttrsMap.at(mod)) && !modifiers.count(mod)) {
             PRT().PVals(mod, " ");
@@ -1322,7 +1412,7 @@ void ToSourcePass::PrintInstArgs(const NameReferenceExpr& ref, bool isPattern)
     if (!ref.typeArguments.empty()) {
         PRT().PVec<Type>(
             ref.typeArguments, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "<", ">");
-    } else if (config.Sema() && !isPattern) {
+    } else if (Config().Sema() && !isPattern) {
         PRT().PVec<Ty>(
             ref.instTys, [this](const Ty& ty) { PrintTy(ty); }, ", ", "<", ">");
     }
@@ -1333,7 +1423,7 @@ void ToSourcePass::PrintInstArgs(const NameReferenceExpr& ref, bool isPattern)
  */
 inline void ToSourcePass::PrintVarType(const VarDeclAbstract& node)
 {
-    if (!TryPrintType(node.type.get()) && config.Sema()) {
+    if (!TryPrintType(node.type.get()) && Config().Sema()) {
         TryPrintTy(node.ty);
     }
 }
@@ -1353,7 +1443,7 @@ bool ToSourcePass::TryPrintType(const Ptr<Type> type)
         Traverse(*type, visitor);
         return true;
     }
-    if (config.Sema()) {
+    if (Config().Sema()) {
         return TryPrintTy(type->ty);
     }
     return false;
@@ -1416,7 +1506,7 @@ void ToSourcePass::PrintTy(const Ty& ty)
  */
 bool ToSourcePass::TryRecoverCallExpr(const CallExpr& node)
 {
-    if (config.Sema()) {
+    if (Config().Sema()) {
         return TryPrintInitCall(node) || TryRecoverOverloadCallExpr(node) || TryRecoverPropCallExpr(node);
     }
     return false;
@@ -1605,7 +1695,7 @@ bool ToSourcePass::TryRecoverPropCallExpr(const CallExpr& node)
 bool ToSourcePass::TryPrintDesugaredForInExpr(const ForInExpr& node)
 {
     // TODO: 适配 默认 desugar false
-    if (!config.Sema() || !config.Desugar()) {
+    if (!Config().Sema() || !Config().Desugar()) {
         return false;
     }
     if (node.forInKind == ForInKind::FORIN_RANGE) {
@@ -1734,4 +1824,9 @@ void ToSourcePass::PrintDesugaredForInString(const ForInExpr& node)
 Printer& ToSourcePass::PRT()
 {
     return prt;
+}
+
+const ToSourcePassConfig& ToSourcePass::Config() const
+{
+    return Cast<const ToSourcePassConfig&>(config);
 }

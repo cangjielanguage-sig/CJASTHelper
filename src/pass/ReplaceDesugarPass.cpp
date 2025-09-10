@@ -8,7 +8,7 @@
 #include "utils/Cast.h"
 #include "utils/Logger.h"
 
-ReplaceDesugarPass::ReplaceDesugarPass(PassConfig config) : Pass(config)
+ReplaceDesugarPass::ReplaceDesugarPass(const PassConfig& config) : Pass(config)
 {
     visitor.RegVisit(
         AstKind::OPTION_TYPE, [this](AstNode& node, ValuedResult& res) { Visit(Cast<OptionType&>(node), res); });
