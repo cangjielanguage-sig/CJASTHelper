@@ -10,72 +10,7 @@
 
 namespace fs = std::filesystem;
 
-namespace {
-// 私有辅助函数
-void replaceAll(std::string& str, const std::string& from, const std::string& to)
-{
-    if (from.empty()) {
-        return;
-    }
-    size_t start_pos = 0;
-    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
-        str.replace(start_pos, from.length(), to);
-        // 这里+to.length()是为了防止to中有重叠部分，例如从"aa"替换成"a"
-        start_pos += to.length();
-    }
-}
-/**
- * 判断是否是 自动生成的临时变量名 (可能重复， 比如迭代器变量)
- */
-inline bool MaybeRepated(const std::string& id)
-{
-    static std::vector<std::string> keys{"$iter-", "$stop-compiler", "iter-compiler"};
-    for (auto& key : keys) {
-        if (id.find(key) != std::string::npos) {
-            return true;
-        }
-    }
-    return false;
-}
-/**
- * 规范化标识符
- *
- * 1. 给未编码的临时变量名添加id，避免冲突
- * 2. 替换一些特殊符号：比如：$, - 的替换
- */
-inline void NormalizedId(std::string& id)
-{
-    static int counter = 0; // 全局id
-    if (MaybeRepated(id)) {
-        id += std::to_string(counter++);
-    }
-    replaceAll(id, "$", "");
-    replaceAll(id, "-", "_");
-}
-/**
- * 标识符转换函数
- */
-inline std::string Id(const Identifier& id)
-{
-    std::string res = id.Val();
-    NormalizedId(res);
-    return res;
-}
-} // namespace
-
-///  Ast2SourceException 实现函数
-
-Ast2SourceException::Ast2SourceException(const std::string& msg) noexcept : message(msg)
-{
-}
-
-const char* Ast2SourceException::what() const noexcept
-{
-    return message.c_str();
-}
-
 /// ToSourcePassConfig
-
 bool ToSourcePassConfig::Focus(const Decl& decl) const
 {
     return (focusDecls.empty() || focusDecls.count(decl.astKind)) && !ignoreDecls.count(decl.identifier.Val());
@@ -165,8 +100,58 @@ ToSourcePassConfig& ToSourcePassConfig::IgnoreAnnotations(const std::unordered_s
 }
 
 /// ToSourcePass 实现函数
-
 namespace {
+// 私有辅助函数
+void replaceAll(std::string& str, const std::string& from, const std::string& to)
+{
+    if (from.empty()) {
+        return;
+    }
+    size_t start_pos = 0;
+    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+        str.replace(start_pos, from.length(), to);
+        // 这里+to.length()是为了防止to中有重叠部分，例如从"aa"替换成"a"
+        start_pos += to.length();
+    }
+}
+/**
+ * 判断是否是 自动生成的临时变量名 (可能重复， 比如迭代器变量)
+ */
+inline bool MaybeRepated(const std::string& id)
+{
+    static std::vector<std::string> keys{"$iter-", "$stop-compiler", "iter-compiler"};
+    for (auto& key : keys) {
+        if (id.find(key) != std::string::npos) {
+            return true;
+        }
+    }
+    return false;
+}
+/**
+ * 规范化标识符
+ *
+ * 1. 给未编码的临时变量名添加id，避免冲突
+ * 2. 替换一些特殊符号：比如：$, - 的替换
+ */
+inline void NormalizedId(std::string& id)
+{
+    static int counter = 0; // 全局id
+    if (MaybeRepated(id)) {
+        id += std::to_string(counter++);
+    }
+    replaceAll(id, "$", "");
+    replaceAll(id, "-", "_");
+}
+/**
+ * 标识符转换函数
+ */
+inline std::string Id(const Identifier& id)
+{
+    std::string res = id.Val();
+    NormalizedId(res);
+    return res;
+}
+
 /*
  * 获取文件名不包括后缀： xxx.cj -> xxx
  */
@@ -187,7 +172,8 @@ void ToSourcePass::Visit(const File& node, VisitResult&)
     std::string fp = Config().out + "/" + FileName(node.fileName) + Config().suffix;
     ofs.open(fp, std::ios::out);
     if (!ofs.is_open()) {
-        throw Ast2SourceException("Failed to open file: " + fp);
+        ERROR("ToSourcePass try to open file: " + fp + " failed!");
+        throw std::logic_error("ToSourcePass try to open file: " + fp + " failed!");
     }
     // package declaration
     TryPrintNode(node.package.get());
@@ -1060,7 +1046,8 @@ void CreateDirIfNotExists(const std::string& path)
     }
     // 创建目录（包括父目录）
     if (!fs::create_directories(path)) {
-        throw Ast2SourceException("Failed to create directory: " + path);
+        ERROR("ToSourcePass try to create directory: " + path + " failed!");
+        throw std::logic_error("ToSourcePass try to create directory: " + path + " failed!");
     }
 }
 } // namespace

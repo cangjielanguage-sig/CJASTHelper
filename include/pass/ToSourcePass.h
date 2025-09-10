@@ -12,28 +12,6 @@
 #include <fstream>
 
 /**
- * @class Ast2SourceException
- * @brief 自定义异常类，用于处理 `ToSourcePass` 中的异常。
- */
-class Ast2SourceException : public std::exception {
-private:
-    std::string message; /**< 异常消息 */
-
-public:
-    /**
-     * @brief 构造函数，初始化异常消息。
-     * @param msg 异常消息字符串。
-     */
-    explicit Ast2SourceException(const std::string& msg) noexcept;
-
-    /**
-     * @brief 获取异常消息。
-     * @return 异常消息的C字符串。
-     */
-    const char* what() const noexcept override;
-};
-
-/**
  * @class ToSourcePassConfig
  */
 class ToSourcePassConfig : public PassConfig {

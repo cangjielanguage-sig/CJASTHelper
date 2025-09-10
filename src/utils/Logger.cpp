@@ -6,16 +6,7 @@
 #ifdef NDEBUG
 #else
 #include "utils/Logger.h"
-#include <cstdlib>
-
-LoggerException::LoggerException(const std::string& msg) noexcept : message(msg)
-{
-}
-
-const char* LoggerException::what() const noexcept
-{
-    return message.c_str();
-}
+#include <stdexcept>
 
 std::unique_ptr<Logger> Logger::instance = nullptr;
 
@@ -40,7 +31,7 @@ Logger::Logger(const std::string& path) : p(fs, 0)
 {
     fs.open(path, std::ios::out);
     if (!fs.is_open()) {
-        throw LoggerException("Failed to open logger file " + path);
+        throw std::logic_error("Logger: Failed to open logger file " + path);
     }
 }
 #endif
