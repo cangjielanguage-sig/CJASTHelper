@@ -177,6 +177,8 @@ ArgHelper::ArgHelper() : p(std::cout, 4)
     od.Key("dump-source")
         .MainDesc("Dump source after <value> stage. Supported value: parse, desugared-parse, sema, desugared-sema.")
         .Values({"parse", "desugared-parse", "sema", "desugared-sema"})
+        .Visible(true)
+        .Single(true)
         .SubDesc({});
     validOptions.emplace("dump-source", od);
     // --filter-decls=id1,id2,id3
@@ -226,6 +228,7 @@ void ArgHelper::ShowHelperInfo()
     p.Unindent();
     p.PNL();
     PL("cjc-options: please refer to `cjc -h`.");
+    p.Flush();
     std::cout.flags(bakflags);
 }
 
