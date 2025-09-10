@@ -10,16 +10,6 @@
 #include <sstream>
 #include <stdexcept>
 
-/// 异常
-InvalidArgumentException::InvalidArgumentException(const std::string& msg) noexcept : message(msg)
-{
-}
-
-const char* InvalidArgumentException::what() const noexcept
-{
-    return message.c_str();
-}
-
 /// ArgParser
 
 ArgumentParser::ArgumentParser(const std::unordered_map<std::string, std::unordered_set<std::string>>& validOptions)
@@ -31,12 +21,12 @@ void ArgumentParser::Parse(const std::vector<std::string>& args)
 {
     for (const auto& arg : args) {
         if (arg.rfind("--", 0) != 0) {
-            throw InvalidArgumentException("Invalid argument format: " + arg);
+            throw std::invalid_argument("ArgumentParser: Invalid argument format: " + arg);
         }
 
         size_t equalPos = arg.find('=');
         if (equalPos == std::string::npos) {
-            throw InvalidArgumentException("Missing '=' in argument: " + arg);
+            throw std::invalid_argument("ArgumentParser: Missing '=' in argument: " + arg);
         }
 
         std::string option = arg.substr(2, equalPos - 2);
@@ -75,7 +65,7 @@ void ArgumentParser::ValidateOption(const std::string& option, const std::vector
 {
     auto it = validOptions.find(option);
     if (it == validOptions.end()) {
-        throw InvalidArgumentException("Invalid option: " + option);
+        throw std::invalid_argument("ArgumentParser: Invalid option: " + option);
     }
     // 未配置有效选项值，默认不限制
     if (it->second.empty()) {
@@ -83,7 +73,7 @@ void ArgumentParser::ValidateOption(const std::string& option, const std::vector
     }
     for (const auto& value : values) {
         if (it->second.find(value) == it->second.end()) {
-            throw InvalidArgumentException("Invalid value for option " + option + ": " + value);
+            throw std::invalid_argument("ArgumentParser: Invalid value for option " + option + ": " + value);
         }
     }
 }
@@ -350,7 +340,7 @@ Options ArgHelper::ParseArgs(int argc, const char* const* argv, const char* cons
         // config env
         options.env =
             ParseEnv(envp, {"CANGJIE_PATH", "CANGJIE_HOME", "LIBRARY_PATH", "LD_LIBRARY_PATH", "PATH", "SDKROOT"});
-    } catch (InvalidArgumentException& iae) {
+    } catch (std::invalid_argument& e) {
         // Only do show help info.
         options.stage = SourceStage::DEFAULT;
     }

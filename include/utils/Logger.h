@@ -11,20 +11,9 @@
 #else
 
 #include "utils/Printer.h"
-#include <exception>
 #include <fstream>
 #include <memory>
 #include <source_location> // C++20 起支持
-
-// Logger Exception
-class LoggerException : public std::exception {
-private:
-    std::string message;
-
-public:
-    explicit LoggerException(const std::string& msg) noexcept;
-    const char* what() const noexcept override;
-};
 
 // 映射表（保持顺序一致！）
 constexpr int LEVEL_SIZE = 4;
