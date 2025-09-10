@@ -25,6 +25,8 @@ public:
 private:
     void Visit(OptionType& node, ValuedResult& res);
 
+    void Visit(Expr& node, ValuedResult& res);
+
     void Merge(FuncDecl& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes);
     void Merge(VarDecl& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes);
 

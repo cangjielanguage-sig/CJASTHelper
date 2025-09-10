@@ -22,6 +22,7 @@ public:
 
 private:
     void Visit(OptionType& node, ValuedResult& res);
+    void Visit(Expr& node, ValuedResult& res);
 
 private:
     CounterAstVisitor visitor;

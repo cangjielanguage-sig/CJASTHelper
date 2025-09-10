@@ -59,13 +59,28 @@ TEST_P(CJAHTest, CI001)
 {
     auto expected = cfg.expectedPath;
     EXPECT_TRUE(ah);
-    // ah->DisplayOptions();
     ah->Run();
     std::string outFile = "test/data/output/" + cfg.inputName + "_source.cj";
     EXPECT_TRUE(CheckExist(outFile)) << "Output file not found.";
     if (expected) {
         EXPECT_TRUE(CheckExist(*expected)) << "Expected file not found.";
         EXPECT_TRUE(CompareFile(outFile, *expected)) << "Output file is not equal to expected file.";
+    }
+}
+
+TEST_P(CJAHTest, GenGolden)
+{
+    auto expected = cfg.expectedPath;
+    EXPECT_TRUE(ah);
+    ah->Run();
+    std::string outFile = "test/data/output/" + cfg.inputName + "_source.cj";
+
+    if (expected) {
+        EXPECT_TRUE(CheckExist(*expected)) << "Expected file not found.";
+        if (!CompareFile(outFile, *expected)) {
+            // 注意： 覆盖golden数据 确保结果正确
+            EXPECT_TRUE(MoveFile(outFile, *expected)) << "Failed to generate golden data.";
+        }
     }
 }
 
@@ -80,7 +95,12 @@ TestConfig MKCfg(ConStr& src, ConStr& stage, ConStr& enableDesugar = "false", bo
     Options options;
     options.Stage(stage);
     options.EnableDesugar(enableDesugar);
-    options.Passes({"to-source"});
+    if (options.stage > SourceStage::PARSE && options.enableDesugar) {
+        options.passes.push_back("check-desugar");
+        options.passes.push_back("replace-desugar");
+        options.passes.push_back("check-desugar");
+    }
+    options.passes.push_back("to-source");
     options.Args({"cjah", "--output-type=dylib", "--output-dir", out, "-Woff", "unused", "-Woff", "parser", src});
     options.env = {{"CANGJIE_HOME", GetEnv("CANGJIE_HOME", "")}};
     return {options, name, expected};
@@ -104,6 +124,8 @@ std::vector<TestConfig> GenerateAllStageCfgs(ConStr& demo)
             cfgs.push_back(MKCfg(demo, stage, enable));
         }
     }
+    // 打开注释测试单个场景
+    // cfgs.push_back(MKCfg(demo, "desugared-parse", "true"));
     return cfgs;
 }
 
