@@ -9,6 +9,8 @@
 #include "utils/Logger.h"
 #include "utils/Macro.h"
 #include "wrapper/WrapperAst.h"
+#include <fstream>
+#include <iostream>
 
 std::string AstKind2Str(AstKind kind)
 {
@@ -26,7 +28,7 @@ std::vector<Ptr<AstNode>> AstNodeHelper::GetChildren(const AstNode& node)
     if (auto fn = AstNodeHelper::GetInstance().handlers.TryGet<CollectFunc>(node.astKind)) {
         fn->get()(node, result);
     } else {
-        // Logger::Get().Warn("AstNodeHelper::GetChildren", "unregistered kind ", AstKind2Str(node.astKind));
+        // DEBUG("unregistered kind ", AstKind2Str(node.astKind));
     }
     return result;
 }
@@ -36,7 +38,7 @@ void AstNodeHelper::ReplaceChildren(AstNode& node, std::vector<OwnedPtr<AstNode>
     if (auto fn = AstNodeHelper::GetInstance().handlers.TryGet<ReplaceFunc>(node.astKind)) {
         fn->get()(node, children);
     } else {
-        // Logger::Get().Warn("AstNodeHelper::ReplaceChildren", "unregistered kind ", AstKind2Str(node.astKind));
+        // DEBUG("unregistered kind ", AstKind2Str(node.astKind));
     }
 }
 
@@ -44,10 +46,10 @@ void AstNodeHelper::DumpAst(const AstNode& node, const std::string& out)
 {
     std::ofstream file(out);
     if (!file.is_open()) {
-        Logger::Get().Error("AstNodeHelper::DumpAst", "open file failed: ", out);
+        DEBUG("open file failed: ", out);
         return;
     }
-    Logger::Get().Debug("AstNodeHelper::DumpAst", "open file success! ", out);
+    DEBUG("open file success! ", out);
     std::streambuf* original_cout_buf = std::cout.rdbuf();
     std::cout.rdbuf(file.rdbuf());
     Cangjie::PrintNode(&node);

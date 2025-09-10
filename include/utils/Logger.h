@@ -1,15 +1,20 @@
 /**
  * @file
  *
- * This file declares the Logger.
+ * This file declares the Logger, 只有DEBUG模式下才enable
  */
 #pragma once
+
+#ifdef NDEBUG
+#define LOG(level, ...)
+
+#else
 
 #include "utils/Printer.h"
 #include <exception>
 #include <fstream>
 #include <memory>
-#include <vector>
+#include <source_location> // C++20 起支持
 
 // Logger Exception
 class LoggerException : public std::exception {
@@ -21,6 +26,10 @@ public:
     const char* what() const noexcept override;
 };
 
+// 映射表（保持顺序一致！）
+constexpr int LEVEL_SIZE = 4;
+constexpr std::array<const char*, LEVEL_SIZE> level_names = {"DEBUG", "INFO", "WARN", "ERROR"};
+
 class Logger {
 public:
     /**
@@ -28,15 +37,11 @@ public:
      */
     enum class Level { DEBUG = 0, INFO, WARN, ERROR };
 
-    /**
-     * @brief 日志模式枚举。
-     */
-    enum class Mode {
-        STD = 0, // 输出到标准输出
-        FILE,    // 输出到文件
-        ALL,     // 同时输出到标准输出和文件
-        NO       // 不输出任何日志
-    };
+    constexpr const char* LevelName(Level level)
+    {
+        auto idx = static_cast<size_t>(level);
+        return idx < level_names.size() ? level_names[idx] : "Unknown";
+    }
 
     /**
      * @brief 设置日志级别。
@@ -49,95 +54,32 @@ public:
     }
 
     /**
-     * @brief 记录调试级别的日志。
-     *
-     * @tparam Args 参数包中的类型。
-     * @param domain 日志域。
-     * @param args 要记录的日志内容。
-     */
-    template <typename... Args> inline void Debug(const std::string& domain, Args&&... args)
-    {
-        Log(Level::DEBUG, domain, std::forward<Args>(args)...);
-    }
-
-    /**
-     * @brief 记录信息级别的日志。
-     *
-     * @tparam Args 参数包中的类型。
-     * @param domain 日志域。
-     * @param args 要记录的日志内容。
-     */
-    template <typename... Args> inline void Info(const std::string& domain, Args&&... args)
-    {
-        Log(Level::INFO, domain, std::forward<Args>(args)...);
-    }
-
-    /**
-     * @brief 记录警告级别的日志。
-     *
-     * @tparam Args 参数包中的类型。
-     * @param domain 日志域。
-     * @param args 要记录的日志内容。
-     */
-    template <typename... Args> inline void Warn(const std::string& domain, Args&&... args)
-    {
-        Log(Level::WARN, domain, std::forward<Args>(args)...);
-    }
-
-    /**
-     * @brief 记录错误级别的日志。
-     *
-     * @tparam Args 参数包中的类型。
-     * @param domain 日志域。
-     * @param args 要记录的日志内容。
-     */
-    template <typename... Args> inline void Error(const std::string& domain, Args&&... args)
-    {
-        Log(Level::ERROR, domain, std::forward<Args>(args)...);
-    }
-
-    /**
      * @brief 记录指定级别的日志。
      *
      * @tparam Args 参数包中的类型。
      * @param level 日志级别。
-     * @param domain 日志域。
+     * @param loc 日志位置。
      * @param args 要记录的日志内容。
      */
-    template <typename... Args> void Log(Level level, const std::string& domain, Args&&... args)
+    template <Level level = Level::DEBUG, typename... Args> void Log(const std::source_location& loc, Args&&... args)
     {
-#ifdef NDEBUG
-#else
+
         if (this->level > level) {
             return;
         }
-        PLevel(level);
-        PDomain(domain);
-        p.PVals(std::forward<Args>(args)...);
-        p.PNL();
-        p.Flush();
-#endif
+        p.PVals("[", LevelName(level), "]");
+        p.PVals(" <", loc.file_name(), ":", loc.line(), " ", loc.function_name());
+        p.PSVals(" ", ">", std::forward<Args>(args)...).PNL();
     }
 
     /**
-     * @brief 获取合适的日志实例。
-     *
-     * @param m 日志模式，默认为文件模式。
-     * @return 日志实例的引用。
+     * @brief 获取日志实例。
      */
-    static Logger& Get(Mode m = Mode::FILE);
+    static Logger& Get();
 
-    /**
-     * @brief 清空所有日志流。
-     */
-    static void Close();
+    virtual ~Logger();
 
 private:
-    /**
-     * @brief 私有构造函数，防止外部实例化。
-     */
-    Logger();
-
     /**
      * @brief 私有构造函数，用于初始化文件日志流。
      *
@@ -145,23 +87,17 @@ private:
      */
     Logger(const std::string& path);
 
-    /**
-     * @brief 打印日志级别。
-     *
-     * @param level 日志级别。
-     */
-    void PLevel(Level level);
-
-    /**
-     * @brief 打印日志域。
-     *
-     * @param domain 日志域。
-     */
-    void PDomain(const std::string& domain);
-
 private:
-    Printer p;                                             // 打印器对象
-    Level level = Level::DEBUG;                            // 当前日志级别
-    static inline std::fstream fs;                         // 文件流
-    static std::vector<std::unique_ptr<Logger>> instances; // 日志实例集合
+    Printer p;                               // 打印器对象
+    Level level = Level::DEBUG;              // 当前日志级别
+    static inline std::fstream fs;           // 文件流
+    static std::unique_ptr<Logger> instance; // 日志实例集合
 };
+
+#define LOG(level, ...) Logger::Get().Log<Logger::Level::level>(std::source_location::current(), ##__VA_ARGS__)
+#endif
+
+#define DEBUG(...) LOG(DEBUG, ##__VA_ARGS__)
+#define INFO(...) LOG(INFO, ##__VA_ARGS__)
+#define WARN(...) LOG(WARN, ##__VA_ARGS__)
+#define ERROR(...) LOG(ERROR, ##__VA_ARGS__)
