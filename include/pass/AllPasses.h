@@ -6,8 +6,7 @@
 
 #pragma once
 
-#include "pass/CheckDesugarPass.h"
-#include "pass/ReplaceDesugarPass.h"
+#include "pass/DesugarPass.h"
 #include "pass/ToSourcePass.h"
 #include "utils/Cast.h"
 
