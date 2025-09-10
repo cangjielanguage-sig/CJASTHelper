@@ -74,31 +74,27 @@ const char* Ast2SourceException::what() const noexcept
     return message.c_str();
 }
 
+/// ToSourcePass 实现函数
+
 namespace {
 /*
  * 获取文件名不包括后缀： xxx.cj -> xxx
  */
-std::string GetFileNameWithoutSuffix(const std::string& fname)
+inline std::string FileName(const std::string& fname)
 {
-    size_t pos = fname.find_last_of('.');
-    if (pos != std::string::npos) {
-        return fname.substr(0, pos);
-    } else {
-        return fname;
-    }
+    return fs::path(fname).stem().string();
 }
 } // namespace
 
 void ToSourcePass::Run(AstNode& node)
 {
-    Traverse(node, visitor);
+    (void)Traverse(node, visitor);
 }
 
-/// ToSourcePass 实现函数
 void ToSourcePass::Visit(const File& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For File imports: ", node.imports.size());
-    std::string fp = config.out + "/" + GetFileNameWithoutSuffix(node.fileName) + config.suffix;
+    DEBUG("For File imports: ", node.imports.size());
+    std::string fp = config.out + "/" + FileName(node.fileName) + config.suffix;
     ofs.open(fp, std::ios::out);
     if (!ofs.is_open()) {
         throw Ast2SourceException("Failed to open file: " + fp);
@@ -122,7 +118,7 @@ void ToSourcePass::Visit(const File& node, VisitResult&)
 
 void ToSourcePass::Visit(const PackageSpec& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For PackageSpec: ", node.packageName.Val());
+    DEBUG("For PackageSpec: ", node.packageName.Val());
     TryPrintNode(node.modifier.get(), "", " ");
     PRT().PVal("package ");
     PRT().PVec<std::string>(
@@ -160,7 +156,7 @@ inline bool IsDuplicatedImport(const ImportSpec& node)
 
 void ToSourcePass::Visit(const ImportSpec& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For ImportSpec");
+    DEBUG("For ImportSpec");
     if (IsDuplicatedImport(node)) {
         // Import multi-packages is desugared as serveral import single-packages, import std.core.* is implicit import!
         return;
@@ -174,7 +170,7 @@ void ToSourcePass::Visit(const ImportSpec& node, VisitResult&)
 
 void ToSourcePass::Visit(const ImportContent& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For ImportContent");
+    DEBUG("For ImportContent");
     PRT().PVec<std::string>(
         node.prefixPaths, [this](const std::string& pre) { PRT().PVal(pre); }, ".", "", ".");
     if (node.kind == ImportKind::IMPORT_SINGLE) {
@@ -190,7 +186,7 @@ void ToSourcePass::Visit(const ImportContent& node, VisitResult&)
 
 void ToSourcePass::Visit(const Annotation& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For Annotation");
+    DEBUG("For Annotation");
     PRT().PVals("@", Id(node.identifier));
     PRT().PVec<FuncArg>(
         node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "[", "]");
@@ -199,7 +195,7 @@ void ToSourcePass::Visit(const Annotation& node, VisitResult&)
 
 void ToSourcePass::Visit(const Modifier& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For Modifier");
+    DEBUG("For Modifier");
     PRT().PVal(Tk2Str(node.modifier));
 }
 
@@ -229,7 +225,7 @@ inline bool HasBody(const PropDecl& propDecl)
 
 void ToSourcePass::Visit(const VarDecl& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For VarDecl: ", node.identifier.Val());
+    DEBUG("For VarDecl: ", node.identifier.Val());
     PrintDecl(node);
     if (TryPrintEnumConstructor(node)) {
         return;
@@ -246,7 +242,7 @@ void ToSourcePass::Visit(const VarDecl& node, VisitResult&)
 
 void ToSourcePass::Visit(const VarWithPatternDecl& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For VarWithPatternDecl: ", node.identifier.Val());
+    DEBUG("For VarWithPatternDecl: ", node.identifier.Val());
     PrintDecl(node);
     TryPrintNode(node.irrefutablePattern.get(), GetVarKeyword(node) + " ");
     PrintVarType(node);
@@ -255,7 +251,7 @@ void ToSourcePass::Visit(const VarWithPatternDecl& node, VisitResult&)
 
 void ToSourcePass::Visit(const PropDecl& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For PropDecl: ", node.identifier.Val());
+    DEBUG("For PropDecl: ", node.identifier.Val());
     PrintDecl(node);
     PRT().PVal("prop ");
     PRT().PVal(Id(node.identifier));
@@ -275,7 +271,7 @@ void ToSourcePass::Visit(const PropDecl& node, VisitResult&)
 
 void ToSourcePass::Visit(const FuncParam& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For FuncParam");
+    DEBUG("For FuncParam");
     PrintDecl(node);
     if (node.hasLetOrVar) {
         PRT().PVals(GetVarKeyword(node), " ");
@@ -290,7 +286,7 @@ void ToSourcePass::Visit(const FuncParam& node, VisitResult&)
 
 void ToSourcePass::Visit(const FuncParamList& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For FuncParamList: ", node.params.size());
+    DEBUG("For FuncParamList: ", node.params.size());
     PRT().PVec<FuncParam>(
         node.params, [this](const FuncParam& param) { Traverse(param, visitor); }, ", ", "(", ")", true);
 }
@@ -307,7 +303,7 @@ inline Ptr<Ty> TryGetRetTy(Ptr<Ty> ty)
 
 void ToSourcePass::Visit(const FuncBody& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For FuncBody");
+    DEBUG("For FuncBody");
     TryPrintGenericParams(node.generic.get());
     VisitNode(node.paramLists[0]);
     if (!TryPrintType(node.retType) && config.Sema()) {
@@ -319,7 +315,7 @@ void ToSourcePass::Visit(const FuncBody& node, VisitResult&)
 
 void ToSourcePass::Visit(const FuncDecl& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For FuncDecl: ", node.identifier.Val());
+    DEBUG("For FuncDecl: ", node.identifier.Val());
     PrintDecl(node);
     if (TryPrintEnumConstructor(node) || TryPrintConstructor(node) || TryPrintGetter(node) || TryPrintSetter(node)) {
         return;
@@ -334,17 +330,17 @@ VisitResult ToSourcePass::Before(const MainDecl& node)
     if (!node.desugarDecl) {
         return VisitResult::Cont();
     }
-    Logger::Get().Debug("ToSourcePass::Before", "For MainDecl");
+    DEBUG("For MainDecl");
     // 存在解糖节点
     if (config.Desugar()) {
-        Logger::Get().Debug("ToSourcePass::Before", "For Desugared Decl of MainDecl");
+        DEBUG("For Desugared Decl of MainDecl");
         if (node.TestAttr(Attribute::UNSAFE)) {
             PRT().PVal("unsafe ");
         }
         VisitNode(node.desugarDecl);
     } else {
         // 还原原节点
-        Logger::Get().Debug("ToSourcePass::Before", "For Recover Desugared Decl of MainDecl");
+        DEBUG("For Recover Desugared Decl of MainDecl");
         PrintDecl(node);
         PRT().PVal("main");
         TryPrintNode(node.desugarDecl->funcBody);
@@ -354,7 +350,7 @@ VisitResult ToSourcePass::Before(const MainDecl& node)
 
 void ToSourcePass::Visit(const MainDecl& node, VisitResult& res)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For MainDecl");
+    DEBUG("For MainDecl");
     PrintDecl(node);
     PRT().PVal("main");
     AH_CHECK_NULL(node.funcBody);
@@ -363,7 +359,7 @@ void ToSourcePass::Visit(const MainDecl& node, VisitResult& res)
 
 void ToSourcePass::Visit(const PrimaryCtorDecl& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For PrimaryCtorDecl: ", node.identifier.Val());
+    DEBUG("For PrimaryCtorDecl: ", node.identifier.Val());
     if (config.Sema()) {
         return; // PrimaryCtorDecl is desugared in Sema
     }
@@ -375,7 +371,7 @@ void ToSourcePass::Visit(const PrimaryCtorDecl& node, VisitResult&)
 
 void ToSourcePass::Visit(const ClassDecl& node, VisitResult& res)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For ClassDecl: ", node.identifier.Val());
+    DEBUG("For ClassDecl: ", node.identifier.Val());
     PrintInheritableDeclHeader(node, "class");
     AH_CHECK_NULL(node.body);
     PrintInheritableDeclBody(node.body->decls);
@@ -383,7 +379,7 @@ void ToSourcePass::Visit(const ClassDecl& node, VisitResult& res)
 
 void ToSourcePass::Visit(const InterfaceDecl& node, VisitResult& res)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For InterfaceDecl: ", node.identifier.Val());
+    DEBUG("For InterfaceDecl: ", node.identifier.Val());
     PrintInheritableDeclHeader(node, "interface");
     AH_CHECK_NULL(node.body);
     PrintInheritableDeclBody(node.body->decls);
@@ -391,7 +387,7 @@ void ToSourcePass::Visit(const InterfaceDecl& node, VisitResult& res)
 
 void ToSourcePass::Visit(const StructDecl& node, VisitResult& res)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For StructDecl: ", node.identifier.Val());
+    DEBUG("For StructDecl: ", node.identifier.Val());
     PrintInheritableDeclHeader(node, "struct");
     AH_CHECK_NULL(node.body);
     PrintInheritableDeclBody(node.body->decls);
@@ -399,7 +395,7 @@ void ToSourcePass::Visit(const StructDecl& node, VisitResult& res)
 
 void ToSourcePass::Visit(const EnumDecl& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For EnumDecl: ", node.identifier.Val());
+    DEBUG("For EnumDecl: ", node.identifier.Val());
     PrintInheritableDeclHeader(node, "enum");
     PRT().PValNL(" {").Indent();
     PRT().PVec<Decl>(node.constructors, [this](const Decl& decl) {
@@ -415,7 +411,7 @@ void ToSourcePass::Visit(const EnumDecl& node, VisitResult&)
 
 void ToSourcePass::Visit(const ExtendDecl& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For ExtendDecl: ", node.identifier.Val());
+    DEBUG("For ExtendDecl: ", node.identifier.Val());
     PrintDecl(node);
     PRT().PVal("extend");
     TryPrintGenericParams(node.generic.get());
@@ -427,7 +423,7 @@ void ToSourcePass::Visit(const ExtendDecl& node, VisitResult&)
 
 void ToSourcePass::Visit(const TypeAliasDecl& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For TypeAliasDecl: ", node.identifier.Val());
+    DEBUG("For TypeAliasDecl: ", node.identifier.Val());
     PrintDecl(node);
     PRT().PVal("type ");
     PRT().PVal(Id(node.identifier));
@@ -437,13 +433,13 @@ void ToSourcePass::Visit(const TypeAliasDecl& node, VisitResult&)
 // Type
 void ToSourcePass::Visit(const PrimitiveType& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For PrimitiveType");
+    DEBUG("For PrimitiveType");
     PRT().PVal(node.str);
 }
 
 void ToSourcePass::Visit(const RefType& node, VisitResult& res)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For RefType");
+    DEBUG("For RefType");
     if (node.ref.identifier.Val() == "" && config.Sema() && node.ty) {
         PrintTy(*node.ty);
     } else {
@@ -459,28 +455,28 @@ VisitResult ToSourcePass::Before(const OptionType& node)
         // desugar is false && node.desugarType is not nullptr is okay, because node.componentType is not nullptr.
         return VisitResult::Cont();
     }
-    Logger::Get().Debug("ToSourcePass::Before", "For OptionType: desugar: ", node.desugarType != nullptr);
+    DEBUG("For OptionType: desugar: ", node.desugarType != nullptr);
     TryPrintNode(node.desugarType);
     return VisitResult::Skip();
 }
 
 void ToSourcePass::Visit(const OptionType& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For OptionType");
+    DEBUG("For OptionType");
     std::string preQuest(node.questNum, '?');
     TryPrintNode(node.componentType.get(), preQuest);
 }
 
 void ToSourcePass::Visit(const TupleType& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For TupleType");
+    DEBUG("For TupleType");
     PRT().PVec<Type>(
         node.fieldTypes, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "(", ")");
 }
 
 void ToSourcePass::Visit(const QualifiedType& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For QualifiedType");
+    DEBUG("For QualifiedType");
     VisitNode(node.baseType);
     PRT().PVals(".", Id(node.field));
     PRT().PVec<Type>(
@@ -489,13 +485,13 @@ void ToSourcePass::Visit(const QualifiedType& node, VisitResult&)
 
 void ToSourcePass::Visit(const ThisType& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For ThisType");
+    DEBUG("For ThisType");
     PRT().PVal("This");
 }
 
 void ToSourcePass::Visit(const VArrayType& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For VArrayType");
+    DEBUG("For VArrayType");
     PRT().PVal("VArray<");
     VisitNode(node.typeArgument);
     PRT().PVal(", ");
@@ -505,19 +501,19 @@ void ToSourcePass::Visit(const VArrayType& node, VisitResult&)
 
 void ToSourcePass::Visit(const ParenType& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For ParenType");
+    DEBUG("For ParenType");
     TryPrintNode(node.type.get(), "(", ")");
 }
 
 void ToSourcePass::Visit(const ConstantType& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For ConstantType");
+    DEBUG("For ConstantType");
     TryPrintNode(node.constantExpr.get(), "$");
 }
 
 void ToSourcePass::Visit(const FuncType& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For FuncType");
+    DEBUG("For FuncType");
     PRT().PVec<Type>(
         node.paramTypes, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "(", ")", true);
     TryPrintNode(node.retType.get(), " -> ");
@@ -526,19 +522,19 @@ void ToSourcePass::Visit(const FuncType& node, VisitResult&)
 // Pattern
 void ToSourcePass::Visit(const WildcardPattern& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For WildcardPattern");
+    DEBUG("For WildcardPattern");
     PRT().PVal("_");
 }
 
 void ToSourcePass::Visit(const ConstPattern& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For ConstPattern");
+    DEBUG("For ConstPattern");
     VisitNode(node.literal);
 }
 
 void ToSourcePass::Visit(const EnumPattern& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For EnumPattern");
+    DEBUG("For EnumPattern");
 
     AH_CHECK_NULL(node.constructor);
     // RefExpr 单独处理
@@ -556,13 +552,13 @@ void ToSourcePass::Visit(const EnumPattern& node, VisitResult&)
 
 void ToSourcePass::Visit(const VarPattern& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For VarPattern", node.varDecl->identifier.Val());
+    DEBUG("For VarPattern", node.varDecl->identifier.Val());
     PRT().PVal(Id(node.varDecl->identifier));
 }
 
 void ToSourcePass::Visit(const VarOrEnumPattern& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For VarOrEnumPattern: ", node.identifier.Val());
+    DEBUG("For VarOrEnumPattern: ", node.identifier.Val());
     PRT().PVal(Id(node.identifier));
     // pattern 是 解糖后才有的？
     // VisitNode(node.pattern);
@@ -570,14 +566,14 @@ void ToSourcePass::Visit(const VarOrEnumPattern& node, VisitResult&)
 
 void ToSourcePass::Visit(const TypePattern& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For TypePattern");
+    DEBUG("For TypePattern");
     VisitNode(node.pattern);
     TryPrintType(node.type.get());
 }
 
 void ToSourcePass::Visit(const TuplePattern& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For TuplePattern");
+    DEBUG("For TuplePattern");
     PRT().PVec<Pattern>(
         node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, ", ", "(", ")");
 }
@@ -585,7 +581,7 @@ void ToSourcePass::Visit(const TuplePattern& node, VisitResult&)
 // Expr
 void ToSourcePass::Visit(const Block& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For Block: ", node.body.size());
+    DEBUG("For Block: ", node.body.size());
     PRT().PVec<AstNode>(node.body, [this](const AstNode& node) {
         auto res = Traverse(node, visitor);
         PRT().PNL();
@@ -599,7 +595,7 @@ VisitResult ToSourcePass::Before(const RefExpr& node)
     }
     auto target = node.ref.target;
     if (auto it = desugaredVarId.find(target); it != desugaredVarId.end()) {
-        Logger::Get().Debug("ToSourcePass::Before", "For RefExpr: ", node.ref.identifier.Val());
+        DEBUG("For RefExpr: ", node.ref.identifier.Val());
         PRT().PVal(it->second);
         return VisitResult::Skip();
     }
@@ -608,20 +604,20 @@ VisitResult ToSourcePass::Before(const RefExpr& node)
 
 void ToSourcePass::Visit(const RefExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For RefExpr: ", node.ref.identifier.Val());
+    DEBUG("For RefExpr: ", node.ref.identifier.Val());
     PRT().PVal(Id(node.ref.identifier));
     PrintInstArgs(node);
 }
 
 void ToSourcePass::Visit(const FuncArg& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For FuncArg");
+    DEBUG("For FuncArg");
     VisitNode(node.expr);
 }
 
 void ToSourcePass::Visit(const CallExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For CallExpr");
+    DEBUG("For CallExpr");
     if (TryRecoverCallExpr(node)) {
         return;
     }
@@ -633,7 +629,7 @@ void ToSourcePass::Visit(const CallExpr& node, VisitResult&)
 
 void ToSourcePass::Visit(const ReturnExpr& node, VisitResult& res)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For ReturnExpr");
+    DEBUG("For ReturnExpr");
     // return in init, skip
     auto body = node.refFuncBody;
     if (body && body->funcDecl && body->funcDecl->TestAttr(Attribute::CONSTRUCTOR)) {
@@ -649,27 +645,27 @@ void ToSourcePass::Visit(const ReturnExpr& node, VisitResult& res)
 
 void ToSourcePass::Visit(const LitConstExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For LitConstExpr");
+    DEBUG("For LitConstExpr");
     PRT().PVal(node.ToString());
 }
 
 void ToSourcePass::Visit(const ArrayLit& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For ArrayLit");
+    DEBUG("For ArrayLit");
     PRT().PVec<AstNode>(
         node.children, [this](const AstNode& expr) { Traverse(expr, visitor); }, ", ", "[", "]", true);
 }
 
 void ToSourcePass::Visit(const TupleLit& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For TupleLit");
+    DEBUG("For TupleLit");
     PRT().PVec<AstNode>(
         node.children, [this](const AstNode& expr) { Traverse(expr, visitor); }, ", ", "(", ")", true);
 }
 
 void ToSourcePass::Visit(const TypeConvExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For TypeConvExpr");
+    DEBUG("For TypeConvExpr");
     VisitNode(node.type);
     TryPrintNode(node.expr, "(", ")");
 }
@@ -687,7 +683,7 @@ inline bool IsRefEnum(const Expr& expr)
 
 void ToSourcePass::Visit(const MemberAccess& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For MemberAccess");
+    DEBUG("For MemberAccess");
     VisitNode(node.baseExpr);
     PRT().PVals(".", Id(node.field));
     if (!config.Sema() || !IsRefEnum(*node.baseExpr)) {
@@ -697,7 +693,7 @@ void ToSourcePass::Visit(const MemberAccess& node, VisitResult&)
 
 void ToSourcePass::Visit(const LambdaExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For LambdaExpr");
+    DEBUG("For LambdaExpr");
     auto& body = *node.funcBody;
     PRT().PVal("{");
     AH_ASSERT(body.paramLists.size() == 1);
@@ -709,7 +705,7 @@ void ToSourcePass::Visit(const LambdaExpr& node, VisitResult&)
 
 void ToSourcePass::Visit(const MatchCase& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For MatchCase");
+    DEBUG("For MatchCase");
     PRT().PVal("case ");
     PRT().PVec<Pattern>(
         node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, " | ");
@@ -719,14 +715,14 @@ void ToSourcePass::Visit(const MatchCase& node, VisitResult&)
 
 void ToSourcePass::Visit(const MatchCaseOther& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For MatchCaseOther");
+    DEBUG("For MatchCaseOther");
     TryPrintNode(node.matchExpr.get(), "case ");
     PRT().PWI([this, &node] { VisitNode(node.exprOrDecls); }, " =>");
 }
 
 void ToSourcePass::Visit(const MatchExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For MatchExpr");
+    DEBUG("For MatchExpr");
     PRT().PVal("match ");
     // match with selector
     TryPrintNode(node.selector.get(), "(", ")");
@@ -739,7 +735,7 @@ void ToSourcePass::Visit(const MatchExpr& node, VisitResult&)
 
 void ToSourcePass::Visit(const IsExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For IsExpr");
+    DEBUG("For IsExpr");
     VisitNode(node.leftExpr);
     PRT().PVal(" is ");
     VisitNode(node.isType);
@@ -747,7 +743,7 @@ void ToSourcePass::Visit(const IsExpr& node, VisitResult&)
 
 void ToSourcePass::Visit(const AsExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For AsExpr");
+    DEBUG("For AsExpr");
     VisitNode(node.leftExpr);
     PRT().PVal(" as ");
     VisitNode(node.asType);
@@ -758,7 +754,7 @@ VisitResult ToSourcePass::Before(const AssignExpr& node)
     if (!node.desugarExpr) {
         return VisitResult::Cont();
     }
-    Logger::Get().Debug("ToSourcePass::Before", "For AssignExpr");
+    DEBUG("For AssignExpr");
     if (config.Desugar()) {
         Traverse(*node.desugarExpr, visitor);
     } else {
@@ -777,7 +773,7 @@ VisitResult ToSourcePass::Before(const AssignExpr& node)
 
 void ToSourcePass::Visit(const AssignExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For AssignExpr");
+    DEBUG("For AssignExpr");
     VisitNode(node.leftValue);
     PRT().PVals(" ", Tk2Str(node.op), " ");
     VisitNode(node.rightExpr);
@@ -785,7 +781,7 @@ void ToSourcePass::Visit(const AssignExpr& node, VisitResult&)
 
 void ToSourcePass::Visit(const IncOrDecExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For IncOrDecExpr");
+    DEBUG("For IncOrDecExpr");
     TryPrintNode(node.expr.get(), "", Tk2Str(node.op));
 }
 
@@ -794,7 +790,7 @@ VisitResult ToSourcePass::Before(const UnaryExpr& node)
     if (!node.desugarExpr) {
         return VisitResult::Cont();
     }
-    Logger::Get().Debug("ToSourcePass::Before", "For UnaryExpr");
+    DEBUG("For UnaryExpr");
     if (config.Desugar()) {
         Traverse(*node.desugarExpr, visitor);
     } else {
@@ -810,7 +806,7 @@ VisitResult ToSourcePass::Before(const UnaryExpr& node)
 
 void ToSourcePass::Visit(const UnaryExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For UnaryExpr");
+    DEBUG("For UnaryExpr");
     TryPrintNode(node.expr.get(), Tk2Str(node.op));
 }
 
@@ -819,7 +815,7 @@ VisitResult ToSourcePass::Before(const BinaryExpr& node)
     if (!node.desugarExpr) {
         return VisitResult::Cont();
     }
-    Logger::Get().Debug("ToSourcePass::Before", "For BinaryExpr");
+    DEBUG("For BinaryExpr");
     if (config.Desugar()) {
         Traverse(*node.desugarExpr, visitor);
     } else {
@@ -834,7 +830,7 @@ VisitResult ToSourcePass::Before(const BinaryExpr& node)
 }
 void ToSourcePass::Visit(const BinaryExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For BinaryExpr");
+    DEBUG("For BinaryExpr");
     VisitNode(node.leftExpr);
     PRT().PVals(" ", Tk2Str(node.op), " ");
     VisitNode(node.rightExpr);
@@ -842,7 +838,7 @@ void ToSourcePass::Visit(const BinaryExpr& node, VisitResult&)
 
 void ToSourcePass::Visit(const ThrowExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For ThrowExpr");
+    DEBUG("For ThrowExpr");
     PRT().PVal("throw ");
     VisitNode(node.expr);
 }
@@ -852,7 +848,7 @@ VisitResult ToSourcePass::Before(const SubscriptExpr& node)
     if (!node.desugarExpr) {
         return VisitResult::Cont();
     }
-    Logger::Get().Debug("ToSourcePass::Before", "For SubscriptExpr");
+    DEBUG("For SubscriptExpr");
     if (config.Desugar()) {
         Traverse(*node.desugarExpr, visitor);
     } else {
@@ -869,7 +865,7 @@ VisitResult ToSourcePass::Before(const SubscriptExpr& node)
 
 void ToSourcePass::Visit(const SubscriptExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For SubscriptExpr");
+    DEBUG("For SubscriptExpr");
     VisitNode(node.baseExpr);
     PRT().PVec<Expr>(
         node.indexExprs, [this](const Expr& expr) { Traverse(expr, visitor); }, ", ", "[", "]");
@@ -877,7 +873,7 @@ void ToSourcePass::Visit(const SubscriptExpr& node, VisitResult&)
 
 void ToSourcePass::Visit(const JumpExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For JumpExpr");
+    DEBUG("For JumpExpr");
     if (node.isBreak) {
         PRT().PVal("break");
     } else {
@@ -887,7 +883,7 @@ void ToSourcePass::Visit(const JumpExpr& node, VisitResult&)
 
 void ToSourcePass::Visit(const RangeExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For RangeExpr");
+    DEBUG("For RangeExpr");
     TryPrintNode(node.startExpr.get());
     PRT().PVal("..");
     TryPrintNode(node.stopExpr.get());
@@ -896,7 +892,7 @@ void ToSourcePass::Visit(const RangeExpr& node, VisitResult&)
 
 void ToSourcePass::Visit(const LetPatternDestructor& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For LetPatternDestructor");
+    DEBUG("For LetPatternDestructor");
     PRT().PVal("let ");
     PRT().PVec<Pattern>(
         node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, " | ");
@@ -905,7 +901,7 @@ void ToSourcePass::Visit(const LetPatternDestructor& node, VisitResult&)
 
 void ToSourcePass::Visit(const IfExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For IfExpr");
+    DEBUG("For IfExpr");
     PRT().PVal("if ");
     TryPrintNode(node.condExpr.get(), "(", ")");
     PRT().PWI([this, &node] { VisitNode(node.thenBody); }, " {", "}");
@@ -914,7 +910,7 @@ void ToSourcePass::Visit(const IfExpr& node, VisitResult&)
 
 void ToSourcePass::Visit(const WhileExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For WhileExpr");
+    DEBUG("For WhileExpr");
     PRT().PVal("while ");
     TryPrintNode(node.condExpr.get(), "(", ")");
     PRT().PWI([this, &node] { VisitNode(node.body); }, " {", "}");
@@ -922,7 +918,7 @@ void ToSourcePass::Visit(const WhileExpr& node, VisitResult&)
 
 void ToSourcePass::Visit(const DoWhileExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For DoWhileExpr");
+    DEBUG("For DoWhileExpr");
     PRT().PWI([this, &node] { VisitNode(node.body); }, "do {", "} while ");
     TryPrintNode(node.condExpr.get(), "(", ")");
     PRT().PNL();
@@ -930,7 +926,7 @@ void ToSourcePass::Visit(const DoWhileExpr& node, VisitResult&)
 
 void ToSourcePass::Visit(const ForInExpr& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For ForInExpr");
+    DEBUG("For ForInExpr");
     if (TryPrintDesugaredForInExpr(node)) {
         return;
     }
@@ -943,7 +939,7 @@ void ToSourcePass::Visit(const ForInExpr& node, VisitResult&)
 // Generic
 void ToSourcePass::Visit(const Generic& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For Generic");
+    DEBUG("For Generic");
     PRT().PVec<GenericParamDecl>(
         node.typeParameters, [this](const GenericParamDecl& gpd) { Traverse(gpd, visitor); }, ", ", "<", ">");
     PRT().PVec<GenericConstraint>(
@@ -952,13 +948,13 @@ void ToSourcePass::Visit(const Generic& node, VisitResult&)
 
 void ToSourcePass::Visit(const GenericParamDecl& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For GenericParamDecl");
+    DEBUG("For GenericParamDecl");
     PRT().PVal(Id(node.identifier));
 }
 
 void ToSourcePass::Visit(const GenericConstraint& node, VisitResult&)
 {
-    Logger::Get().Debug("ToSourcePass::Visit", "For GenericConstraint");
+    DEBUG("For GenericConstraint");
     VisitNode(node.type);
     PRT().PVal(" <: ");
     PRT().PVec<Type>(
@@ -1171,7 +1167,7 @@ bool ToSourcePass::TryPrintConstructor(const FuncDecl& node)
     if (!node.TestAttr(Attribute::CONSTRUCTOR)) {
         return false;
     }
-    Logger::Get().Debug("ToSourcePass::TryPrintConstructor", "For FuncDecl is constructor");
+    DEBUG("For FuncDecl is constructor");
     PRT().PVal(Id(node.identifier));
     VisitNode(node.funcBody->paramLists[0]);
     PrintBlock(node.funcBody->body);
@@ -1187,7 +1183,7 @@ bool ToSourcePass::TryPrintGetter(const FuncDecl& node)
     if (!node.isGetter) {
         return false;
     }
-    Logger::Get().Debug("ToSourcePass::TryPrintGetter", "For FuncDecl is getter");
+    DEBUG("For FuncDecl is getter");
     PRT().PVal("get()");
     PrintBlock(node.funcBody->body);
     return true;
@@ -1202,7 +1198,7 @@ bool ToSourcePass::TryPrintSetter(const FuncDecl& node)
     if (!node.isSetter) {
         return false;
     }
-    Logger::Get().Debug("ToSourcePass::TryPrintSetter", "For FuncDecl is setter");
+    DEBUG("For FuncDecl is setter");
     AH_ASSERT(node.funcBody->paramLists[0]->params.size() == 1);
     PRT().PVals("set(", Id(node.funcBody->paramLists[0]->params[0]->identifier), ")");
     PrintBlock(node.funcBody->body);
@@ -1219,7 +1215,7 @@ bool ToSourcePass::TryPrintEnumConstructor(const VarDecl& node)
     if (!node.TestAttr(Attribute::ENUM_CONSTRUCTOR)) {
         return false;
     }
-    Logger::Get().Debug("ToSourcePass::TryPrintEnumConstructor", "For VarDecl as EnumConstructor");
+    DEBUG("For VarDecl as EnumConstructor");
     PRT().PVal(node.identifier.Val());
     return true;
 }
@@ -1234,7 +1230,7 @@ bool ToSourcePass::TryPrintEnumConstructor(const FuncDecl& node)
     if (!node.TestAttr(Attribute::ENUM_CONSTRUCTOR)) {
         return false;
     }
-    Logger::Get().Debug("ToSourcePass::TryPrintEnumConstructor", "For FuncDecl as EnumConstructor");
+    DEBUG("For FuncDecl as EnumConstructor");
     PRT().PVal(Id(node.identifier));
     AH_ASSERT(node.funcBody->paramLists[0]->params.size() > 0);
     auto& params = node.funcBody->paramLists[0]->params;
@@ -1297,7 +1293,7 @@ void ToSourcePass::TryPrintGenericParams(Ptr<Generic> generic)
     if (!generic) {
         return;
     }
-    Logger::Get().Debug("ToSourcePass::Visit", "For GenericParams");
+    DEBUG("For GenericParams");
     PRT().PVec<GenericParamDecl>(
         generic->typeParameters, [this](const GenericParamDecl& gpd) { Traverse(gpd, visitor); }, ", ", "<", ">");
 }
@@ -1311,7 +1307,7 @@ void ToSourcePass::TryPrintGenericConstraints(Ptr<Generic> generic)
     if (!generic) {
         return;
     }
-    Logger::Get().Debug("ToSourcePass::Visit", "For GenericConstraints");
+    DEBUG("For GenericConstraints");
     PRT().PVec<GenericConstraint>(
         generic->genericConstraints, [this](const GenericConstraint& gc) { Traverse(gc, visitor); }, ", ", " where ");
 }
@@ -1517,7 +1513,7 @@ bool ToSourcePass::TryRecoverOverloadCallExpr(const CallExpr& node)
     }
     auto fn = node.resolvedFunction;
     auto op = fn->op;
-    Logger::Get().Debug("ToSourcePass::TryRecoverOverloadCallExpr", "For Overload operator: ", Tk2Str(op));
+    DEBUG("For Overload operator: ", Tk2Str(op));
     AH_ASSERT(IsOverloadCall(node));
     auto& ma = Cast<const MemberAccess&>(node.baseFunc.get());
     auto base = ma.baseExpr.get();
@@ -1572,7 +1568,7 @@ bool ToSourcePass::TryRecoverPropCallExpr(const CallExpr& node)
     if (!IsPropCall(node)) {
         return false;
     }
-    Logger::Get().Debug("ToSourcePass::TryRecoverPropCallExpr", "For Property CallExpr");
+    DEBUG("For Property CallExpr");
     // TODO: 测试特殊的 prop call, 比如静态属性调用
     auto fn = node.resolvedFunction;
     auto propDecl = fn->propDecl;
@@ -1642,7 +1638,7 @@ bool ToSourcePass::TryPrintDesugaredForInExpr(const ForInExpr& node)
  */
 void ToSourcePass::PrintDesugaredForInRange(const ForInExpr& node)
 {
-    Logger::Get().Debug("ToSourcePass::PrintDesugaredForInRange", "For ForInExpr with Range");
+    DEBUG("For ForInExpr with Range");
     // ASSERT
     AH_CHECK_NULL(node.pattern);
     AH_ASSERT(node.pattern->astKind == AstKind::VAR_PATTERN);
@@ -1684,7 +1680,7 @@ void ToSourcePass::PrintDesugaredForInRange(const ForInExpr& node)
  */
 void ToSourcePass::PrintDesugaredForInIterator(const ForInExpr& node)
 {
-    Logger::Get().Debug("ToSourcePass::PrintDesugaredForInIterator", "For ForInExpr with Iterator");
+    DEBUG("For ForInExpr with Iterator");
     AH_CHECK_NULL(node.desugarExpr);
     AH_ASSERT(node.desugarExpr->astKind == AstKind::BLOCK);
     auto& block = Cast<const Block&>(node.desugarExpr.get());
@@ -1710,7 +1706,7 @@ void ToSourcePass::PrintDesugaredForInIterator(const ForInExpr& node)
  */
 void ToSourcePass::PrintDesugaredForInString(const ForInExpr& node)
 {
-    Logger::Get().Debug("ToSourcePass::PrintDesugaredForInString", "For ForInExpr with String");
+    DEBUG("For ForInExpr with String");
     AH_CHECK_NULL(node.pattern);
     AH_ASSERT(node.pattern->astKind == AstKind::VAR_PATTERN);
     auto& varPat = Cast<const VarPattern&>(node.pattern.get());

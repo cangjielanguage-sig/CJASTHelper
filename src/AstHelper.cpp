@@ -7,31 +7,22 @@
 #include "pass/AllPasses.h"
 #include "utils/Logger.h"
 
-AstHelper::AstHelper(const Options& options) : options(options)
+AstHelper::AstHelper(const Options& options)
+    : options(options), mci(std::make_unique<CompilerInstance>(ParseArgs(), diag)), passManager(MakePassConfig())
 {
-    ci.frontendOptions.ReadPathsFromEnvironmentVars(options.env);
-    ci.ParseArgs(options.args);
-    mci = std::make_unique<CompilerInstance>(ci, diag);
     // 注册 stage 回调函数
     RegisterStages();
-    // 注册可用的 pass
-    RegisterPasses();
-}
-
-std::string AstHelper::GetOutputDir() const
-{
-    return ci.globalOptions.outputDir.value_or(".");
 }
 
 void AstHelper::Run()
 {
     DisplayOptions();
     if (!DoParse()) {
-        Logger::Get().Error("AstHelper::Run", "DoParse failed.");
+        DEBUG("DoParse failed.");
         return;
     }
     if (!DoAnalysis()) {
-        Logger::Get().Error("AstHelper::Run", "DoAnalysis failed.");
+        DEBUG("DoAnalysis failed.");
         return;
     }
 }
@@ -66,7 +57,7 @@ void AstHelper::DisplayOptions()
         .PNL();
     p.Unindent();
     p << "}\n";
-    Logger::Get().Debug("AstHelper::DisplayOptions", oss.str());
+    DEBUG(oss.str());
 #endif
 }
 
@@ -76,9 +67,9 @@ void AstHelper::DisplayOptions()
  */
 bool AstHelper::DoParse()
 {
-    Logger::Get().Debug("AstHelper::DoParse");
+    DEBUG();
     // --dump-source 按照 stage 决策执行前端哪些pipeline
-    for (int i = 0; i <= static_cast<int>(options.stage); i++) {
+    for (int i = 1; i <= static_cast<int>(options.stage); i++) {
         if (i == static_cast<int>(SourceStage::DESUGARED_PARSE) && options.stage > SourceStage::DESUGARED_PARSE) {
             // Skip desugared parse stage when stage including sema.
             continue;
@@ -105,7 +96,7 @@ bool AstHelper::DoParse()
  */
 bool AstHelper::DoAnalysis()
 {
-    Logger::Get().Debug("AstHelper::DoAnalysis", "add passes: ", options.passes.size());
+    DEBUG("add passes: ", options.passes.size());
 
     for (auto& pkg : pkgs) {
         passManager.Run(*pkg, options.passes);
@@ -113,59 +104,37 @@ bool AstHelper::DoAnalysis()
     return true;
 }
 
+// 私有函数实现
 /**
- * @brief 解析命令行参数, 拆分当前工具参数和前端工具透传参数
+ * @brief 解析命令行参数
  */
-void AstHelper::ParseArgs(const std::vector<std::string>& args)
+CompilerInvocation& AstHelper::ParseArgs()
 {
-    std::vector<std::string> ciArgs;
-
-    ci.ParseArgs(ciArgs);
+    ci.frontendOptions.ReadPathsFromEnvironmentVars(options.env);
+    ci.ParseArgs(options.args);
+    return ci;
 }
 
-// 私有函数实现
-namespace {
 /**
- *  @brief 根据用户输入的选项更新 Builder 配置
+ * @brief 创建PassConfig
  */
-inline PassConfig GetPassConfig(const Options& options)
+std::unique_ptr<PassConfig> AstHelper::MakePassConfig()
 {
-    PassConfig config;
+    auto config = std::unique_ptr<PassConfig>(new PassConfig());
     // --dump-desugar=true or false (默认不开启解糖: 尽可能恢复用户源码)
     if (options.enableDesugar) {
-        config.EnableDesugar();
+        config->EnableDesugar();
     }
     if (options.stage >= SourceStage::IMPORT) {
-        config.EnableSema();
+        config->EnableSema();
     }
-    config.Focus(options.filterDecls);
-    config.FocusAnnotationAttrs({"C"});
-    config.FocusModifierAttrs({"public", "protected", "internal", "private"}, {"func", "var"});
-    config.IgnoreDecls(options.ignoreDecls);
-    config.IgnoreAnnotations(options.ignoreAnnotations);
+    config->Focus(options.filterDecls);
+    config->FocusAnnotationAttrs({"C"});
+    config->FocusModifierAttrs({"public", "protected", "internal", "private"}, {"func", "var"});
+    config->IgnoreDecls(options.ignoreDecls);
+    config->IgnoreAnnotations(options.ignoreAnnotations);
+    config->Output(ci.globalOptions.outputDir.value_or("."));
     return config;
-}
-} // namespace
-/**
- * 注册所有分析pass
- */
-void AstHelper::RegisterPasses()
-{
-    PassConfig config = GetPassConfig(this->options);
-    passManager.RegisterPass("replace-desugar", std::make_unique<ReplaceDesugarPass>(config));
-
-    passManager.RegisterPass("check-desugar", std::make_unique<CheckDesugarPass>(config));
-
-    config.Output(GetOutputDir());
-    passManager.RegisterPass("to-source", std::make_unique<ToSourcePass>(config));
-}
-
-/**
- * 注册stage回调
- */
-void AstHelper::RegisterStage(SourceStage stage, StageFunc fn)
-{
-    stageMap.emplace(stage, fn);
 }
 
 /**
@@ -173,33 +142,27 @@ void AstHelper::RegisterStage(SourceStage stage, StageFunc fn)
  */
 void AstHelper::RegisterStages()
 {
-    RegisterStage(SourceStage::DEFAULT, [this]() {
-        Logger::Get().Debug("Default Stage", "input files: ", ci.globalOptions.srcFiles.size());
-        Logger::Get().Debug("Parse Stage", "file paths: ", mci->srcFilePaths.size());
-        Logger::Get().Debug("Default Stage", "Output: ", GetOutputDir());
-        return true;
-    });
-    RegisterStage(SourceStage::PARSE, [this]() {
-        Logger::Get().Debug("Parse Stage");
+    stageMap.emplace(SourceStage::PARSE, [this]() {
+        DEBUG();
         return mci->PerformParse();
     });
-    RegisterStage(SourceStage::DESUGARED_PARSE, [this]() {
-        Logger::Get().Debug("DesugaredParse Stage");
+    stageMap.emplace(SourceStage::DESUGARED_PARSE, [this]() {
+        DEBUG();
         for (auto& pkg : mci->GetSourcePackages()) {
             PerformDesugarBeforeTypeCheck(*pkg);
         }
         return true;
     });
-    RegisterStage(SourceStage::IMPORT, [this]() {
-        Logger::Get().Debug("LoadImports Stage");
+    stageMap.emplace(SourceStage::IMPORT, [this]() {
+        DEBUG();
         return mci->PerformImportPackage();
     });
-    RegisterStage(SourceStage::SEMA, [this]() {
-        Logger::Get().Debug("Sema Stage");
+    stageMap.emplace(SourceStage::SEMA, [this]() {
+        DEBUG();
         return mci->PerformSema();
     });
-    RegisterStage(SourceStage::DESUGARED_SEMA, [this]() {
-        Logger::Get().Debug("DesugaredSema stage");
+    stageMap.emplace(SourceStage::DESUGARED_SEMA, [this]() {
+        DEBUG();
         return mci->PerformDesugarAfterSema();
     });
 }

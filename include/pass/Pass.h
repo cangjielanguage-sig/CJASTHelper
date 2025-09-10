@@ -128,19 +128,49 @@ protected:
 
 class PassManager {
 public:
-    PassManager() = default;
-    /**
-     * 注册一个分析pass
-     */
-    void RegisterPass(std::string name, std::unique_ptr<Pass> pass);
-
-    void Run(AstNode& node, const std::vector<std::string>& passes)
+    PassManager(std::unique_ptr<PassConfig> config) : config(std::move(config))
     {
-        for (auto& pass : passes) {
-            passMap[pass]->Run(node);
-        }
     }
 
+    /**
+     * 执行 passes 中的所有 pass
+     *
+     * @param node 待处理的 AST 树
+     * @param passes 待执行的 passes
+     */
+    void Run(AstNode& node, const std::vector<std::string>& passes);
+
+    using PassBuilder = std::function<std::unique_ptr<Pass>(const PassConfig&)>;
+    /**
+     * 注册 pass builder
+     *
+     * @param name pass 名称
+     * @param builder pass builder
+     */
+    static void RegPassBuilder(const std::string& name, const PassBuilder& builder);
+
+    /**
+     * Register a pass builder
+     */
+    class Register {
+    public:
+        Register(const std::string& name, const PassBuilder& builder)
+        {
+            PassManager::RegPassBuilder(name, builder);
+        }
+    };
+
 private:
+    Pass* TryGetPass(const std::string& name);
+
+private:
+    std::unique_ptr<PassConfig> config;
     std::unordered_map<std::string, std::unique_ptr<Pass>> passMap; /**< 注册的分析pass: name -> Pass */
+
+    static inline std::unordered_map<std::string, PassBuilder> passBuilderMap;
 };
+
+#define CONCAT_IMPL(a, b) a##b
+#define CONCAT(a, b) CONCAT_IMPL(a, b)
+#define REG_PASS(name, builder)                                                                                        \
+    [[maybe_unused]] inline static PassManager::Register CONCAT(_reg_, __LINE__)(name, builder)
