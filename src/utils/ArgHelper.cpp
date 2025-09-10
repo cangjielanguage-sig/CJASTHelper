@@ -366,8 +366,7 @@ inline void ArgHelper::PWILines(const StrPairVec& lines)
 {
     p.Indent();
     for (const auto& [p0, p1] : lines) {
-        p << p0 << p1;
-        p.PNL();
+        PL(p0, p1);
     }
     p.Unindent();
 }
