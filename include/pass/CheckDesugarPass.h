@@ -15,7 +15,7 @@
  */
 class CheckDesugarPass : public Pass {
 public:
-    CheckDesugarPass(PassConfig config = PassConfig());
+    CheckDesugarPass(const PassConfig& config);
     ~CheckDesugarPass() override = default;
 
     void Run(AstNode& node) override;
