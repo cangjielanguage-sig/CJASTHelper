@@ -38,6 +38,16 @@ bool CheckExist(ConStr& file)
     return fs::exists(file);
 }
 
+bool MoveFile(ConStr& src, ConStr& dst)
+{
+    try {
+        fs::rename(src, dst);
+        return true;
+    } catch (const fs::filesystem_error& e) {
+        return false;
+    }
+}
+
 namespace {
 // 工具函数：读取文件内容为字符串
 std::string ReadFileToString(ConStr& filename)

@@ -4,8 +4,9 @@
 #include <optional>
 
 struct TestConfig {
-    Options options;
-    std::string inputName;
+    std::string name;
+    StrVec args;
+    StrVec envp;
     std::optional<std::string> expectedPath;
 };
 
@@ -13,6 +14,7 @@ class CJAHTest : public ::testing::TestWithParam<TestConfig> {
 protected:
     std::unique_ptr<AstHelper> ah;
     TestConfig cfg;
+    ArgHelper argh;
 
     // 构造函数：用于初始化成员变量
     CJAHTest() : ah(nullptr)
@@ -23,7 +25,8 @@ protected:
     {
         // 在每个测试开始前运行的设置代码
         cfg = GetParam();
-        ah = std::make_unique<AstHelper>(cfg.options);
+        ah = std::make_unique<AstHelper>(
+            argh.ParseArgs(GetArgc(CreateArgv(cfg.args)), CreateArgv(cfg.args).data(), CreateArgv(cfg.envp).data()));
     }
 
     void TearDown() override
@@ -45,8 +48,7 @@ static std::unordered_map<SourceStage, std::string> stageMap{{SourceStage::DEFAU
 void PrintTo(const TestConfig& data, ::std::ostream* os)
 {
     *os << "TestConfig{"
-        << "inputName: " << data.inputName << ", stage: " << stageMap.at(data.options.stage)
-        << ", enableDesugar: " << data.options.enableDesugar;
+        << "name: " << data.name << ", args: " << data.args[0] << ", " << data.args[1];
     if (data.expectedPath) {
         *os << ", expectedPath: " << *data.expectedPath;
     }
@@ -59,13 +61,28 @@ TEST_P(CJAHTest, CI001)
 {
     auto expected = cfg.expectedPath;
     EXPECT_TRUE(ah);
-    // ah->DisplayOptions();
     ah->Run();
-    std::string outFile = "test/data/output/" + cfg.inputName + "_source.cj";
+    std::string outFile = "test/data/output/" + cfg.name + "_source.cj";
     EXPECT_TRUE(CheckExist(outFile)) << "Output file not found.";
     if (expected) {
         EXPECT_TRUE(CheckExist(*expected)) << "Expected file not found.";
         EXPECT_TRUE(CompareFile(outFile, *expected)) << "Output file is not equal to expected file.";
+    }
+}
+
+TEST_P(CJAHTest, GenGolden)
+{
+    auto expected = cfg.expectedPath;
+    EXPECT_TRUE(ah);
+    ah->Run();
+    std::string outFile = "test/data/output/" + cfg.name + "_source.cj";
+
+    if (expected) {
+        EXPECT_TRUE(CheckExist(*expected)) << "Expected file not found.";
+        if (!CompareFile(outFile, *expected)) {
+            // 注意： 覆盖golden数据 确保结果正确
+            EXPECT_TRUE(MoveFile(outFile, *expected)) << "Failed to generate golden data.";
+        }
     }
 }
 
@@ -77,13 +94,10 @@ TestConfig MKCfg(ConStr& src, ConStr& stage, ConStr& enableDesugar = "false", bo
     if (checked) {
         expected = stage == "parse" ? src : "test/data/expected/" + name + "/" + stage + "_" + enableDesugar + ".cj";
     }
-    Options options;
-    options.Stage(stage);
-    options.EnableDesugar(enableDesugar);
-    options.Passes({"to-source"});
-    options.Args({"cjah", "--output-type=dylib", "--output-dir", out, "-Woff", "unused", "-Woff", "parser", src});
-    options.env = {{"CANGJIE_HOME", GetEnv("CANGJIE_HOME", "")}};
-    return {options, name, expected};
+    return {name,
+        {"cjah", "--dump-source=" + stage, "--enable-desugar=" + enableDesugar, "--output-type=dylib", "--output-dir",
+            out, "-Woff", "unused", "-Woff", "parser", src},
+        {"CANGJIE_HOME=" + GetEnv("CANGJIE_HOME", "")}, expected};
 }
 
 /**
@@ -104,6 +118,8 @@ std::vector<TestConfig> GenerateAllStageCfgs(ConStr& demo)
             cfgs.push_back(MKCfg(demo, stage, enable));
         }
     }
+    // 打开注释测试单个场景
+    // cfgs.push_back(MKCfg(demo, "desugared-parse", "true"));
     return cfgs;
 }
 
@@ -142,11 +158,11 @@ std::vector<TestConfig> GenerateFPCfgs(ConStr& demo)
 INSTANTIATE_TEST_SUITE_P(IterateAllStages, CJAHTest,
     ::testing::ValuesIn(GenerateAllStageCfgs("test/data/inputs/desugar.cj")),
     [](const ::testing::TestParamInfo<CJAHTest::ParamType>& info) {
-        return info.param.inputName + std::to_string(info.index);
+        return info.param.name + std::to_string(info.index);
     });
 
 // IterateFP/CJAHTest.CI001/*
 INSTANTIATE_TEST_SUITE_P(IterateFP, CJAHTest, ::testing::ValuesIn(GenerateFPCfgs("test/data/inputs/main.cj")),
     [](const ::testing::TestParamInfo<CJAHTest::ParamType>& info) {
-        return info.param.inputName + std::to_string(info.index);
+        return info.param.name + std::to_string(info.index);
     });

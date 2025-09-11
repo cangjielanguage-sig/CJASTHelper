@@ -13,6 +13,7 @@ int GetArgc(const std::vector<char*>& argv);
 
 std::string FileName(ConStr& filePath);
 bool CheckExist(ConStr& file);
+bool MoveFile(ConStr& src, ConStr& dst);
 void RemoveFiles(ConStr& dir, ConStr& ext);
 bool CompareFile(ConStr& actual, ConStr& expected);
 
