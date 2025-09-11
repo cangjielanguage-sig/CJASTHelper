@@ -43,6 +43,15 @@ void ArgumentParser::Parse(const std::vector<std::string>& args)
     }
 }
 
+std::string ArgumentParser::GetSingleValue(const std::string& option) const
+{
+    auto it = parsedOptions.find(option);
+    if (it == parsedOptions.end() || it->second.size() != 1) {
+        throw std::invalid_argument("ArgumentParser: Invalid option: " + option);
+    }
+    return it->second[0];
+}
+
 std::string ArgumentParser::GetSingleValue(const std::string& option, const std::string& dv) const
 {
     auto it = parsedOptions.find(option);
@@ -212,7 +221,7 @@ void ArgHelper::ShowHelperInfo()
     std::cout << std::left;
     PL("Welcome Using Cangjie AST Helper!", 2);
     PL("Usage: cjah [options] [cjc-options]", 2);
-    PL("Options: ");
+    PL("options: ");
     p.Indent();
     for (auto& [key, value] : validOptions) {
         if (!value.visible)
@@ -310,6 +319,7 @@ Options ArgHelper::ParseArgs(int argc, const char* const* argv, const char* cons
 {
     Options options;
     std::vector<std::string> args = ParseRawArgs(argc, argv);
+    // Help
     if (ContainHelpArg(args)) {
         return options;
     }
@@ -325,7 +335,7 @@ Options ArgHelper::ParseArgs(int argc, const char* const* argv, const char* cons
         ArgumentParser ap(validOpts);
         ap.Parse(toolArgs);
         // config options
-        options.Stage(ap.GetSingleValue("dump-source", ""));
+        options.Stage(ap.GetSingleValue("dump-source"));
         options.FilterDecls(ap.GetMultiValue("filter-decls"));
         // TODO: update default false
         options.EnableDesugar(ap.GetSingleValue("enable-desugar", "true"));
@@ -344,6 +354,7 @@ Options ArgHelper::ParseArgs(int argc, const char* const* argv, const char* cons
         options.env =
             ParseEnv(envp, {"CANGJIE_PATH", "CANGJIE_HOME", "LIBRARY_PATH", "LD_LIBRARY_PATH", "PATH", "SDKROOT"});
     } catch (std::invalid_argument& e) {
+        std::cerr << "error: " << e.what() << std::endl;
         // Only do show help info.
         options.stage = SourceStage::DEFAULT;
     }
