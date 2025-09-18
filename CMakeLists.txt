@@ -4,7 +4,7 @@ project(CJASTHelper)
 option(CMAKE_ENABLE_ASSERT "Enable the assert and checking" OFF)
 option(CMAKE_ENABLE_TEST "Enable testing" OFF)
 
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -77,11 +77,10 @@ if (WIN32)
 endif()
 
 # Depend libraries in Cangjie Tools
-set(DEPEND_LIBS ${LIB_SEC} cangjie-lsp)
+set(DEPEND_LIBS ${LIB_SEC} cangjie-fe)
 
 if(DEFINED ENV{CANGJIE_HOME})
     set(CANGJIE_TOOLS_LIB $ENV{CANGJIE_HOME}/tools/lib)
-    set(LLVM_LIB $ENV{CANGJIE_HOME}/third_party/llvm/lib)
 else()
     message(FATAL_ERROR "Error: CANGJIE_HOME environment variable is not set.")
 endif()
@@ -89,6 +88,7 @@ endif()
 # Only cjnative
 # other version
 add_compile_definitions(CANGJIE_CODEGEN_CJNATIVE_BACKEND)
+add_compile_definitions(NO_CHIR)
 # LTS version
 add_compile_definitions(CANGJIE_CODEGEN_LLVMGC_BACKEND)
 
