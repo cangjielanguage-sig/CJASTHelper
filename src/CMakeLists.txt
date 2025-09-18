@@ -16,13 +16,13 @@ set(DEPEND_LIBS ${CJAH_LIBS} ${DEPEND_LIBS})
 
 add_executable(cjah Main.cpp)
 
-target_link_directories(cjah PRIVATE ${CANGJIE_TOOLS_LIB})
-
 target_link_libraries(cjah PUBLIC ${DEPEND_LIBS})
 
-if (CMAKE_BUILD_TYPE MATCHES Release)
-    target_link_options(cjah PRIVATE -dead_strip -flto)
-endif ()
+if(CMAKE_BUILD_TYPE MATCHES Release)
+    if(APPLE AND CJAH_STANDALONE)
+        target_link_options(cjah PRIVATE -dead_strip -flto)
+    endif()
+endif()
 
 if (CMAKE_BUILD_TYPE MATCHES Release AND MINGW)
     target_link_options(cjah PRIVATE -static-libgcc -static-libstdc++ LINKER:-Bstatic,--whole-archive -lwinpthread LINKER:-Bdynamic,--no-whole-archive)
