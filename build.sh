@@ -10,7 +10,7 @@ VERBOSE=
 EXT=
 CJH=$BUILD_DIR/bin/cjah$EXT
 TEST_RUNNER=$BUILD_DIR/bin/cjah_test$EXT
-PRE=$PWD/output
+PRE=$CWD/output
 TEST=OFF
 CANGJIE_LIB=$CANGJIE_HOME/tools/lib
 ALONE=OFF
@@ -119,7 +119,7 @@ function main() {
         Xupdate) update ;;
         Xbuild) build ;;
         Xinstall) install ;;
-        Xclean) run_cmd rm -rf build ;;
+        Xclean) run_cmd rm -rf build; rm -rf output ;;
         Xrun) run $@ ;;
         Xtest) test $@ ;;
         *) ;;
