@@ -408,7 +408,7 @@ VisitResult ToSourcePass::Before(const MainDecl& node)
     }
     DEBUG("For MainDecl");
     // 存在解糖节点
-    if (Config().Desugar()) {
+    if (Config().Desugar() || node.desugarDecl) {
         DEBUG("For Desugared Decl of MainDecl");
         if (node.TestAttr(Attribute::UNSAFE)) {
             PRT().PVal("unsafe ");
@@ -831,7 +831,7 @@ VisitResult ToSourcePass::Before(const AssignExpr& node)
         return VisitResult::Cont();
     }
     DEBUG("For AssignExpr");
-    if (Config().Desugar()) {
+    if (Config().Desugar() || node.desugarExpr) {
         Traverse(*node.desugarExpr, visitor);
     } else {
         // desugared: x.[](i, y) -> x[i] = v
@@ -867,7 +867,7 @@ VisitResult ToSourcePass::Before(const UnaryExpr& node)
         return VisitResult::Cont();
     }
     DEBUG("For UnaryExpr");
-    if (Config().Desugar()) {
+    if (Config().Desugar() || node.desugarExpr) {
         Traverse(*node.desugarExpr, visitor);
     } else {
         // desugared: val.!() -> !val
@@ -892,7 +892,7 @@ VisitResult ToSourcePass::Before(const BinaryExpr& node)
         return VisitResult::Cont();
     }
     DEBUG("For BinaryExpr");
-    if (Config().Desugar()) {
+    if (Config().Desugar() || node.desugarExpr) {
         Traverse(*node.desugarExpr, visitor);
     } else {
         auto& callExpr = Cast<const CallExpr&>(node.desugarExpr.get());
@@ -925,7 +925,7 @@ VisitResult ToSourcePass::Before(const SubscriptExpr& node)
         return VisitResult::Cont();
     }
     DEBUG("For SubscriptExpr");
-    if (Config().Desugar()) {
+    if (Config().Desugar() || node.desugarExpr) {
         Traverse(*node.desugarExpr, visitor);
     } else {
         // desugared: a.[](i) -> a[i]

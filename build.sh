@@ -12,6 +12,8 @@ CJH=$BUILD_DIR/bin/cjah$EXT
 TEST_RUNNER=$BUILD_DIR/bin/cjah_test$EXT
 PRE=$PWD/output
 TEST=OFF
+CANGJIE_LIB=$CANGJIE_HOME/tools/lib
+ALONE=OFF
 
 
 function run_cmd() {
@@ -27,7 +29,8 @@ function run_cmd() {
 
 # update cmake cache 
 function update() {
-    run_cmd cmake -G "Ninja" -B $BUILD_DIR -S $SOURCE_DIR -DCANGJIE_INCLUDE=$CJ_INC -DCMAKE_BUILD_TYPE=$BTYPE -DCMAKE_INSTALL_PREFIX=$PRE -DCMAKE_ENABLE_TEST=$TEST -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+    echo "LIB PATH: $CANGJIE_LIB"
+    run_cmd cmake -G "Ninja" -B $BUILD_DIR -S $SOURCE_DIR -DCANGJIE_INCLUDE=$CJ_INC -DCANGJIE_LIB=$CANGJIE_LIB -DCMAKE_BUILD_TYPE=$BTYPE -DCMAKE_INSTALL_PREFIX=$PRE -DCMAKE_ENABLE_TEST=$TEST -DCJAH_STANDALONE=$ALONE -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
 }
 
 function build() {
@@ -74,8 +77,10 @@ function help() {
     echo "Options: "
     echo "    -v dump build verbose info"
     echo "    -g enable test with googletest"
+    echo "    -a enable standalone version"
     echo "    -t config build type, optional [Debug | Release]"
     echo "    -p config install prefix"
+    echo "    -d set dependent lib path"
     echo "    -u update cmake cache"
     echo "    -b build only"
     echo "    -i install binary"
@@ -90,8 +95,10 @@ function main() {
             -h) help; exit 0 ;;
             -v) VERBOSE="-v"; shift ;;
             -g) TEST="ON"; shift ;;
+            -a) ALONE="ON"; shift ;;
             -t) BTYPE="$2"; shift 2 ;;
             -p) PRE="$2"; shift 2 ;;
+            -d) CANGJIE_LIB="$2"; shift 2 ;;
             -b) action="build"; shift ;;
             -u) action="update"; shift ;;
             -i) action="install"; shift ;;
