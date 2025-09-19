@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "utils/TypeAlias.h"
 #include "wrapper/AstNodeHelper.h"
 
 /**
@@ -143,6 +144,17 @@ protected:
     const PassConfig& config;
 };
 
+using PassBuilder = std::function<std::unique_ptr<Pass>(const PassConfig&)>;
+
+struct PassInfo {
+    Str name;                      /**< pass 名称 */
+    Str path;                      /**< pass 路径 */
+    Str desc;                      /**< pass 描述 */
+    Str version;                   /**< pass 版本 */
+    StrVec depends;                /**< pass 依赖的 pass */
+    PassBuilder builder = nullptr; /**< pass builder */
+};
+
 class PassManager {
 public:
     PassManager(std::unique_ptr<PassConfig> config) : config(std::move(config))
@@ -150,41 +162,49 @@ public:
     }
 
     /**
+     * 初始化 PassManager
+     *
+     * @param path pass配置文件路径
+     */
+    void Init(ConStr& path);
+
+    /**
      * 执行 passes 中的所有 pass
      *
      * @param node 待处理的 AST 树
      * @param passes 待执行的 passes
      */
-    void Run(AstNode& node, const std::vector<std::string>& passes);
-
-    using PassBuilder = std::function<std::unique_ptr<Pass>(const PassConfig&)>;
+    void Run(AstNode& node, ConStrVec& passes);
     /**
      * 注册 pass builder
      *
      * @param name pass 名称
      * @param builder pass builder
      */
-    static void RegPassBuilder(const std::string& name, const PassBuilder& builder);
+    static void RegPassBuilder(ConStr& name, const PassBuilder& builder);
 
     /**
      * Register a pass builder
      */
     class Register {
     public:
-        Register(const std::string& name, const PassBuilder& builder)
+        Register(ConStr& name, const PassBuilder& builder)
         {
             PassManager::RegPassBuilder(name, builder);
         }
     };
 
 private:
-    Pass* TryGetPass(const std::string& name);
+    bool LoadPass(ConStr& path);
+
+private:
+    Pass* TryGetPass(ConStr& name);
 
 private:
     std::unique_ptr<PassConfig> config;
     std::unordered_map<std::string, std::unique_ptr<Pass>> passMap; /**< 注册的分析pass: name -> Pass */
 
-    static inline std::unordered_map<std::string, PassBuilder> passBuilderMap;
+    static inline std::unordered_map<Str, PassInfo> passInfoMap;
 };
 
 #define CONCAT_IMPL(a, b) a##b

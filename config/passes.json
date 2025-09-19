@@ -1,0 +1,25 @@
+[
+    {
+        "name": "check-desugar",
+        "description": "Desugar pass",
+        "version": "0.0.1",
+        "path": "./build/lib/libcjast_desugar_pass.so",
+        "dependencies": []
+    },
+    {
+        "name": "replace-desugar",
+        "description": "Desugar pass",
+        "version": "0.0.1",
+        "path": "./build/lib/libcjast_desugar_pass.so",
+        "dependencies": []
+    },
+    {
+        "name": "to-source",
+        "description": "ToSource pass",
+        "version": "0.0.1",
+        "path": "./build/lib/libcjast_to_source_pass.so",
+        "dependencies": [
+            "desugar"
+        ]
+    }
+]

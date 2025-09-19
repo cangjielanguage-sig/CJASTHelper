@@ -178,6 +178,12 @@ Options& Options::Env(StrMap&& env)
     return *this;
 }
 
+Options& Options::PassConfig(Str&& path)
+{
+    this->passConfig = std::move(path);
+    return *this;
+}
+
 /// ArgHelper 实现函数
 ArgHelper::ArgHelper() : p(std::cout, 4)
 {
@@ -190,6 +196,9 @@ ArgHelper::ArgHelper() : p(std::cout, 4)
         .Single(true)
         .SubDesc({});
     validOptions.emplace("dump-source", od);
+    // --pass-config=./config/pass.json
+    od.Key("pass-config").MainDesc("Pass config path, default: ./config/pass.json.").Single(true).Visible(true);
+    validOptions.emplace("pass-config", od);
     // --filter-decls=id1,id2,id3
     od.Key("filter-decls")
         .MainDesc("Filter top-level decls of <value>. Supported <value>: func, var, struct, enum, interface, class")
@@ -342,6 +351,7 @@ Options ArgHelper::ParseArgs(int argc, const char* const* argv, const char* cons
         options.IgnoreAnnotations(ap.GetMultiValue("ignore-annotations"));
         options.IgnoreDecls(ap.GetMultiValue("ignore-decls"));
         options.ImportedPkgs(ap.GetMultiValue("dump-import"));
+        options.PassConfig(ap.GetSingleValue("pass-config", "./config/passes.json"));
         // config passes
         if (options.stage > SourceStage::PARSE && options.enableDesugar) {
             options.passes.push_back("check-desugar");

@@ -14,6 +14,7 @@ AstHelper::AstHelper(Options&& options)
 {
     // 注册 stage 回调函数
     RegisterStages();
+    passManager.Init(this->options.passConfig);
 }
 
 void AstHelper::Run()
@@ -51,12 +52,8 @@ void AstHelper::DisplayOptions()
     p.PVec<std::string>(
          options.importedPkgs, [](const std::string& pkg) { return pkg; }, ", ", "importedPkgs: {", "}", true)
         .PNL();
-    p.PVec<std::string>(
-         options.passes, [](const std::string& pass) { return pass; }, ", ", "passes: {", "}")
-        .PNL();
-    p.PVec<std::string>(
-         options.args, [](const std::string& arg) { return arg; }, ", ", "args: {", "}")
-        .PNL();
+    p.PVec<std::string>(options.passes, [](const std::string& pass) { return pass; }, ", ", "passes: {", "}").PNL();
+    p.PVec<std::string>(options.args, [](const std::string& arg) { return arg; }, ", ", "args: {", "}").PNL();
     p.Unindent();
     p << "}\n";
     DEBUG(oss.str());

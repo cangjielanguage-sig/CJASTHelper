@@ -1,13 +1,13 @@
 # Build and run CI
-
-if test -f ~/work/scripts/env.fish
-    . ~/work/scripts/env.fish
+set env_file $argv[1]
+if test -f $env_file
+    . $env_file
 end
 # 配置环境
-cjahenv "release"
+cjahenv release
 
 # 构建
-bahsa -v -t Relase -g -b
+bah -a -d $CANGJIE_LIB -v -t Release -g -b
 
 # 执行
 rahci
