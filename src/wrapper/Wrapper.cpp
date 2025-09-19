@@ -4,14 +4,74 @@
  * This file implements the wrapper ast nodes.
  */
 
+#include "wrapper/AstNodeHelper.h"
+#include "wrapper/CangjieFrontendHelper.h"
+
 #include "cangjie/AST/PrintNode.h"
 #include "utils/Cast.h"
 #include "utils/Logger.h"
 #include "utils/Macro.h"
-#include "wrapper/WrapperAst.h"
 #include <fstream>
 #include <iostream>
 
+CangjieFrontendHelper::CangjieFrontendHelper(StrVec&& args, StrMap&& env)
+    : mci(ParseArgs(std::move(args), std::move(env)), diag)
+{
+}
+
+bool CangjieFrontendHelper::Parse()
+{
+    return mci.PerformParse();
+}
+
+bool CangjieFrontendHelper::DesugaredParse()
+{
+    for (auto& pkg : mci.GetSourcePackages()) {
+        Cangjie::PerformDesugarBeforeTypeCheck(*pkg);
+    }
+    return true;
+}
+
+bool CangjieFrontendHelper::ImportPackage()
+{
+    return mci.PerformImportPackage();
+}
+
+bool CangjieFrontendHelper::Sema()
+{
+    return mci.PerformSema();
+}
+
+bool CangjieFrontendHelper::DesugaredSema()
+{
+    return mci.PerformDesugarAfterSema();
+}
+
+Str CangjieFrontendHelper::GetOutDir() const
+{
+    return ci.globalOptions.outputDir.value_or(".");
+}
+
+PkgPtrVec CangjieFrontendHelper::GetSourcePackages()
+{
+    return mci.GetSourcePackages();
+}
+
+PkgPtrVec CangjieFrontendHelper::GetImportedPackages()
+{
+    return mci.GetPackages();
+}
+
+CompilerInvocation& CangjieFrontendHelper::ParseArgs(StrVec&& args, StrMap&& env)
+{
+    ci.frontendOptions.ReadPathsFromEnvironmentVars(env);
+    ci.ParseArgs(args);
+    return ci;
+}
+
+/**
+ * @brief 获取AstKind对应的字符串
+ */
 std::string AstKind2Str(AstKind kind)
 {
     static std::unordered_map<AstKind, std::string> kindsInfo{

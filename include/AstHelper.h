@@ -8,7 +8,7 @@
 #include "pass/Pass.h"
 #include "utils/ArgHelper.h"
 #include "utils/Printer.h"
-#include "wrapper/WrapperCangjieFrontend.h"
+#include "wrapper/CangjieFrontendHelper.h"
 #include <memory>
 
 /**
@@ -21,7 +21,7 @@ public:
      * @param args 命令行参数的向量
      * @param env 环境变量的映射
      */
-    AstHelper(const Options& options);
+    AstHelper(Options&& options);
 
     /**
      * @brief 默认析构函数
@@ -51,11 +51,6 @@ protected:
     bool DoAnalysis();
 
 private:
-    /**
-     * @brief CompilerInvocation 解析命令行参数
-     */
-    CompilerInvocation& ParseArgs();
-
     std::unique_ptr<PassConfig> MakePassConfig();
 
     /**
@@ -64,13 +59,9 @@ private:
     void RegisterStages();
 
 private:
-    DiagnosticEngine diag;                 /**< 诊断引擎实例 */
-    CompilerInvocation ci;                 /**< 编译器调用实例 */
-    Options options;                       /**< 用户选项 */
-    std::unique_ptr<CompilerInstance> mci; /**< 编译器实例的智能指针 */
-
-    std::vector<Ptr<Package>> pkgs; /**< 分析结果包列表 */
-
-    PassManager passManager;
+    Options options;                                                 /**< 用户选项 */
+    CangjieFrontendHelper cjfeHelper;                                /**< Cangjie 前端辅助类 */
+    PassManager passManager;                                         /**< 分析 pass 管理器 */
     std::unordered_map<SourceStage, std::function<bool()>> stageMap; /**< 注册的 stage 回调函数 */
+    std::vector<Ptr<Package>> pkgs;                                  /**< 分析结果包列表 */
 };

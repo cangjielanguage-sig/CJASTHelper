@@ -7,8 +7,10 @@
 #include "pass/AllPasses.h"
 #include "utils/Logger.h"
 
-AstHelper::AstHelper(const Options& options)
-    : options(options), mci(std::make_unique<CompilerInstance>(ParseArgs(), diag)), passManager(MakePassConfig())
+AstHelper::AstHelper(Options&& options)
+    : options(std::move(options)),
+      cjfeHelper(std::move(this->options.args), std::move(this->options.env)),
+      passManager(MakePassConfig())
 {
     // 注册 stage 回调函数
     RegisterStages();
@@ -79,13 +81,13 @@ bool AstHelper::DoParse()
         }
     }
     if (options.stage == SourceStage::IMPORT) {
-        for (auto pkg : mci->GetPackages()) {
+        for (auto pkg : cjfeHelper.GetImportedPackages()) {
             if (options.importedPkgs.count(pkg->fullPackageName)) {
                 pkgs.push_back(pkg);
             }
         }
     } else {
-        pkgs = mci->GetSourcePackages();
+        pkgs = cjfeHelper.GetSourcePackages();
     }
     return true;
 }
@@ -106,16 +108,6 @@ bool AstHelper::DoAnalysis()
 
 // 私有函数实现
 /**
- * @brief 解析命令行参数
- */
-CompilerInvocation& AstHelper::ParseArgs()
-{
-    ci.frontendOptions.ReadPathsFromEnvironmentVars(options.env);
-    ci.ParseArgs(options.args);
-    return ci;
-}
-
-/**
  * @brief 创建PassConfig
  */
 std::unique_ptr<PassConfig> AstHelper::MakePassConfig()
@@ -133,7 +125,7 @@ std::unique_ptr<PassConfig> AstHelper::MakePassConfig()
     config->FocusModifierAttrs({"public", "protected", "internal", "private"}, {"func", "var"});
     config->IgnoreDecls(options.ignoreDecls);
     config->IgnoreAnnotations(options.ignoreAnnotations);
-    config->Output(ci.globalOptions.outputDir.value_or("."));
+    config->Output(cjfeHelper.GetOutDir());
     return config;
 }
 
@@ -144,25 +136,22 @@ void AstHelper::RegisterStages()
 {
     stageMap.emplace(SourceStage::PARSE, [this]() {
         DEBUG();
-        return mci->PerformParse();
+        return cjfeHelper.Parse();
     });
     stageMap.emplace(SourceStage::DESUGARED_PARSE, [this]() {
         DEBUG();
-        for (auto& pkg : mci->GetSourcePackages()) {
-            PerformDesugarBeforeTypeCheck(*pkg);
-        }
-        return true;
+        return cjfeHelper.DesugaredParse();
     });
     stageMap.emplace(SourceStage::IMPORT, [this]() {
         DEBUG();
-        return mci->PerformImportPackage();
+        return cjfeHelper.ImportPackage();
     });
     stageMap.emplace(SourceStage::SEMA, [this]() {
         DEBUG();
-        return mci->PerformSema();
+        return cjfeHelper.Sema();
     });
     stageMap.emplace(SourceStage::DESUGARED_SEMA, [this]() {
         DEBUG();
-        return mci->PerformDesugarAfterSema();
+        return cjfeHelper.DesugaredSema();
     });
 }
