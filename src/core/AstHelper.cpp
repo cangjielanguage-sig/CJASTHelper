@@ -4,7 +4,7 @@
  * This file implements the AstHelper.
  */
 #include "AstHelper.h"
-#include "pass/AllPasses.h"
+#include "core/pass/AllPasses.h"
 #include "utils/Logger.h"
 
 AstHelper::AstHelper(Options&& options)

@@ -3,7 +3,7 @@
  *
  * This file implements the ToSourcePass.
  */
-#include "pass/Pass.h"
+#include "core/pass/Pass.h"
 
 /// PassConfig 实现方法
 bool PassConfig::Desugar() const
