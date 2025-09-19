@@ -6,8 +6,8 @@
 
 #pragma once
 
-#include "pass/DesugarPass.h"
-#include "pass/ToSourcePass.h"
+#include "core/pass/DesugarPass.h"
+#include "core/pass/ToSourcePass.h"
 #include "utils/Cast.h"
 
 // 注意：这里使用 c++20 inline static 避免在cpp文件中全局变量初始化不被执行问题

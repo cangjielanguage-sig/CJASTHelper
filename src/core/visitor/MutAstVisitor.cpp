@@ -4,7 +4,7 @@
  * This file implements the MutAstVisitor.
  */
 
-#include "visitor/MutAstVisitor.h"
+#include "core/visitor/MutAstVisitor.h"
 
 ValuedResult MutAstVisitor::BeforeVisit(AstNode& node)
 {

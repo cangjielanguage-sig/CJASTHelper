@@ -4,7 +4,7 @@
  * This file implements the AstVisitorBase.
  */
 
-#include "visitor/VisitorBase.h"
+#include "core/visitor/VisitorBase.h"
 #include "utils/Cast.h"
 #include "utils/Logger.h"
 

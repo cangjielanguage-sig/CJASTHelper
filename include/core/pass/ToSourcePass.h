@@ -5,10 +5,10 @@
  */
 #pragma once
 
-#include "pass/Pass.h"
+#include "core/pass/Pass.h"
+#include "core/visitor/ConstAstVisitor.h"
 #include "utils/Macro.h"
 #include "utils/Printer.h"
-#include "visitor/ConstAstVisitor.h"
 #include <fstream>
 
 /**

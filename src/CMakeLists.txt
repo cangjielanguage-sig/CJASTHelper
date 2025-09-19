@@ -1,16 +1,8 @@
-file(GLOB AST_HELPER_SRC "AstHelper.cpp")
-file(GLOB UTILS_SRC "utils/*.cpp")
-file(GLOB WRAPPER_SRC "wrapper/*.cpp")
-file(GLOB VISITOR_SRC "visitor/*.cpp")
-file(GLOB PASS_SRC "pass/*.cpp")
+add_subdirectory(utils)
+add_subdirectory(wrapper)
+add_subdirectory(core)
 
-add_library(ast_helper STATIC ${AST_HELPER_SRC})
-add_library(utils STATIC ${UTILS_SRC})
-add_library(wrapper STATIC ${WRAPPER_SRC})
-add_library(visitor STATIC ${VISITOR_SRC})
-add_library(pass STATIC ${PASS_SRC})
-
-set(CJAH_LIBS ast_helper pass visitor wrapper utils)
+set(CJAH_LIBS cjast_helper_core cjast_wrapper utils)
 set(DEPEND_LIBS ${CJAH_LIBS} ${DEPEND_LIBS} PARENT_SCOPE)
 set(DEPEND_LIBS ${CJAH_LIBS} ${DEPEND_LIBS})
 

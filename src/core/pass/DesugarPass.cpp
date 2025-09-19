@@ -4,7 +4,7 @@
  * This file implements the CheckDesugarPass.
  */
 
-#include "pass/DesugarPass.h"
+#include "core/pass/DesugarPass.h"
 #include "utils/Cast.h"
 #include "utils/Logger.h"
 
