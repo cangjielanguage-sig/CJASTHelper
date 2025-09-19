@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "wrapper/WrapperAst.h"
+#include "wrapper/AstNodeHelper.h"
 
 /**
  * @typedef Flag
