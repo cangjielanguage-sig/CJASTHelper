@@ -2,8 +2,11 @@
 add_subdirectory(utils)
 add_subdirectory(wrapper)
 add_subdirectory(core)
+add_subdirectory(passes)
 
-set(CJAH_LIBS cjast_helper_core cjast_wrapper utils)
+set(PASSES cjast_desugar_pass cjast_to_source_pass)
+
+set(CJAH_LIBS ${PASSES} cjast_helper_core cjast_wrapper utils)
 set(DEPEND_LIBS ${CJAH_LIBS} PARENT_SCOPE)
 
 add_executable(cjah Main.cpp)
@@ -68,7 +71,7 @@ if(CJAH_STANDALONE)
 endif()
 
 # 安装共享库
-install(TARGETS utils cjast_wrapper cjast_helper_core
+install(TARGETS ${CJAH_LIBS}
     LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 )
 
