@@ -6,8 +6,8 @@
 
 #pragma once
 
-#include "pass/Pass.h"
-#include "visitor/MutAstVisitor.h"
+#include "core/pass/Pass.h"
+#include "core/visitor/MutAstVisitor.h"
 
 /**
  * DesugarPass

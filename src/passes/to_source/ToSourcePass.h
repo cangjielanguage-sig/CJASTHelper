@@ -5,87 +5,11 @@
  */
 #pragma once
 
-#include "pass/Pass.h"
+#include "core/pass/Pass.h"
+#include "core/visitor/ConstAstVisitor.h"
 #include "utils/Macro.h"
 #include "utils/Printer.h"
-#include "visitor/ConstAstVisitor.h"
 #include <fstream>
-
-/**
- * @class ToSourcePassConfig
- */
-class ToSourcePassConfig : public PassConfig {
-public:
-    ToSourcePassConfig();
-    ~ToSourcePassConfig() override = default;
-
-    /**
-     * @brief 检查是否关注特定的声明类型。
-     * @param decl 声明。
-     * @return 如果关注返回true，否则返回false。
-     */
-    bool Focus(const Decl& decl) const;
-
-    /**
-     * @brief 设置输出文件路径。
-     * @param out 输出文件路径。
-     * @return 返回当前构建器实例的引用，支持链式调用。
-     */
-    ToSourcePassConfig& Output(const std::string& out);
-    /**
-     * @brief 设置输出文件后缀。
-     * @param suffix 输出文件后缀名。
-     * @return 返回当前构建器实例的引用，支持链式调用。
-     */
-    ToSourcePassConfig& Suffix(const std::string& suffix);
-
-    /**
-     * @brief 设置输出缩进大小。
-     * @param indent 缩进大小。
-     * @return 返回当前构建器实例的引用，支持链式调用。
-     */
-    ToSourcePassConfig& Indent(int indent);
-
-    /**
-     * @brief 设置关注的注解属性。
-     * @param attrs 关注的注解属性名称列表。
-     */
-    ToSourcePassConfig& FocusAnnotationAttrs(const std::vector<std::string>& attrs);
-    /**
-     * @brief 设置忽略的顶层声明。
-     * @param decls 忽略的声明标识符列表。
-     */
-    ToSourcePassConfig& IgnoreDecls(const std::unordered_set<std::string>& decls);
-    /**
-     * @brief 设置忽略的注解。
-     * @param annos 忽略的注解名称列表。
-     */
-    ToSourcePassConfig& IgnoreAnnotations(const std::unordered_set<std::string>& annos);
-    /**
-     * @brief 设置关注的顶层声明类型。
-     * @param kinds 关注的声明类型名称列表。
-     */
-    ToSourcePassConfig& Focus(const std::unordered_set<std::string>& kinds);
-    /**
-     * @brief 设置关注的修饰符属性。
-     * @param attrs 关注的修饰符属性名称列表。
-     * @param kinds 关注的修饰符属性所在的声明类型名称列表（白名单）。
-     */
-    ToSourcePassConfig& FocusModifierAttrs(
-        const std::vector<std::string>& attrs, const std::vector<std::string>& kinds);
-
-    int indent;         /**< 输出缩进大小 */
-    std::string out;    /**< 输出文件路径 */
-    std::string suffix; /**< 输出文件后缀 */
-    // 可配置属性: Attribute::C, Attribute::INTRINSIC, ...
-    std::unordered_set<std::string> focusAnnotationAttrs; /**< 关注的注解对应的属性列表 */
-    // 可配置属性: Attribute::PUBLIC, ...
-    std::unordered_set<std::string> focusModifierAttrs; /**< 关注的修饰符对应的属性列表 */
-    std::unordered_set<AstKind> focusModifierWhiteList; /**< 关注的语义后修饰符的节点白名单 */
-    std::unordered_set<std::string> ignoreAnnotations;  /**< 忽略的注解对应的属性列表 */
-    std::unordered_set<std::string> ignoreDecls;        /**< 忽略的顶层声明列表 */
-    std::unordered_set<AstKind> focusDecls;             /**< 关注的顶层声明类型 */
-};
 
 /**
  * @class ToSourcePass

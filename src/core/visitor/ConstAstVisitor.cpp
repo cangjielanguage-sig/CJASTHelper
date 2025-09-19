@@ -4,7 +4,7 @@
  * This file implements the ConstAstVisitor.
  */
 
-#include "visitor/ConstAstVisitor.h"
+#include "core/visitor/ConstAstVisitor.h"
 
 VisitResult ConstAstVisitor::BeforeVisit(const AstNode& node)
 {
