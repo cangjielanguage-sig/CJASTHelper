@@ -4,6 +4,15 @@
  * This file implements the ToSourcePass.
  */
 #include "core/pass/Pass.h"
+#include "utils/Logger.h"
+#include <fstream>
+#include <nlohmann/json.hpp>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
 /// PassConfig 实现方法
 bool PassConfig::Desugar() const
@@ -117,6 +126,45 @@ ToSourcePassConfig& ToSourcePassConfig::IgnoreAnnotations(const std::unordered_s
     return *this;
 }
 
+using json = nlohmann::json;
+
+void from_json(const json& j, PassInfo& p)
+{
+    j.at("name").get_to(p.name);
+    j.at("path").get_to(p.path);
+    j.at("description").get_to(p.desc);
+    j.at("version").get_to(p.version);
+    j.at("dependencies").get_to(p.depends);
+}
+
+void PassManager::Init(ConStr& path)
+{
+    DEBUG("Init pass manager...", path);
+    std::fstream fs(path);
+    // 打开 JSON 文件
+    if (!fs.is_open()) {
+        ERROR("Failed to open file: ", path);
+        throw std::logic_error("Failed to open file: " + path);
+    }
+
+    // 读取整个文件到 json 对象
+    json j;
+    try {
+        fs >> j;
+    } catch (const json::parse_error& e) {
+        throw std::logic_error("Parse json file error: " + path);
+    }
+
+    std::vector<PassInfo> passes = j.get<std::vector<PassInfo>>();
+    for (auto& pass : passes) {
+        DEBUG("Reg Info for", pass.name);
+        auto res = PassManager::passInfoMap.emplace(pass.name, pass);
+        if (!res.second) {
+            WARN("Pass info already exists: ", pass.name);
+        }
+    }
+}
+
 void PassManager::Run(AstNode& node, const std::vector<std::string>& passes)
 {
     for (auto& name : passes) {
@@ -126,13 +174,34 @@ void PassManager::Run(AstNode& node, const std::vector<std::string>& passes)
     }
 }
 
+bool PassManager::LoadPass(const std::string& path)
+{
+    DEBUG("Load pass: ", path);
+#ifdef _WIN32
+    HMODULE handle = LoadLibrary(path.c_str());
+#else
+    void* handle = dlopen(path.c_str(), RTLD_LAZY);
+#endif
+    if (!handle) {
+        ERROR("Failed to load pass: ", path);
+        return false;
+    }
+    INFO("Load pass: ", path, " successfully!");
+    return true;
+}
+
 Pass* PassManager::TryGetPass(const std::string& name)
 {
     if (auto it = passMap.find(name); it != passMap.end()) {
         return it->second.get();
     }
-    if (auto it = passBuilderMap.find(name); it != passBuilderMap.end() && config) {
-        passMap.emplace(name, it->second(*config));
+    if (auto it = passInfoMap.find(name); it != passInfoMap.end() && config) {
+        if (!it->second.builder) {
+            if (!LoadPass(it->second.path)) {
+                return nullptr;
+            }
+        }
+        passMap.emplace(name, passInfoMap[name].builder(*config));
         return passMap[name].get();
     }
     return nullptr;
@@ -140,5 +209,9 @@ Pass* PassManager::TryGetPass(const std::string& name)
 
 void PassManager::RegPassBuilder(const std::string& name, const PassBuilder& builder)
 {
-    passBuilderMap.emplace(name, builder);
+    if (auto it = passInfoMap.find(name); it != passInfoMap.end()) {
+        it->second.builder = builder;
+    } else {
+        WARN("Pass info not found: ", name);
+    }
 }

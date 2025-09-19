@@ -11,6 +11,7 @@ NC='\033[0m' # No Color
 
 CWD=$(dirname $(realpath "$0"))
 CJ_INC=$CANGJIE_SRC_HOME/include
+JSON_INC=$JSON_PATH
 BTYPE=Debug
 BUILD_DIR=$CWD/build
 SOURCE_DIR=$CWD
@@ -62,6 +63,7 @@ function update() {
     print_info "Updating CMake cache..."
     print_info "Library path: $CANGJIE_LIB"
     run_cmd cmake -G "Ninja" -B $BUILD_DIR -S $SOURCE_DIR \
+        -DJSON_INCLUDE=$JSON_INC \
         -DCANGJIE_INCLUDE=$CJ_INC \
         -DCANGJIE_LIB=$CANGJIE_LIB \
         -DCMAKE_BUILD_TYPE=$BTYPE \

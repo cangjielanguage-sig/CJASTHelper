@@ -6,7 +6,7 @@ add_subdirectory(passes)
 
 set(PASSES cjast_desugar_pass cjast_to_source_pass)
 
-set(CJAH_LIBS ${PASSES} cjast_helper_core cjast_wrapper utils)
+set(CJAH_LIBS cjast_helper_core cjast_wrapper utils)
 set(DEPEND_LIBS ${CJAH_LIBS} PARENT_SCOPE)
 
 add_executable(cjah Main.cpp)
@@ -74,5 +74,11 @@ endif()
 install(TARGETS ${CJAH_LIBS}
     LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 )
+
+install(TARGETS ${PASSES}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+)
+
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../config DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 install(TARGETS cjah DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
