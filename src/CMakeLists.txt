@@ -1,15 +1,16 @@
+
 add_subdirectory(utils)
 add_subdirectory(wrapper)
 add_subdirectory(core)
 
 set(CJAH_LIBS cjast_helper_core cjast_wrapper utils)
-set(DEPEND_LIBS ${CJAH_LIBS} ${DEPEND_LIBS} PARENT_SCOPE)
-set(DEPEND_LIBS ${CJAH_LIBS} ${DEPEND_LIBS})
+set(DEPEND_LIBS ${CJAH_LIBS} PARENT_SCOPE)
 
 add_executable(cjah Main.cpp)
 
-target_link_libraries(cjah PUBLIC ${DEPEND_LIBS})
+target_link_libraries(cjah PUBLIC ${CJAH_LIBS})
 
+# 设置RPATH以便运行时能找到共享库
 if(CMAKE_BUILD_TYPE MATCHES Release)
     if(CJAH_STANDALONE)
         # macOS: 使用 @loader_path（推荐）
@@ -24,10 +25,22 @@ if(CMAKE_BUILD_TYPE MATCHES Release)
                 INSTALL_RPATH "@loader_path/../lib"
                 BUILD_WITH_INSTALL_RPATH ON
             )
+            
+            # 为共享库设置RPATH
+            set_target_properties(cjast_helper_core cjast_wrapper utils PROPERTIES
+                INSTALL_RPATH "@loader_path"
+                BUILD_WITH_INSTALL_RPATH ON
+            )
         elseif(UNIX AND NOT APPLE)
             # Linux: 使用 $ORIGIN 表示可执行文件所在目录
             set_target_properties(cjah PROPERTIES
                 INSTALL_RPATH "\$ORIGIN/../lib"
+                BUILD_WITH_INSTALL_RPATH ON
+            )
+            
+            # 为共享库设置RPATH
+            set_target_properties(cjast_helper_core cjast_wrapper utils PROPERTIES
+                INSTALL_RPATH "\$ORIGIN"
                 BUILD_WITH_INSTALL_RPATH ON
             )
         endif()
@@ -53,5 +66,10 @@ if(CJAH_STANDALONE)
     # 安装依赖库 libcangjie-fe.so 到 lib/
     install(FILES ${LIBFE_LIB} DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
 endif()
+
+# 安装共享库
+install(TARGETS utils cjast_wrapper cjast_helper_core
+    LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+)
 
 install(TARGETS cjah DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
