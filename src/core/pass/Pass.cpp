@@ -131,7 +131,7 @@ using json = nlohmann::json;
 void from_json(const json& j, PassInfo& p)
 {
     j.at("name").get_to(p.name);
-    j.at("path").get_to(p.path);
+    j.at("lib").get_to(p.lib);
     j.at("description").get_to(p.desc);
     j.at("version").get_to(p.version);
     j.at("dependencies").get_to(p.depends);
@@ -174,19 +174,25 @@ void PassManager::Run(AstNode& node, const std::vector<std::string>& passes)
     }
 }
 
-bool PassManager::LoadPass(const std::string& path)
+bool PassManager::LoadPass(ConStr& lib)
 {
-    DEBUG("Load pass: ", path);
+    Str libname = lib;
+    DEBUG("Load pass: ", lib);
 #ifdef _WIN32
-    HMODULE handle = LoadLibrary(path.c_str());
+    HMODULE handle = LoadLibrary(libname.c_str());
 #else
-    void* handle = dlopen(path.c_str(), RTLD_LAZY);
+#if defined(__linux__)
+    libname = libname + ".so";
+#else
+    libname = libname + ".dylib";
+#endif
+    void* handle = dlopen(libname.c_str(), RTLD_LAZY);
 #endif
     if (!handle) {
-        ERROR("Failed to load pass: ", path);
+        ERROR("Failed to load pass from lib: ", libname);
         return false;
     }
-    INFO("Load pass: ", path, " successfully!");
+    INFO("Load pass from lib: ", libname, " successfully!");
     return true;
 }
 
@@ -197,7 +203,7 @@ Pass* PassManager::TryGetPass(const std::string& name)
     }
     if (auto it = passInfoMap.find(name); it != passInfoMap.end() && config) {
         if (!it->second.builder) {
-            if (!LoadPass(it->second.path)) {
+            if (!LoadPass(it->second.lib)) {
                 return nullptr;
             }
         }

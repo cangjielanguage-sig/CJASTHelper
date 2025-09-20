@@ -148,7 +148,7 @@ using PassBuilder = std::function<std::unique_ptr<Pass>(const PassConfig&)>;
 
 struct PassInfo {
     Str name;                      /**< pass 名称 */
-    Str path;                      /**< pass 路径 */
+    Str lib;                       /**< lib 名称 */
     Str desc;                      /**< pass 描述 */
     Str version;                   /**< pass 版本 */
     StrVec depends;                /**< pass 依赖的 pass */
@@ -195,7 +195,7 @@ public:
     };
 
 private:
-    bool LoadPass(ConStr& path);
+    bool LoadPass(ConStr& lib);
 
 private:
     Pass* TryGetPass(ConStr& name);
