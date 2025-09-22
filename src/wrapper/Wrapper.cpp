@@ -17,6 +17,7 @@
 CangjieFrontendHelper::CangjieFrontendHelper(StrVec&& args, StrMap&& env)
     : mci(ParseArgs(std::move(args), std::move(env)), diag)
 {
+    ci.globalOptions.executablePath = ci.frontendOptions.environment.cangjieHome.value_or(".") + "/bin/cjc";
 }
 
 bool CangjieFrontendHelper::Parse()
@@ -35,6 +36,11 @@ bool CangjieFrontendHelper::DesugaredParse()
 bool CangjieFrontendHelper::ImportPackage()
 {
     return mci.PerformImportPackage();
+}
+
+bool CangjieFrontendHelper::MacroExpand()
+{
+    return mci.PerformMacroExpand();
 }
 
 bool CangjieFrontendHelper::Sema()

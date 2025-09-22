@@ -145,6 +145,9 @@ void AstHelper::RegisterStages()
     });
     stageMap.emplace(SourceStage::SEMA, [this]() {
         DEBUG();
+        if (options.enableMacro) {
+            cjfeHelper.MacroExpand();
+        }
         return cjfeHelper.Sema();
     });
     stageMap.emplace(SourceStage::DESUGARED_SEMA, [this]() {
