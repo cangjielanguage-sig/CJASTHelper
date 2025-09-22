@@ -28,6 +28,7 @@ public:
     bool Parse();
     bool DesugaredParse();
     bool ImportPackage();
+    bool MacroExpand();
     bool Sema();
     bool DesugaredSema();
 
