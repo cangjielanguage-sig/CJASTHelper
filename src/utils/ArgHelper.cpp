@@ -138,6 +138,13 @@ Options& Options::EnableDesugar(ConStr& enable)
     this->enableDesugar = enable == "true";
     return *this;
 }
+
+Options& Options::EnableMacro(ConStr& enable)
+{
+    this->enableMacro = enable == "true";
+    return *this;
+}
+
 Options& Options::FilterDecls(const StrVec& decl)
 {
     this->filterDecls = std::unordered_set<std::string>{decl.begin(), decl.end()};
@@ -197,8 +204,15 @@ ArgHelper::ArgHelper() : p(std::cout, 4)
         .SubDesc({});
     validOptions.emplace("dump-source", od);
     // --pass-config=./config/pass.json
-    od.Key("pass-config").MainDesc("Pass config path, default: ./config/pass.json.").Single(true).Visible(true);
+    od.Key("pass-config").MainDesc("Pass config path, default: ./config/passes.json.");
     validOptions.emplace("pass-config", od);
+    // --enable-macro=[true,false]
+    od.Key("enable-macro")
+        .MainDesc("Enable macro when <value> is true. Supported <value>: (default) true, false.")
+        .Values({"true", "false"})
+        .SubDesc({{"<value>=true", "Do macro expansion, please ensure the runtime and macro libs are in CANGJIE_HOME."},
+            {"<value>=false", "Skip macro expansions when no macro using."}});
+    validOptions.emplace("enable-macro", od);
     // --filter-decls=id1,id2,id3
     od.Key("filter-decls")
         .MainDesc("Filter top-level decls of <value>. Supported <value>: func, var, struct, enum, interface, class")
@@ -207,6 +221,7 @@ ArgHelper::ArgHelper() : p(std::cout, 4)
             {{"<value>=func", "Dump functions."}, {"<kinds>=func,class", "Dump functions and classes."}, {"...", ""}})
         .Single(false);
     validOptions.emplace("filter-decls", od);
+
     // --help
     od.Key("help").MainDesc("Show help info.").Values({}).SubDesc({});
     validOptions.emplace("help", od);
@@ -348,6 +363,7 @@ Options ArgHelper::ParseArgs(int argc, const char* const* argv, const char* cons
         options.FilterDecls(ap.GetMultiValue("filter-decls"));
         // TODO: update default false
         options.EnableDesugar(ap.GetSingleValue("enable-desugar", "true"));
+        options.EnableMacro(ap.GetSingleValue("enable-macro", "true"));
         options.IgnoreAnnotations(ap.GetMultiValue("ignore-annotations"));
         options.IgnoreDecls(ap.GetMultiValue("ignore-decls"));
         options.ImportedPkgs(ap.GetMultiValue("dump-import"));
