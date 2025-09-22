@@ -4,6 +4,7 @@
  * This file implements the ArgParser & ArgHelper.
  */
 #include "utils/ArgHelper.h"
+#include "utils/FileHelper.h"
 #include "utils/Printer.h"
 #include <algorithm>
 #include <iomanip>
@@ -338,6 +339,27 @@ std::unordered_map<std::string, std::string> ParseEnv(const char* const* envp, c
     }
     return std::move(env);
 }
+
+void ValidateConfigPath(Str& path)
+{
+    if (!path.empty()) {
+        if (!CheckExist(path)) {
+            throw std::invalid_argument("the path of config file is not exist: " + path);
+        }
+    }
+    // path is empty, find default path
+    auto pre = getExecutablePath().parent_path().string();
+    auto suf = "config/passes.json";
+    StrVec candidatesPaths{pre + "/" + suf, pre + "/../" + suf, pre + "/../../" + suf};
+    for (auto& p : candidatesPaths) {
+        if (CheckExist(p)) {
+            path = p;
+            return;
+        }
+    }
+    throw std::invalid_argument(
+        "The pass config file is not found, please provide by `--pass-config=./config/passes.json`");
+}
 } // namespace
 Options ArgHelper::ParseArgs(int argc, const char* const* argv, const char* const* envp)
 {
@@ -367,7 +389,10 @@ Options ArgHelper::ParseArgs(int argc, const char* const* argv, const char* cons
         options.IgnoreAnnotations(ap.GetMultiValue("ignore-annotations"));
         options.IgnoreDecls(ap.GetMultiValue("ignore-decls"));
         options.ImportedPkgs(ap.GetMultiValue("dump-import"));
-        options.PassConfig(ap.GetSingleValue("pass-config", "./config/passes.json"));
+
+        Str configPath = ap.GetSingleValue("pass-config", "");
+        ValidateConfigPath(configPath);
+        options.PassConfig(std::move(configPath));
         // config passes
         if (options.stage > SourceStage::PARSE && options.enableDesugar) {
             options.passes.push_back("check-desugar");
