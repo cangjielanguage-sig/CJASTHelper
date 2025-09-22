@@ -50,3 +50,8 @@ bool CheckExist(ConStr& file)
 {
     return fs::exists(file);
 }
+
+Str FileName(ConStr& filePath)
+{
+    return fs::path(filePath).stem();
+}

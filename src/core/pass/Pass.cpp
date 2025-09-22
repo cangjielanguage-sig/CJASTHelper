@@ -139,6 +139,9 @@ void from_json(const json& j, PassInfo& p)
 
 void PassManager::Init(ConStr& path)
 {
+    if (!passInfoMap.empty()) {
+        return;
+    }
     DEBUG("Init pass manager...", path);
     std::fstream fs(path);
     // 打开 JSON 文件

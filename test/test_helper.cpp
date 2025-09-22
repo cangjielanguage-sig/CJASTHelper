@@ -1,5 +1,4 @@
 #include "test_helper.h"
-
 #include <algorithm>
 #include <array>
 #include <filesystem>
@@ -10,7 +9,7 @@
 namespace fs = std::filesystem;
 
 // 辅助函数：将 std::vector<std::string> 转换为 char* 数组，模拟 argv
-std::vector<char*> CreateArgv(const std::vector<std::string>& args)
+std::vector<char*> CreateArgv(ConStrVec& args)
 {
     std::vector<char*> argv;
     // 程序名，通常为 argv[0]，这里用 "program" 模拟
@@ -28,16 +27,6 @@ int GetArgc(const std::vector<char*>& argv)
     return static_cast<int>(argv.size()) - 1; // 减去最后的 nullptr
 }
 
-std::string FileName(ConStr& filePath)
-{
-    return fs::path(filePath).stem();
-}
-
-bool CheckExist(ConStr& file)
-{
-    return fs::exists(file);
-}
-
 bool MoveFile(ConStr& src, ConStr& dst)
 {
     try {
@@ -50,7 +39,7 @@ bool MoveFile(ConStr& src, ConStr& dst)
 
 namespace {
 // 工具函数：读取文件内容为字符串
-std::string ReadFileToString(ConStr& filename)
+Str ReadFileToString(ConStr& filename)
 {
     std::ifstream ifs(filename);
     if (!ifs.is_open()) {
@@ -98,7 +87,7 @@ bool CompareFile(ConStr& actual, ConStr& expected)
     return removeEmptyLines(content0) == removeEmptyLines(content1);
 }
 
-std::string GetEnv(ConStr& key, ConStr& defaultValue)
+Str GetEnv(ConStr& key, ConStr& defaultValue)
 {
     std::string cjahPath = defaultValue;
     const char* envPath = std::getenv(key.c_str());
