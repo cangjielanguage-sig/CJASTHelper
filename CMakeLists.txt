@@ -69,7 +69,7 @@ endif()
 
 # For release version
 if(CMAKE_BUILD_TYPE MATCHES Release)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -fPIC -fno-omit-frame-pointer -pipe -fno-common -fno-strict-aliasing -fstack-protector-all -ftrapv -fPIE")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -fPIC -fno-omit-frame-pointer -pipe -fno-common -fno-strict-aliasing -fstack-protector-all -ftrapv")
     if(CJAH_STANDALONE)
         set(CMAKE_CXX_FLAGS_RELEASE "-Os -ffunction-sections -fdata-sections")
     else()

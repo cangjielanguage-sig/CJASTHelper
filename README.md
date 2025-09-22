@@ -14,13 +14,21 @@ Cangjie Abstract Syntax Tree Helper, 提供仓颉抽象语法树操作的扩展�
 
 参考 [Cangjie SDK构建指导](https://gitcode.com/Cangjie/cangjie_build) 按需构建相关组件。
 
+[Json 开源仓库](https://github.com/nlohmann/json/releases/download/v3.12.0/include.zip)
+
 ### 环境变量配置
 
-该工具构建依赖 Cangjie 开源仓源码中头文件 和 构建产物。 假设本地下载的 Cangjie 源码目录为 `${xxx}/cangjie_compiler/`, 构建好的 SDK 目录为 `${yyy}/cangjie/` 。
+该工具构建依赖 Cangjie 开源仓源码中头文件 和 构建产物。 构建依赖 json 开源库 （头文件）。
+
+假设本地下载的 Cangjie 源码目录为 `${xxx}/cangjie_compiler/`, 构建好的 SDK 目录为 `${yyy}/cangjie/` 。
+假设本地下载的 json 源码目录为 `${third_party}/json` 。
+
+> 注意 json目录下是 nlohmann/json.hpp
 
 ```bash
 # 配置 Cangjie 源码路径
 export CANGJIE_SRC_HOME=${xxx}/cangjie_compiler
+export JSON_PATH=${third_party}/json
 # 配置 Cangjie 二进制环境 (CANGJIE_HOME, LD_LIBRARY_PATH 环境变量)
 source ${yyy}/cangjie/envsetup.sh
 ```
