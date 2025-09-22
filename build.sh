@@ -18,7 +18,7 @@ SOURCE_DIR=$CWD
 NINJA_BIN=ninja
 VERBOSE=
 EXT=
-CJH=$BUILD_DIR/bin/cjah$EXT
+CJAH=$BUILD_DIR/bin/cjah$EXT
 TEST_RUNNER=$BUILD_DIR/bin/cjah_test$EXT
 PRE=$CWD/output
 TEST=OFF
@@ -106,7 +106,7 @@ function install() {
     print_header
     print_info "Installing binaries..."
     
-    if [ ! -f "$CJH" ]; then
+    if [ ! -f "$CJAH" ]; then
         print_warning "Binary not found, building first..."
         build
         if [ $? -ne 0 ]; then
@@ -125,7 +125,7 @@ function install() {
 }
 
 function run() {
-    if [ ! -f "$CJH" ]; then
+    if [ ! -f "$CJAH" ]; then
         print_warning "Binary not found, building first..."
         build
         if [ $? -ne 0 ]; then
@@ -133,9 +133,9 @@ function run() {
         fi
     fi
     
-    if [ -f "$CJH" ]; then
+    if [ -f "$CJAH" ]; then
         print_info "Running cjah..."
-        run_cmd $CJH $@
+        run_cmd $CJAH $@
     fi
 }
 
