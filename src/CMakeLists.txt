@@ -15,38 +15,36 @@ target_link_libraries(cjah PUBLIC ${CJAH_LIBS})
 
 # 设置RPATH以便运行时能找到共享库
 if(CMAKE_BUILD_TYPE MATCHES Release)
-    if(CJAH_STANDALONE)
-        # macOS: 使用 @loader_path（推荐）
-        # Linux: 使用 $ORIGIN
-        if(APPLE)
-            target_link_options(cjah PRIVATE -dead_strip -flto)
-            # macOS: 使用 @loader_path 表示可执行文件所在目录
-            set(CMAKE_INSTALL_RPATH "@loader_path/../lib")
+    # macOS: 使用 @loader_path（推荐）
+    # Linux: 使用 $ORIGIN
+    if(APPLE)
+        target_link_options(cjah PRIVATE -dead_strip -flto)
+        # macOS: 使用 @loader_path 表示可执行文件所在目录
+        set(CMAKE_INSTALL_RPATH "@loader_path/../lib")
 
-            # 仅对某个 target 设置 RPATH
-            set_target_properties(cjah PROPERTIES
-                INSTALL_RPATH "@loader_path/../lib"
-                BUILD_WITH_INSTALL_RPATH ON
-            )
-            
-            # 为共享库设置RPATH
-            set_target_properties(cjast_helper_core cjast_wrapper utils PROPERTIES
-                INSTALL_RPATH "@loader_path"
-                BUILD_WITH_INSTALL_RPATH ON
-            )
-        elseif(UNIX AND NOT APPLE)
-            # Linux: 使用 $ORIGIN 表示可执行文件所在目录
-            set_target_properties(cjah PROPERTIES
-                INSTALL_RPATH "\$ORIGIN/../lib"
-                BUILD_WITH_INSTALL_RPATH ON
-            )
-            
-            # 为共享库设置RPATH
-            set_target_properties(cjast_helper_core cjast_wrapper utils PROPERTIES
-                INSTALL_RPATH "\$ORIGIN"
-                BUILD_WITH_INSTALL_RPATH ON
-            )
-        endif()
+        # 仅对某个 target 设置 RPATH
+        set_target_properties(cjah PROPERTIES
+            INSTALL_RPATH "@loader_path/../lib"
+            BUILD_WITH_INSTALL_RPATH ON
+        )
+        
+        # 为共享库设置RPATH
+        set_target_properties(cjast_helper_core cjast_wrapper utils PROPERTIES
+            INSTALL_RPATH "@loader_path"
+            BUILD_WITH_INSTALL_RPATH ON
+        )
+    elseif(UNIX AND NOT APPLE)
+        # Linux: 使用 $ORIGIN 表示可执行文件所在目录
+        set_target_properties(cjah PROPERTIES
+            INSTALL_RPATH "\$ORIGIN/../lib"
+            BUILD_WITH_INSTALL_RPATH ON
+        )
+        
+        # 为共享库设置RPATH
+        set_target_properties(cjast_helper_core cjast_wrapper utils PROPERTIES
+            INSTALL_RPATH "\$ORIGIN"
+            BUILD_WITH_INSTALL_RPATH ON
+        )
     endif()
 endif()
 
