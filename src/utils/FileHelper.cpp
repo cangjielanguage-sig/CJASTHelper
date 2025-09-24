@@ -55,3 +55,14 @@ Str FileName(ConStr& filePath)
 {
     return fs::path(filePath).stem();
 }
+
+void CreateDirIfNotExists(ConStr& path)
+{
+    if (fs::exists(path)) {
+        return;
+    }
+    // 创建目录（包括父目录）
+    if (!fs::create_directories(path)) {
+        throw std::logic_error("Try to create directory: " + path + " failed!");
+    }
+}

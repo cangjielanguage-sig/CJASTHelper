@@ -398,9 +398,10 @@ Options ArgHelper::ParseArgs(int argc, const char* const* argv, const char* cons
             options.passes.push_back("check-desugar");
             options.passes.push_back("replace-desugar");
             options.passes.push_back("check-desugar");
+            options.passes.push_back("to-java");
         }
         // 添加 to-source 作为最后一个 pass
-        options.passes.push_back("to-source");
+        options.passes.push_back("to-cangjie");
         // config env
         options.env =
             ParseEnv(envp, {"CANGJIE_PATH", "CANGJIE_HOME", "LIBRARY_PATH", "LD_LIBRARY_PATH", "PATH", "SDKROOT"});
