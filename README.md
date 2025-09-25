@@ -50,7 +50,7 @@ bash build.sh -t Release -b
 
 ### 打印源码
 
-提供 `--dump-source` 选项用来支持打印某个阶段后的源码，输出到指定目录，支持参数值：parser，deusgared-parser, sema，desugared-sema
+提供 `--dump-source` 选项用来支持打印某个阶段后的源码，输出到指定目录，支持参数值：parse，deusgared-parse, sema，desugared-sema
 
 - parse 用来打印语法解析后源码
 - desugared-parse 用来打印语法解析并解糖后的源码
