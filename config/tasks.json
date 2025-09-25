@@ -1,0 +1,12 @@
+[
+    {
+        "stage": "parse",
+        "enableDesugar": true,
+        "enableMacro": true,
+        "filterDecls": [],
+        "ignoreDecls": [],
+        "ignoreAnnotations": [],
+        "passes": ["check-desugar", "replace-desugar", "to-cangjie"],
+        "args": ["--output-type=dylib", "test/data/inputs/desugar.cj", "--output-dir", "test/data/output"]
+    }
+]

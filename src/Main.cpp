@@ -19,12 +19,14 @@ int main(int argc, const char* const* argv, const char* const* envp)
     try {
         auto argHelper = ArgHelper();
         auto options = argHelper.ParseArgs(argc, argv, envp);
-        if (options.stage == SourceStage::DEFAULT) {
+        if (options.empty() || options[0].stage == SourceStage::DEFAULT) {
             argHelper.ShowHelperInfo();
             return 0;
         }
-        AstHelper ah(std::move(options));
-        ah.Run();
+        for (auto option : options) {
+            AstHelper ah(std::move(option));
+            ah.Run();
+        }
     } catch (const std::exception& ex) {
         std::cerr << "Exception: " << ex.what() << std::endl;
         return 1;

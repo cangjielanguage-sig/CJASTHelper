@@ -10,7 +10,7 @@
     {
         "key": "pass-config",
         "values": [],
-        "mainDesc": "Pass config path, default: ./config/passes.json.",
+        "mainDesc": "Pass config file name, default: passes.json.",
         "subDesc": [],
         "single": true,
         "visible": true
@@ -84,6 +84,14 @@
         "mainDesc": "Ignore annotations whoes identifier is <value>.",
         "subDesc": [],
         "single": false,
+        "visible": false
+    },
+    {
+        "key": "task-config",
+        "values": [],
+        "mainDesc": "Pass the task config file name.",
+        "subDesc": [],
+        "single": true,
         "visible": false
     }
 ]

@@ -166,7 +166,7 @@ public:
      *
      * @param path pass配置文件路径
      */
-    void Init(ConStr& path);
+    static void Init(ConStr& path);
 
     /**
      * 执行 passes 中的所有 pass
