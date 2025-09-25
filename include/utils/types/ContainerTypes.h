@@ -20,6 +20,7 @@ template <typename T> using ConVec = const Vec<T>;
 template <typename T> using List = std::list<T>;
 
 template <typename T> using Deque = std::deque<T>;
+template <typename T> using Queue = std::queue<T>;
 
 template <typename T> using Set = std::set<T>;
 

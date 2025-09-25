@@ -24,8 +24,9 @@ protected:
     {
         // 在每个测试开始前运行的设置代码
         cfg = GetParam();
-        ah = std::make_unique<AstHelper>(
-            argh.ParseArgs(GetArgc(CreateArgv(cfg.args)), CreateArgv(cfg.args).data(), CreateArgv(cfg.envp).data()));
+        auto opts =
+            argh.ParseArgs(GetArgc(CreateArgv(cfg.args)), CreateArgv(cfg.args).data(), CreateArgv(cfg.envp).data());
+        ah = std::make_unique<AstHelper>(std::move(opts[0]));
     }
 
     void TearDown() override

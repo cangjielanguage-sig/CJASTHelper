@@ -35,7 +35,6 @@ struct Options {
     StrVec passes;                            /**< 配置需要执行的 passes 列表 */
     StrVec args;                              /**< 需要传递给前端的参数列表 */
     StrMap<Str> env;                          /**< 环境变量 */
-    Str passConfig;                           /**< 配置需要使用的 passes 配置文件 */
 
     Options& Stage(ConStr& stage);
     Options& EnableDesugar(ConStr& enable);
@@ -47,7 +46,6 @@ struct Options {
     Options& Passes(ConStrVec& passes);
     Options& Args(StrVec&& args);
     Options& Env(StrMap<Str>&& env);
-    Options& PassConfig(Str&& path);
 };
 
 struct OptionDesc {
@@ -78,7 +76,7 @@ public:
      * @param env environment variables
      * @return parsed options
      */
-    Options ParseArgs(int argc, const char* const* argv, const char* const* envp);
+    Vec<Options> ParseArgs(int argc, const char* const* argv, const char* const* envp);
 
     /**
      * Show helper info

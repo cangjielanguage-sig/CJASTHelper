@@ -4,8 +4,10 @@
  * This file implements the ArgParser & ArgHelper.
  */
 #include "core/ArgHelper.h"
+#include "core/pass/Pass.h"
 #include "utils/ArgParser.h"
 #include "utils/FileHelper.h"
+#include "utils/Logger.h"
 #include <iomanip>
 #include <stdexcept>
 
@@ -74,12 +76,6 @@ Options& Options::Env(StrMap<Str>&& env)
     return *this;
 }
 
-Options& Options::PassConfig(Str&& path)
-{
-    this->passConfig = std::move(path);
-    return *this;
-}
-
 namespace nlohmann {
 template <> struct adl_serializer<OptionDesc> {
     // 只实现反序列化
@@ -93,6 +89,21 @@ template <> struct adl_serializer<OptionDesc> {
         }
         j.at("single").get_to(od.single);
         j.at("visible").get_to(od.single);
+    }
+};
+
+template <> struct adl_serializer<Options> {
+    // 只实现反序列化
+    static void from_json(const json& j, Options& op)
+    {
+        op.Stage(j.at("stage").get<Str>());
+        j.at("enableDesugar").get_to(op.enableDesugar);
+        j.at("enableMacro").get_to(op.enableMacro);
+        j.at("filterDecls").get_to(op.filterDecls);
+        j.at("ignoreDecls").get_to(op.ignoreDecls);
+        j.at("ignoreAnnotations").get_to(op.ignoreAnnotations);
+        j.at("passes").get_to(op.passes);
+        j.at("args").get_to(op.args);
     }
 };
 } // namespace nlohmann
@@ -206,13 +217,13 @@ StrMap<Str> ParseEnv(const char* const* envp, const StrSet& focus)
     return std::move(env);
 }
 } // namespace
-Options ArgHelper::ParseArgs(int argc, const char* const* argv, const char* const* envp)
+Vec<Options> ArgHelper::ParseArgs(int argc, const char* const* argv, const char* const* envp)
 {
     Options options;
     StrVec args = ParseRawArgs(argc, argv);
     // Help
     if (ContainHelpArg(args)) {
-        return options;
+        return {options};
     }
     StrMap<StrSet> validOpts;
     for (auto& [key, opt] : validOptions) {
@@ -222,9 +233,23 @@ Options ArgHelper::ParseArgs(int argc, const char* const* argv, const char* cons
     StrVec toolArgs;
     SplitArgs(args, toolArgs, options.args, validOpts);
     try {
+        auto env =
+            ParseEnv(envp, {"CANGJIE_PATH", "CANGJIE_HOME", "LIBRARY_PATH", "LD_LIBRARY_PATH", "PATH", "SDKROOT"});
         // 解析并获取工具选项配置
         ArgumentParser ap(validOpts);
         ap.Parse(toolArgs);
+        auto passCfg = ap.GetSingleValue("pass-config", "passes.json");
+        PassManager::Init(passCfg);
+        auto taskCfg = ap.GetSingleValue("task-config", "");
+        LOGD("task config: ", taskCfg);
+        if (!taskCfg.empty()) {
+            ConfigParser parser(taskCfg);
+            auto opts = parser.Parse<Vec<Options>>();
+            for (auto& opt : opts) {
+                opt.env = env;
+            }
+            return opts;
+        }
         // config options
         options.Stage(ap.GetSingleValue("dump-source"));
         options.FilterDecls(ap.GetMultiValue("filter-decls"));
@@ -234,7 +259,7 @@ Options ArgHelper::ParseArgs(int argc, const char* const* argv, const char* cons
         options.IgnoreAnnotations(ap.GetMultiValue("ignore-annotations"));
         options.IgnoreDecls(ap.GetMultiValue("ignore-decls"));
         options.ImportedPkgs(ap.GetMultiValue("dump-import"));
-        options.PassConfig(ap.GetSingleValue("pass-config", "passes.json"));
+
         // config passes
         if (options.stage > SourceStage::PARSE && options.enableDesugar) {
             options.passes.push_back("check-desugar");
@@ -245,14 +270,14 @@ Options ArgHelper::ParseArgs(int argc, const char* const* argv, const char* cons
         // 添加 to-source 作为最后一个 pass
         options.passes.push_back("to-cangjie");
         // config env
-        options.env =
-            ParseEnv(envp, {"CANGJIE_PATH", "CANGJIE_HOME", "LIBRARY_PATH", "LD_LIBRARY_PATH", "PATH", "SDKROOT"});
+        options.env = env;
+
     } catch (std::invalid_argument& e) {
         std::cerr << "error: " << e.what() << std::endl;
         // Only do show help info.
         options.stage = SourceStage::DEFAULT;
     }
-    return options;
+    return {options};
 }
 
 inline void ArgHelper::PL(ConStr& info, int blanks)

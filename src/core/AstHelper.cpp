@@ -14,7 +14,6 @@ AstHelper::AstHelper(Options&& options)
 {
     // 注册 stage 回调函数
     RegisterStages();
-    passManager.Init(this->options.passConfig);
 }
 
 void AstHelper::Run()
