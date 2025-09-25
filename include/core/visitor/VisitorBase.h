@@ -71,7 +71,7 @@ VisitResult Traverse(const AstNode& node, ConstAstVisitorBase& visitor);
 
 using DefaultValue = int;
 using OwnedNodeValue = OwnedPtr<AstNode>;
-using ValueType = std::variant<DefaultValue, OwnedNodeValue>;
+using ValueType = Var<DefaultValue, OwnedNodeValue>;
 // ResultType 类型定义, 可扩展。
 template <typename T>
 concept ResultType = std::same_as<T, DefaultValue> || std::same_as<T, OwnedNodeValue>;
