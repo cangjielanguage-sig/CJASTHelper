@@ -21,7 +21,7 @@ void ArgumentParser::Parse(ConStrVec& args)
         Str option = arg.substr(2, equalPos - 2);
         Str valueStr = arg.substr(equalPos + 1);
 
-        std::vector<Str> values;
+        StrVec values;
         std::stringstream ss(valueStr);
         Str value;
         while (std::getline(ss, value, ',')) {
@@ -50,7 +50,7 @@ Str ArgumentParser::GetSingleValue(ConStr& option, ConStr& dv) const
     return it->second[0];
 }
 
-std::vector<Str> ArgumentParser::GetMultiValue(ConStr& option) const
+StrVec ArgumentParser::GetMultiValue(ConStr& option) const
 {
     auto it = parsedOptions.find(option);
     if (it == parsedOptions.end()) {

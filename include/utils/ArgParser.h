@@ -29,7 +29,7 @@ public:
      * @param option 选项名称。
      * @return 选项的值, 如果不存在则抛异常。
      */
-    std::string GetSingleValue(ConStr& option) const;
+    Str GetSingleValue(ConStr& option) const;
 
     /**
      * @brief 获取单值选项的值。
@@ -37,14 +37,14 @@ public:
      * @param dv 如果不存在的话，返回默认值。
      * @return 选项的值。
      */
-    std::string GetSingleValue(ConStr& option, ConStr& dv) const;
+    Str GetSingleValue(ConStr& option, ConStr& dv) const;
 
     /**
      * @brief 获取多值选项的值，不存在返回空列表。
      * @param option 选项名称。
      * @return 选项的值列表。
      */
-    std::vector<std::string> GetMultiValue(ConStr& option) const;
+    StrVec GetMultiValue(ConStr& option) const;
 
 private:
     StrMap<StrSet> validOptions;  // 合法选项及其取值范围
