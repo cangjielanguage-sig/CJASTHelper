@@ -122,7 +122,8 @@ template <> struct adl_serializer<PassInfo> {
     // 只实现反序列化
     static void from_json(const json& j, PassInfo& p)
     {
-        j.at("name").get_to(p.name);
+        j.at("group").get_to(p.group);
+        j.at("names").get_to(p.names);
         j.at("lib").get_to(p.lib);
         j.at("description").get_to(p.desc);
         j.at("version").get_to(p.version);
@@ -140,10 +141,13 @@ void PassManager::Init(ConStr& path)
     ConfigParser parser(path);
     auto passes = parser.Parse<Vec<PassInfo>>();
     for (auto& pass : passes) {
-        LOGD("Reg Info for", pass.name);
-        auto res = PassManager::passInfoMap.emplace(pass.name, pass);
+        LOGD("Reg Info for", pass.group);
+        auto res = PassManager::passInfoMap.emplace(pass.group, pass);
         if (!res.second) {
-            LOGW("Pass info already exists: ", pass.name);
+            LOGW("Pass info already exists: ", pass.group);
+        }
+        for (auto& name : pass.names) {
+            groupMap.emplace(name, pass.group);
         }
     }
 }
@@ -175,23 +179,31 @@ Pass* PassManager::TryGetPass(ConStr& name)
     if (auto it = passMap.find(name); it != passMap.end()) {
         return it->second.get();
     }
-    if (auto it = passInfoMap.find(name); it != passInfoMap.end() && config) {
-        if (!it->second.builder) {
-            if (!LoadPass(it->second.lib)) {
-                return nullptr;
-            }
-        }
-        passMap.emplace(name, passInfoMap[name].builder(*config));
+    if (auto it = builderMap.find(name); it != builderMap.end() && config) {
+        passMap.emplace(name, (it->second)(*config));
         return passMap[name].get();
     }
+    auto group = groupMap[name];
+    if (auto it = passInfoMap.find(group); it != passInfoMap.end()) {
+        if (LoadPass(it->second.lib)) {
+            return TryGetPass(name);
+        }
+    }
+    LOGE("Invalid pass name is not registered: " + name);
     return nullptr;
 }
 
 void PassManager::RegPassBuilder(ConStr& name, const PassBuilder& builder)
 {
-    if (auto it = passInfoMap.find(name); it != passInfoMap.end()) {
-        it->second.builder = builder;
+    if (!groupMap.count(name)) {
+        LOGW("Invalid pass name is not registered: " + name);
+        return;
+    }
+    auto group = groupMap[name];
+    if (passInfoMap.count(group)) {
+        builderMap.emplace(name, builder);
+        LOGD("Register pass builder successfully: ", name, " group: ", group);
     } else {
-        LOGW("Pass info not found: ", name);
+        LOGW("Pass info not found: ", name, " group: ", group);
     }
 }

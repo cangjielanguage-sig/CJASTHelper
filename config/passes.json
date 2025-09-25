@@ -1,34 +1,26 @@
 [
     {
-        "name": "check-desugar",
+        "group": "desugar",
+        "names": [
+            "check-desugar",
+            "replace-desugar"
+        ],
         "description": "Desugar pass",
         "version": "0.0.1",
         "lib": "libcjast_desugar_pass",
         "dependencies": []
     },
     {
-        "name": "replace-desugar",
-        "description": "Desugar pass",
-        "version": "0.0.1",
-        "lib": "libcjast_desugar_pass",
-        "dependencies": []
-    },
-    {
-        "name": "to-cangjie",
+        "group": "to-source",
+        "names": [
+            "to-cangjie",
+            "to-java"
+        ],
         "description": "ToSource pass",
         "version": "0.0.1",
         "lib": "libcjast_to_source_pass",
         "dependencies": [
-            "replace-desugar"
-        ]
-    },
-    {
-        "name": "to-java",
-        "description": "To Java pass",
-        "version": "0.0.1",
-        "lib": "libcjast_to_source_pass",
-        "dependencies": [
-            "replace-desugar"
+            "desugar"
         ]
     }
 ]
