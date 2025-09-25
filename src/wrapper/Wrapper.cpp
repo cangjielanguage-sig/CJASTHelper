@@ -14,7 +14,7 @@
 #include <fstream>
 #include <iostream>
 
-CangjieFrontendHelper::CangjieFrontendHelper(StrVec&& args, StrMap&& env)
+CangjieFrontendHelper::CangjieFrontendHelper(StrVec&& args, StrMap<Str>&& env)
     : mci(ParseArgs(std::move(args), std::move(env)), diag)
 {
     ci.globalOptions.executablePath = ci.frontendOptions.environment.cangjieHome.value_or(".") + "/bin/cjc";
@@ -68,7 +68,7 @@ PkgPtrVec CangjieFrontendHelper::GetImportedPackages()
     return mci.GetPackages();
 }
 
-CompilerInvocation& CangjieFrontendHelper::ParseArgs(StrVec&& args, StrMap&& env)
+CompilerInvocation& CangjieFrontendHelper::ParseArgs(StrVec&& args, StrMap<Str>&& env)
 {
     ci.frontendOptions.ReadPathsFromEnvironmentVars(env);
     ci.ParseArgs(args);
