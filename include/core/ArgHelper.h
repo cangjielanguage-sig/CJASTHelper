@@ -57,13 +57,6 @@ struct OptionDesc {
     StrPairVec subDesc; /**< sub description of option */
     bool single;        /**< whether option is single */
     bool visible;       /**< whether option is visible */
-
-    OptionDesc& Key(Str&& key);
-    OptionDesc& Values(StrVec&& values);
-    OptionDesc& MainDesc(Str&& desc);
-    OptionDesc& SubDesc(StrPairVec&& descs);
-    OptionDesc& Single(bool single);
-    OptionDesc& Visible(bool visible);
 };
 
 /**
