@@ -9,6 +9,7 @@ std::filesystem::path getExecutablePath();
 bool CheckExist(ConStr& file);
 Str FileName(ConStr& filePath);
 void CreateDirIfNotExists(ConStr& path);
+Str SearchPath(ConStr& name, ConStrVec& paths);
 
 class ConfigParser {
 public:
@@ -38,7 +39,6 @@ public:
     }
 
 private:
-    Str ValidatePath(ConStr& path);
     Str path;
     std::ifstream fs;
     static inline ConStrVec searchPaths{"config", "../config", "../../config"};

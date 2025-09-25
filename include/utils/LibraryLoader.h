@@ -1,6 +1,6 @@
 #pragma once
 
-#include "utils/types/StrTypes.h"
+#include "utils/types/TypeAlias.h"
 
 #ifdef _WIN32
 using Handle = HMODULE;
@@ -13,5 +13,8 @@ class LibraryLoader {
 public:
     static LibraryLoader& GetInstance();
 
-    Handle LoadLibrary(ConStr& lib);
+    Handle LoadLib(ConStr& lib);
+
+private:
+    static inline ConStrVec searchPaths{"lib", "../lib", "../../lib"};
 };

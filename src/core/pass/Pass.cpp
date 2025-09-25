@@ -161,7 +161,7 @@ bool PassManager::LoadPass(ConStr& lib)
 {
     Str libname = lib;
     LOGD("Load pass: ", lib);
-    Handle handle = LibraryLoader::GetInstance().LoadLibrary(libname);
+    Handle handle = LibraryLoader::GetInstance().LoadLib(libname);
     if (!handle) {
         LOGE("Failed to load pass from lib: ", libname);
         return false;

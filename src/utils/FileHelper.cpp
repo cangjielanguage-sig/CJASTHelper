@@ -67,23 +67,23 @@ void CreateDirIfNotExists(ConStr& path)
     }
 }
 
-// Json 配置文件解析
-ConfigParser::ConfigParser(ConStr& name) : path(ValidatePath(name)), fs(path)
-{
-    if (!fs.is_open()) {
-        throw std::logic_error("Try to open config file: " + name + " failed!");
-    }
-}
-
-Str ConfigParser::ValidatePath(ConStr& name)
+Str SearchPath(ConStr& name, ConStrVec& paths)
 {
     // path is empty, find default path
     auto pre = getExecutablePath().parent_path().string();
-    for (auto& p : searchPaths) {
+    for (auto& p : paths) {
         auto filePath = pre + "/" + p + "/" + name;
         if (CheckExist(filePath)) {
             return filePath;
         }
     }
-    throw std::invalid_argument("The config file is not found: " + name);
+    throw std::invalid_argument("The file is not found: " + name);
+}
+
+// Json 配置文件解析
+ConfigParser::ConfigParser(ConStr& name) : path(SearchPath(name, searchPaths)), fs(path)
+{
+    if (!fs.is_open()) {
+        throw std::logic_error("Try to open config file: " + name + " failed!");
+    }
 }
