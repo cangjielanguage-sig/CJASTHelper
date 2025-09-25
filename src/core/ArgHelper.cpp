@@ -6,41 +6,11 @@
 #include "core/ArgHelper.h"
 #include "utils/ArgParser.h"
 #include "utils/FileHelper.h"
+#include <fstream>
 #include <iomanip>
+#include <nlohmann/json.hpp>
 #include <stdexcept>
 
-/// OptionDes 实现函数
-
-OptionDesc& OptionDesc::Key(Str&& key)
-{
-    this->key = std::move(key);
-    return *this;
-}
-OptionDesc& OptionDesc::Values(StrVec&& values)
-{
-    this->values = std::move(values);
-    return *this;
-}
-OptionDesc& OptionDesc::MainDesc(Str&& desc)
-{
-    mainDesc = std::move(desc);
-    return *this;
-}
-OptionDesc& OptionDesc::SubDesc(StrPairVec&& descs)
-{
-    this->subDesc = std::move(descs);
-    return *this;
-}
-OptionDesc& OptionDesc::Single(bool single)
-{
-    this->single = single;
-    return *this;
-}
-OptionDesc& OptionDesc::Visible(bool visible)
-{
-    this->visible = visible;
-    return *this;
-}
 /// Option 配置方法实现
 namespace {
 /**
@@ -112,52 +82,40 @@ Options& Options::PassConfig(Str&& path)
     return *this;
 }
 
+using json = nlohmann::json;
+
+void from_json(const json& j, OptionDesc& od)
+{
+    j.at("key").get_to(od.key);
+    j.at("values").get_to(od.values);
+    j.at("mainDesc").get_to(od.mainDesc);
+    for (const auto& item : j.at("subDesc")) {
+        od.subDesc.emplace_back(item["sub"], item["desc"]);
+    }
+    j.at("single").get_to(od.single);
+    j.at("visible").get_to(od.single);
+}
+
 /// ArgHelper 实现函数
 ArgHelper::ArgHelper() : p(std::cout, 4)
 {
-    OptionDesc od;
-    // --dump-source=[parse, desugared-parse, sema, desugared-sema]
-    od.Key("dump-source")
-        .MainDesc("Dump source after <value> stage. Supported value: parse, desugared-parse, sema, desugared-sema.")
-        .Values({"parse", "desugared-parse", "sema", "desugared-sema"})
-        .Visible(true)
-        .Single(true)
-        .SubDesc({});
-    validOptions.emplace("dump-source", od);
-    // --pass-config=./config/pass.json
-    od.Key("pass-config").MainDesc("Pass config path, default: ./config/passes.json.");
-    validOptions.emplace("pass-config", od);
-    // --enable-macro=[true,false]
-    od.Key("enable-macro")
-        .MainDesc("Enable macro when <value> is true. Supported <value>: (default) true, false.")
-        .Values({"true", "false"})
-        .SubDesc({{"<value>=true", "Do macro expansion, please ensure the runtime and macro libs are in CANGJIE_HOME."},
-            {"<value>=false", "Skip macro expansions when no macro using."}});
-    validOptions.emplace("enable-macro", od);
-    // --filter-decls=id1,id2,id3
-    od.Key("filter-decls")
-        .MainDesc("Filter top-level decls of <value>. Supported <value>: func, var, struct, enum, interface, class")
-        .Values({"func", "var", "struct", "enum", "interface", "class"})
-        .SubDesc(
-            {{"<value>=func", "Dump functions."}, {"<kinds>=func,class", "Dump functions and classes."}, {"...", ""}})
-        .Single(false);
-    validOptions.emplace("filter-decls", od);
-
-    // --help
-    od.Key("help").MainDesc("Show help info.").Values({}).SubDesc({});
-    validOptions.emplace("help", od);
-    // --ignore-decls=id1,id2,id3
-    od.Key("ignore-decls").MainDesc("Ignore top-level decls whoes identifier is <value>.").Values({}).Visible(false);
-    validOptions.emplace("ignore-decls", od);
-    // --ignore-annotations=id1,id2,id3
-    od.Key("ignore-annotations").MainDesc("Ignore annotations whoes identifier is <value>.").Values({});
-    validOptions.emplace("ignore-annotations", od);
-    // --enable-desugar=[true,false]
-    od.Key("enable-desugar")
-        .MainDesc("Dump desugared code when <value> is true. Supported <value>: (default) true, false.")
-        .Values({"true", "false"})
-        .Single(true);
-    validOptions.emplace("enable-desugar", od);
+    Str path = "config/valid_options.json";
+    std::fstream fs(path, std::ios::in);
+    // 打开 JSON 文件
+    if (!fs.is_open()) {
+        throw std::logic_error("Failed to open file: " + path);
+    }
+    // 读取整个文件到 json 对象
+    json j;
+    try {
+        fs >> j;
+    } catch (const json::parse_error& e) {
+        throw std::logic_error("Parse json file error: " + path);
+    }
+    Vec<OptionDesc> opts = j.get<Vec<OptionDesc>>();
+    for (auto& od : opts) {
+        validOptions.emplace(od.key, od);
+    }
 }
 
 void ArgHelper::ShowHelperInfo()
