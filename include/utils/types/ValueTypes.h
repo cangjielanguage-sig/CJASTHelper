@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <tuple>
 #include <variant>
 
 // ====== 数值类型 ======
@@ -23,6 +24,7 @@ using f64 = double;
 template <typename T> using Opt = std::optional<T>;
 
 template <typename... Ts> using Var = std::variant<Ts...>;
+template <typename... Ts> using Tuple = std::tuple<Ts...>;
 
 using None = std::nullopt_t;
 

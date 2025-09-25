@@ -5,10 +5,11 @@
  */
 #pragma once
 
+#include "utils/CallbackManger.h"
+#include "utils/types/TypeAlias.h"
+
 #include "cangjie/AST/Clone.h"
 #include "cangjie/AST/Node.h"
-#include "utils/CallbackManger.h"
-#include <memory>
 
 using AstNode = Cangjie::AST::Node;
 using AstKind = Cangjie::AST::ASTKind;
@@ -54,19 +55,19 @@ public:
      * @param node 要获取子节点的节点。
      * @return 子节点列表。
      */
-    static std::vector<Ptr<AstNode>> GetChildren(const AstNode& node);
+    static Vec<Ptr<AstNode>> GetChildren(const AstNode& node);
 
-    static void ReplaceChildren(AstNode& node, std::vector<OwnedPtr<AstNode>>& children);
+    static void ReplaceChildren(AstNode& node, Vec<OwnedPtr<AstNode>>& children);
 
     template <typename T> static inline OwnedPtr<T> Clone(T& node)
     {
         return AstCloner::Clone<T>(&node);
     }
 
-    static void DumpAst(const AstNode& node, const std::string& out);
+    static void DumpAst(const AstNode& node, ConStr&);
 
-    using CollectFunc = std::function<void(const AstNode&, std::vector<Ptr<AstNode>>&)>;
-    using ReplaceFunc = std::function<void(AstNode&, std::vector<OwnedPtr<AstNode>>&)>;
+    using CollectFunc = Function<void(const AstNode&, Vec<Ptr<AstNode>>&)>;
+    using ReplaceFunc = Function<void(AstNode&, Vec<OwnedPtr<AstNode>>&)>;
 
 private:
     AstNodeHelper();
@@ -76,7 +77,7 @@ private:
 
 private:
     static AstNodeHelper& GetInstance();
-    static std::unique_ptr<AstNodeHelper> helper;
+    static UniquePtr<AstNodeHelper> helper;
 
-    CallbackManager<AstKind, std::tuple<CollectFunc, ReplaceFunc>> handlers;
+    CallbackManager<AstKind, Tuple<CollectFunc, ReplaceFunc>> handlers;
 };

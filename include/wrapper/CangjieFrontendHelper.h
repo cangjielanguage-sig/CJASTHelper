@@ -13,7 +13,7 @@
 
 using Cangjie::CompilerInvocation;
 
-using PkgPtrVec = std::vector<Ptr<Package>>;
+using PkgPtrVec = Vec<Ptr<Package>>;
 
 class CangjieFrontendHelper {
 public:
