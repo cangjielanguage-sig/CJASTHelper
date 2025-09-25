@@ -4,9 +4,8 @@
  * This file implements the ToSourcePass.
  */
 #include "core/pass/Pass.h"
+#include "utils/FileHelper.h"
 #include "utils/LibraryLoader.h"
-#include <fstream>
-#include <nlohmann/json.hpp>
 
 /// PassConfig 实现方法
 bool PassConfig::Desugar() const
@@ -118,16 +117,19 @@ ToSourcePassConfig& ToSourcePassConfig::IgnoreAnnotations(ConStrSet& annos)
     return *this;
 }
 
-using json = nlohmann::json;
-
-void from_json(const json& j, PassInfo& p)
-{
-    j.at("name").get_to(p.name);
-    j.at("lib").get_to(p.lib);
-    j.at("description").get_to(p.desc);
-    j.at("version").get_to(p.version);
-    j.at("dependencies").get_to(p.depends);
-}
+namespace nlohmann {
+template <> struct adl_serializer<PassInfo> {
+    // 只实现反序列化
+    static void from_json(const json& j, PassInfo& p)
+    {
+        j.at("name").get_to(p.name);
+        j.at("lib").get_to(p.lib);
+        j.at("description").get_to(p.desc);
+        j.at("version").get_to(p.version);
+        j.at("dependencies").get_to(p.depends);
+    }
+};
+} // namespace nlohmann
 
 void PassManager::Init(ConStr& path)
 {
@@ -135,22 +137,8 @@ void PassManager::Init(ConStr& path)
         return;
     }
     LOGD("Init pass manager...", path);
-    std::fstream fs(path);
-    // 打开 JSON 文件
-    if (!fs.is_open()) {
-        LOGE("Failed to open file: ", path);
-        throw std::logic_error("Failed to open file: " + path);
-    }
-
-    // 读取整个文件到 json 对象
-    json j;
-    try {
-        fs >> j;
-    } catch (const json::parse_error& e) {
-        throw std::logic_error("Parse json file error: " + path);
-    }
-
-    Vec<PassInfo> passes = j.get<Vec<PassInfo>>();
+    ConfigParser parser(path);
+    auto passes = parser.Parse<Vec<PassInfo>>();
     for (auto& pass : passes) {
         LOGD("Reg Info for", pass.name);
         auto res = PassManager::passInfoMap.emplace(pass.name, pass);

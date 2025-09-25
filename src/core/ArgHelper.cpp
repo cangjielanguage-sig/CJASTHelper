@@ -6,9 +6,7 @@
 #include "core/ArgHelper.h"
 #include "utils/ArgParser.h"
 #include "utils/FileHelper.h"
-#include <fstream>
 #include <iomanip>
-#include <nlohmann/json.hpp>
 #include <stdexcept>
 
 /// Option 配置方法实现
@@ -82,37 +80,28 @@ Options& Options::PassConfig(Str&& path)
     return *this;
 }
 
-using json = nlohmann::json;
-
-void from_json(const json& j, OptionDesc& od)
-{
-    j.at("key").get_to(od.key);
-    j.at("values").get_to(od.values);
-    j.at("mainDesc").get_to(od.mainDesc);
-    for (const auto& item : j.at("subDesc")) {
-        od.subDesc.emplace_back(item["sub"], item["desc"]);
+namespace nlohmann {
+template <> struct adl_serializer<OptionDesc> {
+    // 只实现反序列化
+    static void from_json(const json& j, OptionDesc& od)
+    {
+        j.at("key").get_to(od.key);
+        j.at("values").get_to(od.values);
+        j.at("mainDesc").get_to(od.mainDesc);
+        for (const auto& item : j.at("subDesc")) {
+            od.subDesc.emplace_back(item["sub"], item["desc"]);
+        }
+        j.at("single").get_to(od.single);
+        j.at("visible").get_to(od.single);
     }
-    j.at("single").get_to(od.single);
-    j.at("visible").get_to(od.single);
-}
+};
+} // namespace nlohmann
 
 /// ArgHelper 实现函数
 ArgHelper::ArgHelper() : p(std::cout, 4)
 {
-    Str path = "config/valid_options.json";
-    std::fstream fs(path, std::ios::in);
-    // 打开 JSON 文件
-    if (!fs.is_open()) {
-        throw std::logic_error("Failed to open file: " + path);
-    }
-    // 读取整个文件到 json 对象
-    json j;
-    try {
-        fs >> j;
-    } catch (const json::parse_error& e) {
-        throw std::logic_error("Parse json file error: " + path);
-    }
-    Vec<OptionDesc> opts = j.get<Vec<OptionDesc>>();
+    ConfigParser parser("valid_options.json");
+    auto opts = parser.Parse<Vec<OptionDesc>>();
     for (auto& od : opts) {
         validOptions.emplace(od.key, od);
     }
@@ -216,27 +205,6 @@ StrMap<Str> ParseEnv(const char* const* envp, const StrSet& focus)
     }
     return std::move(env);
 }
-
-void ValidateConfigPath(Str& path)
-{
-    if (!path.empty()) {
-        if (!CheckExist(path)) {
-            throw std::invalid_argument("the path of config file is not exist: " + path);
-        }
-    }
-    // path is empty, find default path
-    auto pre = getExecutablePath().parent_path().string();
-    auto suf = "config/passes.json";
-    StrVec candidatesPaths{pre + "/" + suf, pre + "/../" + suf, pre + "/../../" + suf};
-    for (auto& p : candidatesPaths) {
-        if (CheckExist(p)) {
-            path = p;
-            return;
-        }
-    }
-    throw std::invalid_argument(
-        "The pass config file is not found, please provide by `--pass-config=./config/passes.json`");
-}
 } // namespace
 Options ArgHelper::ParseArgs(int argc, const char* const* argv, const char* const* envp)
 {
@@ -266,10 +234,7 @@ Options ArgHelper::ParseArgs(int argc, const char* const* argv, const char* cons
         options.IgnoreAnnotations(ap.GetMultiValue("ignore-annotations"));
         options.IgnoreDecls(ap.GetMultiValue("ignore-decls"));
         options.ImportedPkgs(ap.GetMultiValue("dump-import"));
-
-        Str configPath = ap.GetSingleValue("pass-config", "");
-        ValidateConfigPath(configPath);
-        options.PassConfig(std::move(configPath));
+        options.PassConfig(ap.GetSingleValue("pass-config", "passes.json"));
         // config passes
         if (options.stage > SourceStage::PARSE && options.enableDesugar) {
             options.passes.push_back("check-desugar");
