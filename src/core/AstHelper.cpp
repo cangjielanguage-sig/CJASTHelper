@@ -3,7 +3,7 @@
  *
  * This file implements the AstHelper.
  */
-#include "AstHelper.h"
+#include "core/AstHelper.h"
 #include "core/pass/Pass.h"
 #include "utils/Logger.h"
 
@@ -52,8 +52,12 @@ void AstHelper::DisplayOptions()
     p.PVec<std::string>(
          options.importedPkgs, [](const std::string& pkg) { return pkg; }, ", ", "importedPkgs: {", "}", true)
         .PNL();
-    p.PVec<std::string>(options.passes, [](const std::string& pass) { return pass; }, ", ", "passes: {", "}").PNL();
-    p.PVec<std::string>(options.args, [](const std::string& arg) { return arg; }, ", ", "args: {", "}").PNL();
+    p.PVec<std::string>(
+         options.passes, [](const std::string& pass) { return pass; }, ", ", "passes: {", "}")
+        .PNL();
+    p.PVec<std::string>(
+         options.args, [](const std::string& arg) { return arg; }, ", ", "args: {", "}")
+        .PNL();
     p.Unindent();
     p << "}\n";
     DEBUG(oss.str());

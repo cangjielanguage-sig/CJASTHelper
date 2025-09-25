@@ -5,8 +5,8 @@
  */
 #pragma once
 
+#include "core/ArgHelper.h"
 #include "core/pass/Pass.h"
-#include "utils/ArgHelper.h"
 #include "utils/Printer.h"
 #include "wrapper/CangjieFrontendHelper.h"
 #include <memory>
