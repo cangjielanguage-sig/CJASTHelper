@@ -4,24 +4,21 @@
  * This file implements the ToCangjiePass.
  */
 #include "ToCangjiePass.h"
-#include "utils/Cast.h"
-#include "utils/FileHelper.h"
-#include "utils/Logger.h"
 
 REG_PASS("to-cangjie", ([](const PassConfig& config) {
-    return std::unique_ptr<Pass>(new ToCangjiePass{Cast<const ToSourcePassConfig&>(config)});
+    return UniquePtr<Pass>(new ToCangjiePass{Cast<const ToSourcePassConfig&>(config)});
 }));
 
 /// ToCangjiePass 实现函数
 namespace {
 // 私有辅助函数
-void replaceAll(std::string& str, const std::string& from, const std::string& to)
+void replaceAll(Str& str, ConStr& from, ConStr& to)
 {
     if (from.empty()) {
         return;
     }
     size_t start_pos = 0;
-    while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+    while ((start_pos = str.find(from, start_pos)) != Str::npos) {
         str.replace(start_pos, from.length(), to);
         // 这里+to.length()是为了防止to中有重叠部分，例如从"aa"替换成"a"
         start_pos += to.length();
@@ -30,11 +27,11 @@ void replaceAll(std::string& str, const std::string& from, const std::string& to
 /**
  * 判断是否是 自动生成的临时变量名 (可能重复， 比如迭代器变量)
  */
-inline bool MaybeRepated(const std::string& id)
+inline bool MaybeRepated(ConStr& id)
 {
-    static std::vector<std::string> keys{"$iter-", "$stop-compiler", "iter-compiler"};
+    static StrVec keys{"$iter-", "$stop-compiler", "iter-compiler"};
     for (auto& key : keys) {
-        if (id.find(key) != std::string::npos) {
+        if (id.find(key) != Str::npos) {
             return true;
         }
     }
@@ -46,7 +43,7 @@ inline bool MaybeRepated(const std::string& id)
  * 1. 给未编码的临时变量名添加id，避免冲突
  * 2. 替换一些特殊符号：比如：$, - 的替换
  */
-inline void NormalizedId(std::string& id)
+inline void NormalizedId(Str& id)
 {
     static int counter = 0; // 全局id
     if (MaybeRepated(id)) {
@@ -58,9 +55,9 @@ inline void NormalizedId(std::string& id)
 /**
  * 标识符转换函数
  */
-inline std::string Id(const Identifier& id)
+inline Str Id(const Identifier& id)
 {
-    std::string res = id.Val();
+    Str res = id.Val();
     NormalizedId(res);
     return res;
 }
@@ -69,7 +66,7 @@ inline std::string Id(const Identifier& id)
 void ToCangjiePass::Visit(const File& node, VisitResult&)
 {
     DEBUG("For File imports: ", node.imports.size());
-    std::string fp = Config().out + "/" + FileName(node.fileName) + Config().suffix;
+    Str fp = Config().out + "/" + FileName(node.fileName) + Config().suffix;
     ofs.open(fp, std::ios::out);
     if (!ofs.is_open()) {
         ERROR("ToCangjiePass try to open file: " + fp + " failed!");
@@ -78,7 +75,8 @@ void ToCangjiePass::Visit(const File& node, VisitResult&)
     // package declaration
     TryPrintNode(node.package.get());
     // import statements
-    PRT().PVec<ImportSpec>(node.imports, [this](const ImportSpec& imp) { Traverse(imp, visitor); }, "", "", "\n");
+    PRT().PVec<ImportSpec>(
+        node.imports, [this](const ImportSpec& imp) { Traverse(imp, visitor); }, "", "", "\n");
     // toplevel decls
     PRT().PVec<Decl>(node.decls, [this](const Decl& decl) {
         if (!Config().Focus(decl)) {
@@ -96,7 +94,8 @@ void ToCangjiePass::Visit(const PackageSpec& node, VisitResult&)
     DEBUG("For PackageSpec: ", node.packageName.Val());
     TryPrintNode(node.modifier.get(), "", " ");
     PRT().PVal("package ");
-    PRT().PVec<std::string>(node.prefixPaths, [this](const std::string& pre) { PRT().PVal(pre); }, ".", "", ".");
+    PRT().PVec<Str>(
+        node.prefixPaths, [this](ConStr& pre) { PRT().PVal(pre); }, ".", "", ".");
     PRT().PVal(Id(node.packageName));
     PRT().PNL(2);
 }
@@ -145,7 +144,8 @@ void ToCangjiePass::Visit(const ImportSpec& node, VisitResult&)
 void ToCangjiePass::Visit(const ImportContent& node, VisitResult&)
 {
     DEBUG("For ImportContent");
-    PRT().PVec<std::string>(node.prefixPaths, [this](const std::string& pre) { PRT().PVal(pre); }, ".", "", ".");
+    PRT().PVec<Str>(
+        node.prefixPaths, [this](ConStr& pre) { PRT().PVal(pre); }, ".", "", ".");
     if (node.kind == ImportKind::IMPORT_SINGLE) {
         // import xxx.a
         PRT().PVal(Id(node.identifier));
@@ -161,7 +161,8 @@ void ToCangjiePass::Visit(const Annotation& node, VisitResult&)
 {
     DEBUG("For Annotation");
     PRT().PVals("@", Id(node.identifier));
-    PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "[", "]");
+    PRT().PVec<FuncArg>(
+        node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "[", "]");
     PRT().PNL();
 }
 
@@ -173,7 +174,7 @@ void ToCangjiePass::Visit(const Modifier& node, VisitResult&)
 
 // Decls
 namespace {
-inline std::string GetVarKeyword(const VarDeclAbstract& node)
+inline Str GetVarKeyword(const VarDeclAbstract& node)
 {
     if (node.isConst) {
         return "const";
@@ -435,14 +436,15 @@ VisitResult ToCangjiePass::Before(const OptionType& node)
 void ToCangjiePass::Visit(const OptionType& node, VisitResult&)
 {
     DEBUG("For OptionType");
-    std::string preQuest(node.questNum, '?');
+    Str preQuest(node.questNum, '?');
     TryPrintNode(node.componentType.get(), preQuest);
 }
 
 void ToCangjiePass::Visit(const TupleType& node, VisitResult&)
 {
     DEBUG("For TupleType");
-    PRT().PVec<Type>(node.fieldTypes, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "(", ")");
+    PRT().PVec<Type>(
+        node.fieldTypes, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "(", ")");
 }
 
 void ToCangjiePass::Visit(const QualifiedType& node, VisitResult&)
@@ -450,7 +452,8 @@ void ToCangjiePass::Visit(const QualifiedType& node, VisitResult&)
     DEBUG("For QualifiedType");
     VisitNode(node.baseType);
     PRT().PVals(".", Id(node.field));
-    PRT().PVec<Type>(node.typeArguments, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "<", ">");
+    PRT().PVec<Type>(
+        node.typeArguments, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "<", ">");
 }
 
 void ToCangjiePass::Visit(const ThisType& node, VisitResult&)
@@ -484,7 +487,8 @@ void ToCangjiePass::Visit(const ConstantType& node, VisitResult&)
 void ToCangjiePass::Visit(const FuncType& node, VisitResult&)
 {
     DEBUG("For FuncType");
-    PRT().PVec<Type>(node.paramTypes, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "(", ")", true);
+    PRT().PVec<Type>(
+        node.paramTypes, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "(", ")", true);
     TryPrintNode(node.retType.get(), " -> ");
 }
 
@@ -515,7 +519,8 @@ void ToCangjiePass::Visit(const EnumPattern& node, VisitResult&)
     } else {
         VisitNode(ctor);
     }
-    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, ", ", "(", ")");
+    PRT().PVec<Pattern>(
+        node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, ", ", "(", ")");
 }
 
 void ToCangjiePass::Visit(const VarPattern& node, VisitResult&)
@@ -542,7 +547,8 @@ void ToCangjiePass::Visit(const TypePattern& node, VisitResult&)
 void ToCangjiePass::Visit(const TuplePattern& node, VisitResult&)
 {
     DEBUG("For TuplePattern");
-    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, ", ", "(", ")");
+    PRT().PVec<Pattern>(
+        node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, ", ", "(", ")");
 }
 
 // Expr
@@ -590,7 +596,8 @@ void ToCangjiePass::Visit(const CallExpr& node, VisitResult&)
     }
     // General func call
     VisitNode(node.baseFunc);
-    PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")", true);
+    PRT().PVec<FuncArg>(
+        node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")", true);
 }
 
 void ToCangjiePass::Visit(const ReturnExpr& node, VisitResult& res)
@@ -618,13 +625,15 @@ void ToCangjiePass::Visit(const LitConstExpr& node, VisitResult&)
 void ToCangjiePass::Visit(const ArrayLit& node, VisitResult&)
 {
     DEBUG("For ArrayLit");
-    PRT().PVec<AstNode>(node.children, [this](const AstNode& expr) { Traverse(expr, visitor); }, ", ", "[", "]", true);
+    PRT().PVec<AstNode>(
+        node.children, [this](const AstNode& expr) { Traverse(expr, visitor); }, ", ", "[", "]", true);
 }
 
 void ToCangjiePass::Visit(const TupleLit& node, VisitResult&)
 {
     DEBUG("For TupleLit");
-    PRT().PVec<AstNode>(node.children, [this](const AstNode& expr) { Traverse(expr, visitor); }, ", ", "(", ")", true);
+    PRT().PVec<AstNode>(
+        node.children, [this](const AstNode& expr) { Traverse(expr, visitor); }, ", ", "(", ")", true);
 }
 
 void ToCangjiePass::Visit(const TypeConvExpr& node, VisitResult&)
@@ -662,7 +671,8 @@ void ToCangjiePass::Visit(const LambdaExpr& node, VisitResult&)
     PRT().PVal("{");
     AH_ASSERT(body.paramLists.size() == 1);
     auto& params = body.paramLists[0]->params;
-    PRT().PVec<FuncParam>(params, [this](const FuncParam& param) { Traverse(param, visitor); }, ", ", " ");
+    PRT().PVec<FuncParam>(
+        params, [this](const FuncParam& param) { Traverse(param, visitor); }, ", ", " ");
     PRT().PWI([this, &body] { VisitNode(body.body); }, " =>", "}");
 }
 
@@ -670,7 +680,8 @@ void ToCangjiePass::Visit(const MatchCase& node, VisitResult&)
 {
     DEBUG("For MatchCase");
     PRT().PVal("case ");
-    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, " | ");
+    PRT().PVec<Pattern>(
+        node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, " | ");
     TryPrintNode(node.patternGuard.get(), " where ");
     PRT().PWI([this, &node] { VisitNode(node.exprOrDecls); }, " =>");
 }
@@ -829,7 +840,8 @@ void ToCangjiePass::Visit(const SubscriptExpr& node, VisitResult&)
 {
     DEBUG("For SubscriptExpr");
     VisitNode(node.baseExpr);
-    PRT().PVec<Expr>(node.indexExprs, [this](const Expr& expr) { Traverse(expr, visitor); }, ", ", "[", "]");
+    PRT().PVec<Expr>(
+        node.indexExprs, [this](const Expr& expr) { Traverse(expr, visitor); }, ", ", "[", "]");
 }
 
 void ToCangjiePass::Visit(const JumpExpr& node, VisitResult&)
@@ -855,7 +867,8 @@ void ToCangjiePass::Visit(const LetPatternDestructor& node, VisitResult&)
 {
     DEBUG("For LetPatternDestructor");
     PRT().PVal("let ");
-    PRT().PVec<Pattern>(node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, " | ");
+    PRT().PVec<Pattern>(
+        node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, " | ");
     TryPrintNode(node.initializer, " <- ");
 }
 
@@ -917,7 +930,8 @@ void ToCangjiePass::Visit(const GenericConstraint& node, VisitResult&)
     DEBUG("For GenericConstraint");
     VisitNode(node.type);
     PRT().PVal(" <: ");
-    PRT().PVec<Type>(node.upperBounds, [this](const Type& tp) { Traverse(tp, visitor); }, " & ");
+    PRT().PVec<Type>(
+        node.upperBounds, [this](const Type& tp) { Traverse(tp, visitor); }, " & ");
 }
 
 /// 私有实现函数
@@ -929,7 +943,7 @@ ToCangjiePass::ToCangjiePass(const ToSourcePassConfig& config) : ToSourcePass(co
 
 void ToCangjiePass::RegisterHandlers()
 {
-    static std::unordered_map<std::string, AstKind> name2kind{
+    static StrMap<AstKind> name2kind{
 #define AST_INFO(KIND, STR, DEF) {#DEF, AstKind::KIND},
 #include "wrapper/AstInfo.inc"
 #undef AST_INFO
@@ -983,8 +997,7 @@ void ToCangjiePass::RegisterHandlers()
  * @param suf 后缀字符串。
  * @param withNL 是否追加空行。
  */
-inline void ToCangjiePass::TryPrintNode(
-    const Ptr<AstNode> pnode, const std::string& pre, const std::string& suf, bool withNL)
+inline void ToCangjiePass::TryPrintNode(const Ptr<AstNode> pnode, ConStr& pre, ConStr& suf, bool withNL)
 {
     if (!pnode) {
         return;
@@ -1009,7 +1022,7 @@ void ToCangjiePass::PrintDecl(const Decl& node)
 
 namespace {
 // 关注的注解属性映射表
-std::unordered_map<std::string, Attribute> focusAttrsMap = {{"C", Attribute::C}, {"public", Attribute::PUBLIC},
+StrMap<Attribute> focusAttrsMap = {{"C", Attribute::C}, {"public", Attribute::PUBLIC},
     {"protected", Attribute::PROTECTED}, {"private", Attribute::PRIVATE}, {"internal", Attribute::INTERNAL}};
 } // namespace
 
@@ -1024,7 +1037,7 @@ std::unordered_map<std::string, Attribute> focusAttrsMap = {{"C", Attribute::C},
  */
 void ToCangjiePass::PrintAnnotations(const Decl& node)
 {
-    std::unordered_set<std::string> annotations;
+    StrSet annotations;
     for (auto& anno : node.annotations) {
         auto& annoName = anno->identifier.Val();
         if (!Config().ignoreAnnotations.count(annoName)) {
@@ -1036,7 +1049,7 @@ void ToCangjiePass::PrintAnnotations(const Decl& node)
         return;
     }
     // 补充打印语义后的缺少的注解
-    PRT().PVec<std::string>(Config().focusAnnotationAttrs, [&node, &annotations, this](const std::string& anno) {
+    PRT().PVec<Str>(Config().focusAnnotationAttrs, [&node, &annotations, this](ConStr& anno) {
         // node 有关注的属性 没有打印过 也没有忽略
         if (node.TestAttr(focusAttrsMap.at(anno)) && !annotations.count(anno) &&
             !Config().ignoreAnnotations.count(anno)) {
@@ -1069,7 +1082,7 @@ inline bool NeedAddMoidifier(const Decl& node)
  */
 void ToCangjiePass::PrintModifiers(const Decl& node)
 {
-    std::unordered_set<std::string> modifiers;
+    StrSet modifiers;
     PRT().PVec<Modifier>(
         node.modifiers,
         [this, &modifiers](const Modifier& mod) {
@@ -1082,7 +1095,7 @@ void ToCangjiePass::PrintModifiers(const Decl& node)
         return;
     }
     // 补充打印语义后的缺少的修饰符
-    PRT().PVec<std::string>(Config().focusModifierAttrs, [&node, &modifiers, this](const std::string& mod) {
+    PRT().PVec<Str>(Config().focusModifierAttrs, [&node, &modifiers, this](ConStr& mod) {
         // node 有关注的属性 没有打印过
         if (node.TestAttr(focusAttrsMap.at(mod)) && !modifiers.count(mod)) {
             PRT().PVals(mod, " ");
@@ -1187,16 +1200,17 @@ bool ToCangjiePass::TryPrintEnumConstructor(const FuncDecl& node)
 /**
  * @brief 辅助打印继承类型。
  */
-inline void ToCangjiePass::PrintInheritedTypes(const std::vector<OwnedPtr<Type>>& types)
+inline void ToCangjiePass::PrintInheritedTypes(ConVec<OwnedPtr<Type>>& types)
 {
-    PRT().PVec<Type>(types, [this](const Type& ty) { Traverse(ty, visitor); }, " & ", " <: ");
+    PRT().PVec<Type>(
+        types, [this](const Type& ty) { Traverse(ty, visitor); }, " & ", " <: ");
 }
 
 /**
  * @brief 辅助打印可继承类型头部。
  * @param node 声明引用 (可继承类型: Class, Struct, Interface, Enum)
  */
-void ToCangjiePass::PrintInheritableDeclHeader(const InheritableDecl& node, const std::string& keyword)
+void ToCangjiePass::PrintInheritableDeclHeader(const InheritableDecl& node, ConStr& keyword)
 {
     PrintDecl(node);
     PRT().PVals(keyword, " ", Id(node.identifier)); // class, interface, struct, enum
@@ -1208,7 +1222,7 @@ void ToCangjiePass::PrintInheritableDeclHeader(const InheritableDecl& node, cons
 /**
  * @brief 辅助打印一组声明。
  */
-inline void ToCangjiePass::PrintDecls(const std::vector<OwnedPtr<Decl>>& decls)
+inline void ToCangjiePass::PrintDecls(ConVec<OwnedPtr<Decl>>& decls)
 {
     PRT().PVec<Decl>(decls, [this](const Decl& decl) {
         Traverse(decl, visitor);
@@ -1219,7 +1233,7 @@ inline void ToCangjiePass::PrintDecls(const std::vector<OwnedPtr<Decl>>& decls)
 /**
  * @brief 辅助打印可继承类型定义体。
  */
-void ToCangjiePass::PrintInheritableDeclBody(const std::vector<OwnedPtr<Decl>>& members)
+void ToCangjiePass::PrintInheritableDeclBody(ConVec<OwnedPtr<Decl>>& members)
 {
     PRT().PValNL(" {");
     PRT().Indent();
@@ -1264,9 +1278,11 @@ void ToCangjiePass::TryPrintGenericConstraints(Ptr<Generic> generic)
 void ToCangjiePass::PrintInstArgs(const NameReferenceExpr& ref, bool isPattern)
 {
     if (!ref.typeArguments.empty()) {
-        PRT().PVec<Type>(ref.typeArguments, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "<", ">");
+        PRT().PVec<Type>(
+            ref.typeArguments, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "<", ">");
     } else if (Config().Sema() && !isPattern) {
-        PRT().PVec<Ty>(ref.instTys, [this](const Ty& ty) { PrintTy(ty); }, ", ", "<", ">");
+        PRT().PVec<Ty>(
+            ref.instTys, [this](const Ty& ty) { PrintTy(ty); }, ", ", "<", ">");
     }
 }
 
@@ -1328,17 +1344,20 @@ void ToCangjiePass::PrintTy(const Ty& ty)
             return;
         case TypeKind::TYPE_POINTER:
             PRT().PVal("CPointer");
-            PRT().PVec<Ty>(ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "<", ">");
+            PRT().PVec<Ty>(
+                ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "<", ">");
             return;
         case TypeKind::TYPE_CLASS:
         case TypeKind::TYPE_INTERFACE:
         case TypeKind::TYPE_STRUCT:
         case TypeKind::TYPE_ENUM:
             PRT().PVal(ty.name);
-            PRT().PVec<Ty>(ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "<", ">");
+            PRT().PVec<Ty>(
+                ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "<", ">");
             return;
         case TypeKind::TYPE_TUPLE:
-            PRT().PVec<Ty>(ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "(", ")");
+            PRT().PVec<Ty>(
+                ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "(", ")");
             return;
         case TypeKind::TYPE_GENERICS:
             PRT().PVal(ty.name);
@@ -1365,7 +1384,7 @@ namespace {
 /**
  * Try get the base func identifier.
  */
-inline std::string TryGetCallRef(const CallExpr& node)
+inline Str TryGetCallRef(const CallExpr& node)
 {
     if (node.baseFunc->astKind == AstKind::REF_EXPR) {
         return Cast<const RefExpr&>(node.baseFunc.get()).ref.identifier.Val();
@@ -1431,7 +1450,8 @@ bool ToCangjiePass::TryPrintInitCall(const CallExpr& node)
     // 构造函数调用 init() -> A(), TODO: 应该缩小下范围， 构造函数内的init不需要替换
     // 特殊场景处理: init() -> ??A 是解糖表达式
     PrintTy(*TryGetBaseTy(node.ty));
-    PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")", true);
+    PRT().PVec<FuncArg>(
+        node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")", true);
     return true;
 }
 
@@ -1475,7 +1495,8 @@ bool ToCangjiePass::TryRecoverOverloadCallExpr(const CallExpr& node)
     } else if (op == TokenKind::LPAREN) {
         // ()
         Traverse(*base, visitor);
-        PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")");
+        PRT().PVec<FuncArg>(
+            node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")");
     } else {
         // 二元： + - * / % ** << >> < <= > >= == != & ^ |
         Traverse(*base, visitor);
@@ -1485,7 +1506,8 @@ bool ToCangjiePass::TryRecoverOverloadCallExpr(const CallExpr& node)
     // 打印个注释在这里
     PRT().PVal(" /* Desugared ");
     Traverse(ma, visitor);
-    PRT().PVec<FuncArg>(node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")", true);
+    PRT().PVec<FuncArg>(
+        node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")", true);
     PRT().PVal(" */ ");
     return true;
 }
