@@ -8,14 +8,14 @@
 #include "utils/Logger.h"
 #include <stdexcept>
 
-std::unique_ptr<Logger> Logger::instance = nullptr;
+UniquePtr<Logger> Logger::instance = nullptr;
 
 Logger& Logger::Get()
 {
     // 注意: 当前实现不是线程安全的
     if (!instance) {
         const char* logPath = std::getenv("LOG_PATH");
-        instance = std::unique_ptr<Logger>(new Logger(logPath ? logPath : "log.txt"));
+        instance = UniquePtr<Logger>(new Logger(logPath ? logPath : "log.txt"));
     }
     return *instance;
 }
@@ -27,7 +27,7 @@ Logger::~Logger()
     }
 }
 
-Logger::Logger(const std::string& path) : p(fs, 0)
+Logger::Logger(ConStr& path) : p(fs, 0)
 {
     fs.open(path, std::ios::out);
     if (!fs.is_open()) {

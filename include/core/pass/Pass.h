@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "utils/Logger.h"
 #include "utils/types/TypeAlias.h"
 #include "wrapper/TypeAlias.h"
 

@@ -24,5 +24,5 @@ void ToJavaPass::RegisterHandlers()
 
 void ToJavaPass::Visit(const File& node, VisitResult&)
 {
-    DEBUG("For File imports: ", node.imports.size());
+    LOGD("For File imports: ", node.imports.size());
 }

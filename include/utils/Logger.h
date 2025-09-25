@@ -7,17 +7,14 @@
 
 #ifdef NDEBUG
 #define LOG(level, ...)
-
 #else
-
 #include "utils/Printer.h"
 #include <fstream>
-#include <memory>
 #include <source_location> // C++20 起支持
 
 // 映射表（保持顺序一致！）
 constexpr int LEVEL_SIZE = 4;
-constexpr std::array<const char*, LEVEL_SIZE> level_names = {"DEBUG", "INFO", "WARN", "ERROR"};
+constexpr Array<const char*, LEVEL_SIZE> level_names = {"DEBUG", "INFO", "WARN", "ERROR"};
 
 class Logger {
 public:
@@ -74,19 +71,19 @@ private:
      *
      * @param path 文件路径。
      */
-    Logger(const std::string& path);
+    Logger(ConStr& path);
 
 private:
-    Printer p;                               // 打印器对象
-    Level level = Level::DEBUG;              // 当前日志级别
-    static inline std::fstream fs;           // 文件流
-    static std::unique_ptr<Logger> instance; // 日志实例集合
+    Printer p;                         // 打印器对象
+    Level level = Level::DEBUG;        // 当前日志级别
+    static inline std::fstream fs;     // 文件流
+    static UniquePtr<Logger> instance; // 日志实例集合
 };
 
 #define LOG(level, ...) Logger::Get().Log<Logger::Level::level>(std::source_location::current(), ##__VA_ARGS__)
 #endif
 
-#define DEBUG(...) LOG(DEBUG, ##__VA_ARGS__)
-#define INFO(...) LOG(INFO, ##__VA_ARGS__)
-#define WARN(...) LOG(WARN, ##__VA_ARGS__)
-#define ERROR(...) LOG(ERROR, ##__VA_ARGS__)
+#define LOGD(...) LOG(DEBUG, ##__VA_ARGS__)
+#define LOGI(...) LOG(INFO, ##__VA_ARGS__)
+#define LOGW(...) LOG(WARN, ##__VA_ARGS__)
+#define LOGE(...) LOG(ERROR, ##__VA_ARGS__)

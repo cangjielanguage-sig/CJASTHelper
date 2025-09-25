@@ -21,11 +21,11 @@ void AstHelper::Run()
 {
     DisplayOptions();
     if (!DoParse()) {
-        DEBUG("DoParse failed.");
+        LOGD("DoParse failed.");
         return;
     }
     if (!DoAnalysis()) {
-        DEBUG("DoAnalysis failed.");
+        LOGD("DoAnalysis failed.");
         return;
     }
 }
@@ -59,7 +59,7 @@ void AstHelper::DisplayOptions()
         .PNL();
     p.Unindent();
     p << "}\n";
-    DEBUG(oss.str());
+    LOGD(oss.str());
 #endif
 }
 
@@ -69,7 +69,7 @@ void AstHelper::DisplayOptions()
  */
 bool AstHelper::DoParse()
 {
-    DEBUG();
+    LOGD();
     // --dump-source 按照 stage 决策执行前端哪些pipeline
     for (int i = 1; i <= static_cast<int>(options.stage); i++) {
         if (i == static_cast<int>(SourceStage::DESUGARED_PARSE) && options.stage > SourceStage::DESUGARED_PARSE) {
@@ -98,7 +98,7 @@ bool AstHelper::DoParse()
  */
 bool AstHelper::DoAnalysis()
 {
-    DEBUG("add passes: ", options.passes.size());
+    LOGD("add passes: ", options.passes.size());
 
     for (auto& pkg : pkgs) {
         passManager.Run(*pkg, options.passes);
@@ -135,26 +135,26 @@ UniquePtr<PassConfig> AstHelper::MakePassConfig()
 void AstHelper::RegisterStages()
 {
     stageMap.emplace(SourceStage::PARSE, [this]() {
-        DEBUG();
+        LOGD();
         return cjfeHelper.Parse();
     });
     stageMap.emplace(SourceStage::DESUGARED_PARSE, [this]() {
-        DEBUG();
+        LOGD();
         return cjfeHelper.DesugaredParse();
     });
     stageMap.emplace(SourceStage::IMPORT, [this]() {
-        DEBUG();
+        LOGD();
         return cjfeHelper.ImportPackage();
     });
     stageMap.emplace(SourceStage::SEMA, [this]() {
-        DEBUG();
+        LOGD();
         if (options.enableMacro) {
             cjfeHelper.MacroExpand();
         }
         return cjfeHelper.Sema();
     });
     stageMap.emplace(SourceStage::DESUGARED_SEMA, [this]() {
-        DEBUG();
+        LOGD();
         return cjfeHelper.DesugaredSema();
     });
 }

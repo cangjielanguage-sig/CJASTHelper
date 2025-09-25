@@ -9,9 +9,9 @@
 #include "core/visitor/ConstAstVisitor.h"
 #include "utils/Cast.h"
 #include "utils/FileHelper.h"
-#include "utils/Logger.h"
 #include "utils/Macro.h"
 #include "utils/Printer.h"
+#include <fstream>
 
 /**
  * @class ToSourcePass
@@ -56,7 +56,7 @@ protected:
      * @tparam T 节点的具体类型。
      * @param nodes 要遍历的节点指针数组。
      */
-    template <template <typename> class Ptr, typename T> inline void VisitNodes(const std::vector<Ptr<T>>& nodes)
+    template <template <typename> class Ptr, typename T> inline void VisitNodes(ConVec<Ptr<T>>& nodes)
     {
         for (auto& node : nodes) {
             VisitNode(node, visitor);
@@ -79,8 +79,8 @@ protected:
     }
 
 protected:
-    std::fstream ofs;                                                /**< 输出文件流 */
-    Printer prt;                                                     /**< 打印器实例 */
-    std::unordered_map<Ptr<const Decl>, std::string> desugaredVarId; /**< 解糖变量名字表 */
-    ConstAstVisitor visitor;                                         /**< 抽象语法树遍历器 */
+    std::fstream ofs;                                          /**< 输出文件流 */
+    Printer prt;                                               /**< 打印器实例 */
+    UnorderedMap<Ptr<const Decl>, std::string> desugaredVarId; /**< 解糖变量名字表 */
+    ConstAstVisitor visitor;                                   /**< 抽象语法树遍历器 */
 };

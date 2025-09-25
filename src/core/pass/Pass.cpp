@@ -5,7 +5,6 @@
  */
 #include "core/pass/Pass.h"
 #include "utils/LibraryLoader.h"
-#include "utils/Logger.h"
 #include <fstream>
 #include <nlohmann/json.hpp>
 
@@ -135,11 +134,11 @@ void PassManager::Init(ConStr& path)
     if (!passInfoMap.empty()) {
         return;
     }
-    DEBUG("Init pass manager...", path);
+    LOGD("Init pass manager...", path);
     std::fstream fs(path);
     // 打开 JSON 文件
     if (!fs.is_open()) {
-        ERROR("Failed to open file: ", path);
+        LOGE("Failed to open file: ", path);
         throw std::logic_error("Failed to open file: " + path);
     }
 
@@ -153,10 +152,10 @@ void PassManager::Init(ConStr& path)
 
     Vec<PassInfo> passes = j.get<Vec<PassInfo>>();
     for (auto& pass : passes) {
-        DEBUG("Reg Info for", pass.name);
+        LOGD("Reg Info for", pass.name);
         auto res = PassManager::passInfoMap.emplace(pass.name, pass);
         if (!res.second) {
-            WARN("Pass info already exists: ", pass.name);
+            LOGW("Pass info already exists: ", pass.name);
         }
     }
 }
@@ -173,13 +172,13 @@ void PassManager::Run(AstNode& node, ConStrVec& passes)
 bool PassManager::LoadPass(ConStr& lib)
 {
     Str libname = lib;
-    DEBUG("Load pass: ", lib);
+    LOGD("Load pass: ", lib);
     Handle handle = LibraryLoader::GetInstance().LoadLibrary(libname);
     if (!handle) {
-        ERROR("Failed to load pass from lib: ", libname);
+        LOGE("Failed to load pass from lib: ", libname);
         return false;
     }
-    INFO("Load pass from lib: ", libname, " successfully!");
+    LOGI("Load pass from lib: ", libname, " successfully!");
     return true;
 }
 
@@ -205,6 +204,6 @@ void PassManager::RegPassBuilder(ConStr& name, const PassBuilder& builder)
     if (auto it = passInfoMap.find(name); it != passInfoMap.end()) {
         it->second.builder = builder;
     } else {
-        WARN("Pass info not found: ", name);
+        LOGW("Pass info not found: ", name);
     }
 }

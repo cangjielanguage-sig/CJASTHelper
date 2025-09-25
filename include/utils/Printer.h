@@ -6,10 +6,9 @@
 
 #pragma once
 
+#include "utils/types/TypeAlias.h"
 #include <concepts>
-#include <functional>
 #include <iostream>
-#include <string>
 #include <type_traits>
 
 // 概念：U 可被解引用
@@ -99,8 +98,8 @@ constexpr auto& fully_deref(auto&& value)
  */
 template <typename T, typename C, typename CB>
     requires container_deref_to<C, T>
-void printcc(std::ostream& os, const C& con, const CB& cb, const std::string& sep = "", const std::string& pre = "",
-    const std::string& suf = "", bool b = false)
+void printcc(
+    std::ostream& os, const C& con, const CB& cb, ConStr& sep = "", ConStr& pre = "", ConStr& suf = "", bool b = false)
 {
     auto it = con.cbegin();
     if (it == con.cend()) {
@@ -111,7 +110,7 @@ void printcc(std::ostream& os, const C& con, const CB& cb, const std::string& se
     os << pre;
     do {
         // 完全解引用 *it 得到 T&
-        if constexpr (std::is_invocable_r_v<std::string, CB, const T&>) {
+        if constexpr (std::is_invocable_r_v<Str, CB, const T&>) {
             os << cb(fully_deref(*it));
         } else {
             cb(fully_deref(*it));
@@ -245,8 +244,8 @@ public:
      */
     template <typename T, typename C, typename CB>
         requires container_deref_to<C, T>
-    inline Printer& PVec(const C& con, const CB& cb, const std::string& sep = "", const std::string& pre = "",
-        const std::string& suf = "", bool b = false)
+    inline Printer& PVec(
+        const C& con, const CB& cb, ConStr& sep = "", ConStr& pre = "", ConStr& suf = "", bool b = false)
     {
         EnsureIndent();
         printcc<T>(os_, con, cb, sep, pre, suf, b);
@@ -266,8 +265,7 @@ public:
      */
     template <typename U, typename T>
         requires ptr_deref_to<U, T>
-    inline Printer& PPtr(
-        const T& t, const std::function<void(const U&)>& cb, const std::string& pre = "", const std::string& suf = "")
+    inline Printer& PPtr(const T& t, const Function<void(const U&)>& cb, ConStr& pre = "", ConStr& suf = "")
     {
         if (t) {
             PVal(pre);
@@ -285,7 +283,7 @@ public:
      * @param suf 可选的后缀字符串，默认为空字符串。
      * @return 当前对象的引用，支持链式调用。
      */
-    inline Printer& PWI(const std::function<void()>& cb, const std::string& pre = "", const std::string& suf = "")
+    inline Printer& PWI(const Function<void()>& cb, ConStr& pre = "", ConStr& suf = "")
     {
         PValNL(pre);
         Indent();
