@@ -7,9 +7,7 @@
 
 #include "core/ArgHelper.h"
 #include "core/pass/Pass.h"
-#include "utils/Printer.h"
 #include "wrapper/CangjieFrontendHelper.h"
-#include <memory>
 
 /**
  * 封装了对Cangjie前端工具的操作
@@ -51,7 +49,7 @@ protected:
     bool DoAnalysis();
 
 private:
-    std::unique_ptr<PassConfig> MakePassConfig();
+    UniquePtr<PassConfig> MakePassConfig();
 
     /**
      * 注册stage回调
@@ -59,9 +57,9 @@ private:
     void RegisterStages();
 
 private:
-    Options options;                                                 /**< 用户选项 */
-    CangjieFrontendHelper cjfeHelper;                                /**< Cangjie 前端辅助类 */
-    PassManager passManager;                                         /**< 分析 pass 管理器 */
-    std::unordered_map<SourceStage, std::function<bool()>> stageMap; /**< 注册的 stage 回调函数 */
-    std::vector<Ptr<Package>> pkgs;                                  /**< 分析结果包列表 */
+    Options options;                                      /**< 用户选项 */
+    CangjieFrontendHelper cjfeHelper;                     /**< Cangjie 前端辅助类 */
+    PassManager passManager;                              /**< 分析 pass 管理器 */
+    UnorderedMap<SourceStage, Function<bool()>> stageMap; /**< 注册的 stage 回调函数 */
+    Vec<Ptr<Package>> pkgs;                               /**< 分析结果包列表 */
 };
