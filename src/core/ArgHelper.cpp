@@ -8,6 +8,7 @@
 #include "utils/ArgParser.h"
 #include "utils/FileHelper.h"
 #include "utils/Logger.h"
+#include <charconv>
 #include <iomanip>
 #include <stdexcept>
 
@@ -104,6 +105,7 @@ template <> struct adl_serializer<Options> {
         j.at("ignoreAnnotations").get_to(op.ignoreAnnotations);
         j.at("passes").get_to(op.passes);
         j.at("args").get_to(op.args);
+        op.args.insert(op.args.begin(), "cjah");
     }
 };
 } // namespace nlohmann
@@ -216,6 +218,45 @@ StrMap<Str> ParseEnv(const char* const* envp, const StrSet& focus)
     }
     return std::move(env);
 }
+
+void ConfigGlobalOptions(ArgumentParser& ap)
+{
+    // 解析并获取pass配置
+    auto passCfg = ap.GetSingleValue("pass-config", "passes.json");
+    LOGD("pass config: ", passCfg);
+    PassManager::Init(passCfg);
+    // 解析并获取 parallels
+    int val = 1;
+    auto parallels = ap.GetSingleValue("parallel-tasks", "1");
+    auto [_, ec] = std::from_chars(parallels.data(), parallels.data() + parallels.size(), val);
+    if (ec == std::errc()) {
+        Options::parallels = val;
+    }
+    LOGD("paralles: ", Options::parallels);
+}
+
+void ConfigOptions(Options& options, ArgumentParser& ap)
+{
+    // config options
+    options.Stage(ap.GetSingleValue("dump-source"));
+    options.FilterDecls(ap.GetMultiValue("filter-decls"));
+    // TODO: update default false
+    options.EnableDesugar(ap.GetSingleValue("enable-desugar", "true"));
+    options.EnableMacro(ap.GetSingleValue("enable-macro", "true"));
+    options.IgnoreAnnotations(ap.GetMultiValue("ignore-annotations"));
+    options.IgnoreDecls(ap.GetMultiValue("ignore-decls"));
+    options.ImportedPkgs(ap.GetMultiValue("dump-import"));
+
+    // config passes
+    if (options.stage > SourceStage::PARSE && options.enableDesugar) {
+        options.passes.push_back("check-desugar");
+        options.passes.push_back("replace-desugar");
+        options.passes.push_back("check-desugar");
+        options.passes.push_back("to-java");
+    }
+    // 添加 to-source 作为最后一个 pass
+    options.passes.push_back("to-cangjie");
+}
 } // namespace
 Vec<Options> ArgHelper::ParseArgs(int argc, const char* const* argv, const char* const* envp)
 {
@@ -233,45 +274,21 @@ Vec<Options> ArgHelper::ParseArgs(int argc, const char* const* argv, const char*
     StrVec toolArgs;
     SplitArgs(args, toolArgs, options.args, validOpts);
     try {
-        auto env =
+        Options::env =
             ParseEnv(envp, {"CANGJIE_PATH", "CANGJIE_HOME", "LIBRARY_PATH", "LD_LIBRARY_PATH", "PATH", "SDKROOT"});
         // 解析并获取工具选项配置
         ArgumentParser ap(validOpts);
         ap.Parse(toolArgs);
-        auto passCfg = ap.GetSingleValue("pass-config", "passes.json");
-        PassManager::Init(passCfg);
+        // 配置全局选项
+        ConfigGlobalOptions(ap);
+        // 解析并获取task配置
         auto taskCfg = ap.GetSingleValue("task-config", "");
         LOGD("task config: ", taskCfg);
         if (!taskCfg.empty()) {
             ConfigParser parser(taskCfg);
-            auto opts = parser.Parse<Vec<Options>>();
-            for (auto& opt : opts) {
-                opt.env = env;
-            }
-            return opts;
+            return parser.Parse<Vec<Options>>();
         }
-        // config options
-        options.Stage(ap.GetSingleValue("dump-source"));
-        options.FilterDecls(ap.GetMultiValue("filter-decls"));
-        // TODO: update default false
-        options.EnableDesugar(ap.GetSingleValue("enable-desugar", "true"));
-        options.EnableMacro(ap.GetSingleValue("enable-macro", "true"));
-        options.IgnoreAnnotations(ap.GetMultiValue("ignore-annotations"));
-        options.IgnoreDecls(ap.GetMultiValue("ignore-decls"));
-        options.ImportedPkgs(ap.GetMultiValue("dump-import"));
-
-        // config passes
-        if (options.stage > SourceStage::PARSE && options.enableDesugar) {
-            options.passes.push_back("check-desugar");
-            options.passes.push_back("replace-desugar");
-            options.passes.push_back("check-desugar");
-            options.passes.push_back("to-java");
-        }
-        // 添加 to-source 作为最后一个 pass
-        options.passes.push_back("to-cangjie");
-        // config env
-        options.env = env;
-
+        ConfigOptions(options, ap);
     } catch (std::invalid_argument& e) {
         std::cerr << "error: " << e.what() << std::endl;
         // Only do show help info.

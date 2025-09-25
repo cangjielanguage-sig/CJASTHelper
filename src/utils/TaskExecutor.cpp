@@ -1,11 +1,24 @@
 #include "utils/TaskExecutor.h"
 
+namespace {
+size_t GetHardwareConcurrency()
+{
+    unsigned int hw_threads = std::thread::hardware_concurrency();
+    if (hw_threads == 0) {
+        hw_threads = 2;
+    }
+    return hw_threads;
+}
+} // namespace
+
 TaskExecutor::TaskExecutor(size_t concurrency) : concurrency_(concurrency), stop_(false)
 {
     if (concurrency == 0) {
         throw std::invalid_argument("Concurrency level must be > 0");
     }
-
+    if (concurrency > GetHardwareConcurrency()) {
+        concurrency_ = GetHardwareConcurrency();
+    }
     // 启动 worker 线程
     for (size_t i = 0; i < concurrency_; ++i) {
         workers_.emplace_back([this] { WorkerLoop(); });

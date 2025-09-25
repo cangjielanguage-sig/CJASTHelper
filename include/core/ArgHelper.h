@@ -34,7 +34,8 @@ struct Options {
     StrSet importedPkgs;                      /**< --dump-imported: 期望打印导入包的包名 */
     StrVec passes;                            /**< 配置需要执行的 passes 列表 */
     StrVec args;                              /**< 需要传递给前端的参数列表 */
-    StrMap<Str> env;                          /**< 环境变量 */
+    static inline StrMap<Str> env;            /**< 环境变量 */
+    static inline int parallels = 1;          /**< 任务并发度 */
 
     Options& Stage(ConStr& stage);
     Options& EnableDesugar(ConStr& enable);
