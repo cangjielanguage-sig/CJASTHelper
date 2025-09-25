@@ -8,29 +8,26 @@
 
 #include "VisitorBase.h"
 #include "utils/CallbackManger.h"
-#include <functional>
-#include <map>
-#include <tuple>
 
 class MutAstVisitor : public MutAstVisitorBase {
 public:
     /**
-     * @brief 使用 std::function 定义 BeforeVisit 的回调函数类型。
+     * @brief 使用 Function 定义 BeforeVisit 的回调函数类型。
      */
-    using BeforeFunc = std::function<ValuedResult(AstNode&)>;
+    using BeforeFunc = Function<ValuedResult(AstNode&)>;
     /**
-     * @brief 使用 std::function 定义 Visit 的回调函数类型。
+     * @brief 使用 Function 定义 Visit 的回调函数类型。
      */
-    using VisitFunc = std::function<void(AstNode&, ValuedResult&)>;
+    using VisitFunc = Function<void(AstNode&, ValuedResult&)>;
     /**
-     * @brief 使用 std::function 定义 AfterVisit 的回调函数类型。
+     * @brief 使用 Function 定义 AfterVisit 的回调函数类型。
      */
-    using AfterFunc = std::function<void(AstNode&, const ValuedResult&)>;
+    using AfterFunc = Function<void(AstNode&, const ValuedResult&)>;
 
     /**
-     * @brief 使用 std::function 定义 MergeResult 的回调函数类型。
+     * @brief 使用 Function 定义 MergeResult 的回调函数类型。
      */
-    using MergeFunc = std::function<void(AstNode&, ValuedResult&, std::vector<ValuedResult>&)>;
+    using MergeFunc = Function<void(AstNode&, ValuedResult&, Vec<ValuedResult>&)>;
 
 public:
     /**
@@ -75,7 +72,7 @@ protected:
      * @param res 父节点遍历结果初始值。
      * @param childrenRes 子节点的遍历结果对象。
      */
-    virtual void MergeResult(AstNode& node, ValuedResult& res, std::vector<ValuedResult>& childrenRes);
+    virtual void MergeResult(AstNode& node, ValuedResult& res, Vec<ValuedResult>& childrenRes);
 
     /**
      * @brief 默认的 BeforeVisit 方法。
@@ -107,13 +104,13 @@ protected:
      * @param childrenRes 子节点的遍历结果列表。
      * @return 合并后的遍历结果。
      */
-    virtual void DefaultMergeResult(AstNode& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes);
+    virtual void DefaultMergeResult(AstNode& node, ValuedResult& base, Vec<ValuedResult>& childrenRes);
 
 protected:
     /**
      * @brief 存储每个 AST 节点种类对应的处理程序。
      */
-    CallbackManager<AstKind, std::tuple<BeforeFunc, VisitFunc, AfterFunc, MergeFunc>> handlers;
+    CallbackManager<AstKind, Tuple<BeforeFunc, VisitFunc, AfterFunc, MergeFunc>> handlers;
 };
 
 class CounterAstVisitor : public MutAstVisitor {
@@ -129,7 +126,7 @@ protected:
      * @param childrenRes 子节点的遍历结果列表。
      * @return 合并后的遍历结果。
      */
-    void DefaultMergeResult(AstNode& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes) override;
+    void DefaultMergeResult(AstNode& node, ValuedResult& base, Vec<ValuedResult>& childrenRes) override;
 };
 
 class ReplaceAstVisitor : public MutAstVisitor {
@@ -145,5 +142,5 @@ protected:
      * @param childrenRes 子节点的遍历结果列表。
      * @return 合并后的遍历结果。
      */
-    void DefaultMergeResult(AstNode& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes) override;
+    void DefaultMergeResult(AstNode& node, ValuedResult& base, Vec<ValuedResult>& childrenRes) override;
 };

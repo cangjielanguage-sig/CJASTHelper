@@ -50,7 +50,7 @@ void MutAstVisitor::RegMerge(AstKind kind, MergeFunc&& merge)
     handlers.Reg<MergeFunc>(kind, std::forward<MergeFunc>(merge));
 }
 
-void MutAstVisitor::MergeResult(AstNode& node, ValuedResult& res, std::vector<ValuedResult>& childrenRes)
+void MutAstVisitor::MergeResult(AstNode& node, ValuedResult& res, Vec<ValuedResult>& childrenRes)
 {
     if (auto fn = handlers.TryGet<MergeFunc>(node.astKind)) {
         fn->get()(node, res, childrenRes);
@@ -67,7 +67,7 @@ ValuedResult MutAstVisitor::DefaultBefore(AstNode& node)
 void MutAstVisitor::DefaultVisit(AstNode& node, ValuedResult& res)
 {
     auto children = AstNodeHelper::GetChildren(node);
-    std::vector<ValuedResult> childrenRes;
+    Vec<ValuedResult> childrenRes;
     // 遍历子节点
     for (auto& child : children) {
         childrenRes.push_back(MutTraverse(*child, *this));
@@ -79,12 +79,12 @@ void MutAstVisitor::DefaultAfter(AstNode& node, const ValuedResult& res)
 {
 }
 
-void MutAstVisitor::DefaultMergeResult(AstNode& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes)
+void MutAstVisitor::DefaultMergeResult(AstNode& node, ValuedResult& base, Vec<ValuedResult>& childrenRes)
 {
 }
 
 //
-void CounterAstVisitor::DefaultMergeResult(AstNode& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes)
+void CounterAstVisitor::DefaultMergeResult(AstNode& node, ValuedResult& base, Vec<ValuedResult>& childrenRes)
 {
     DefaultValue res = 0;
     for (auto& child : childrenRes) {
@@ -98,9 +98,9 @@ void CounterAstVisitor::DefaultMergeResult(AstNode& node, ValuedResult& base, st
     base.Set<DefaultValue>(std::move(res));
 }
 
-void ReplaceAstVisitor::DefaultMergeResult(AstNode& node, ValuedResult& base, std::vector<ValuedResult>& childrenRes)
+void ReplaceAstVisitor::DefaultMergeResult(AstNode& node, ValuedResult& base, Vec<ValuedResult>& childrenRes)
 {
-    std::vector<OwnedPtr<AstNode>> children;
+    Vec<OwnedPtr<AstNode>> children;
     for (auto& child : childrenRes) {
         if (auto val = child.TryGet<OwnedNodeValue>()) {
             children.push_back(std::move(*val));
