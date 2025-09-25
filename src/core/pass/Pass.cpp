@@ -4,15 +4,10 @@
  * This file implements the ToSourcePass.
  */
 #include "core/pass/Pass.h"
+#include "utils/LibraryLoader.h"
 #include "utils/Logger.h"
 #include <fstream>
 #include <nlohmann/json.hpp>
-
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <dlfcn.h>
-#endif
 
 /// PassConfig 实现方法
 bool PassConfig::Desugar() const
@@ -181,16 +176,7 @@ bool PassManager::LoadPass(ConStr& lib)
 {
     Str libname = lib;
     DEBUG("Load pass: ", lib);
-#ifdef _WIN32
-    HMODULE handle = LoadLibrary(libname.c_str());
-#else
-#if defined(__linux__)
-    libname = libname + ".so";
-#else
-    libname = libname + ".dylib";
-#endif
-    void* handle = dlopen(libname.c_str(), RTLD_LAZY);
-#endif
+    Handle handle = LibraryLoader::GetInstance().LoadLibrary(libname);
     if (!handle) {
         ERROR("Failed to load pass from lib: ", libname);
         return false;
