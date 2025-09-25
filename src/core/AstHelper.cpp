@@ -39,24 +39,23 @@ void AstHelper::DisplayOptions()
     p << "Options: {";
     p.PNL().Indent();
     p.PVals("enableDesugar: ", options.enableDesugar).PNL();
-    p.PVec<std::string>(
-         options.filterDecls, [](const std::string& decl) { return decl; }, ", ", "filterDecls: {", "}", true)
+    p.PVec<Str>(
+         options.filterDecls, [](ConStr& decl) { return decl; }, ", ", "filterDecls: {", "}", true)
         .PNL();
-    p.PVec<std::string>(
-         options.ignoreDecls, [](const std::string& anno) { return anno; }, ", ", "ignoreDecls: {", "}", true)
+    p.PVec<Str>(
+         options.ignoreDecls, [](ConStr& anno) { return anno; }, ", ", "ignoreDecls: {", "}", true)
         .PNL();
-    p.PVec<std::string>(
-         options.ignoreAnnotations, [](const std::string& anno) { return anno; }, ", ", "ignoreAnnotations: {", "}",
-         true)
+    p.PVec<Str>(
+         options.ignoreAnnotations, [](ConStr& anno) { return anno; }, ", ", "ignoreAnnotations: {", "}", true)
         .PNL();
-    p.PVec<std::string>(
-         options.importedPkgs, [](const std::string& pkg) { return pkg; }, ", ", "importedPkgs: {", "}", true)
+    p.PVec<Str>(
+         options.importedPkgs, [](ConStr& pkg) { return pkg; }, ", ", "importedPkgs: {", "}", true)
         .PNL();
-    p.PVec<std::string>(
-         options.passes, [](const std::string& pass) { return pass; }, ", ", "passes: {", "}")
+    p.PVec<Str>(
+         options.passes, [](ConStr& pass) { return pass; }, ", ", "passes: {", "}")
         .PNL();
-    p.PVec<std::string>(
-         options.args, [](const std::string& arg) { return arg; }, ", ", "args: {", "}")
+    p.PVec<Str>(
+         options.args, [](ConStr& arg) { return arg; }, ", ", "args: {", "}")
         .PNL();
     p.Unindent();
     p << "}\n";
@@ -111,9 +110,9 @@ bool AstHelper::DoAnalysis()
 /**
  * @brief 创建PassConfig
  */
-std::unique_ptr<PassConfig> AstHelper::MakePassConfig()
+UniquePtr<PassConfig> AstHelper::MakePassConfig()
 {
-    auto config = std::unique_ptr<ToSourcePassConfig>(new ToSourcePassConfig());
+    auto config = UniquePtr<ToSourcePassConfig>(new ToSourcePassConfig());
     // --dump-desugar=true or false (默认不开启解糖: 尽可能恢复用户源码)
     if (options.enableDesugar) {
         config->EnableDesugar();

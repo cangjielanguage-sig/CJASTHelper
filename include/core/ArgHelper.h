@@ -51,16 +51,16 @@ struct Options {
 };
 
 struct OptionDesc {
-    std::string key;      /**< key of option */
-    StrVec values;        /**< values of option */
-    std::string mainDesc; /**< main description of option */
-    StrPairVec subDesc;   /**< sub description of option */
-    bool single;          /**< whether option is single */
-    bool visible;         /**< whether option is visible */
+    Str key;            /**< key of option */
+    StrVec values;      /**< values of option */
+    Str mainDesc;       /**< main description of option */
+    StrPairVec subDesc; /**< sub description of option */
+    bool single;        /**< whether option is single */
+    bool visible;       /**< whether option is visible */
 
-    OptionDesc& Key(std::string&& key);
+    OptionDesc& Key(Str&& key);
     OptionDesc& Values(StrVec&& values);
-    OptionDesc& MainDesc(std::string&& desc);
+    OptionDesc& MainDesc(Str&& desc);
     OptionDesc& SubDesc(StrPairVec&& descs);
     OptionDesc& Single(bool single);
     OptionDesc& Visible(bool visible);

@@ -6,15 +6,12 @@
 #include "core/ArgHelper.h"
 #include "utils/ArgParser.h"
 #include "utils/FileHelper.h"
-#include "utils/Printer.h"
-#include <algorithm>
 #include <iomanip>
-#include <sstream>
 #include <stdexcept>
 
 /// OptionDes 实现函数
 
-OptionDesc& OptionDesc::Key(std::string&& key)
+OptionDesc& OptionDesc::Key(Str&& key)
 {
     this->key = std::move(key);
     return *this;
@@ -24,7 +21,7 @@ OptionDesc& OptionDesc::Values(StrVec&& values)
     this->values = std::move(values);
     return *this;
 }
-OptionDesc& OptionDesc::MainDesc(std::string&& desc)
+OptionDesc& OptionDesc::MainDesc(Str&& desc)
 {
     mainDesc = std::move(desc);
     return *this;
@@ -219,13 +216,12 @@ inline bool ContainHelpArg(ConStrVec& args)
     return false;
 }
 
-inline void SplitArgs(
-    ConStrVec& args, StrVec& toolArgs, StrVec& ciArgs, const std::unordered_map<std::string, StrSet>& validOpts)
+inline void SplitArgs(ConStrVec& args, StrVec& toolArgs, StrVec& ciArgs, ConStrMap<StrSet>& validOpts)
 {
     // 过滤当前工具参数和其它参数
     for (auto& arg : args) {
-        if (std::any_of(validOpts.begin(), validOpts.end(),
-                [&arg](const auto& k) { return arg.find(k.first) != std::string::npos; })) {
+        if (std::any_of(
+                validOpts.begin(), validOpts.end(), [&arg](const auto& k) { return arg.find(k.first) != Str::npos; })) {
             toolArgs.push_back(arg);
         } else {
             ciArgs.push_back(arg);
@@ -239,9 +235,9 @@ inline void SplitArgs(
  * @param focus 需要关注的键集合
  * @return 解析后的环境变量映射
  */
-std::unordered_map<std::string, std::string> ParseEnv(const char* const* envp, const StrSet& focus)
+StrMap<Str> ParseEnv(const char* const* envp, const StrSet& focus)
 {
-    std::unordered_map<std::string, std::string> env;
+    StrMap<Str> env;
     if (!envp) {
         return env;
     }
@@ -251,9 +247,9 @@ std::unordered_map<std::string, std::string> ParseEnv(const char* const* envp, c
         if (!envp[i]) {
             break;
         }
-        std::string kv(envp[i]);
-        if (auto pos = kv.find(ASSIGN); pos != std::string::npos) {
-            std::string key = kv.substr(0, pos);
+        Str kv(envp[i]);
+        if (auto pos = kv.find(ASSIGN); pos != Str::npos) {
+            Str key = kv.substr(0, pos);
             if (focus.find(key) != focus.end()) {
                 env.emplace(key, kv.substr(pos + 1));
             }
