@@ -1,7 +1,12 @@
 [
     {
         "key": "dump-source",
-        "values": ["parse", "desugared-parse", "sema", "desugared-sema"],
+        "values": [
+            "parse",
+            "desugared-parse",
+            "sema",
+            "desugared-sema"
+        ],
         "mainDesc": "Dump source after <value> stage. Supported value: parse, desugared-parse, sema, desugared-sema.",
         "subDesc": [],
         "single": true,
@@ -17,7 +22,10 @@
     },
     {
         "key": "enable-macro",
-        "values": ["true", "false"],
+        "values": [
+            "true",
+            "false"
+        ],
         "mainDesc": "Enable macro when <value> is true. Supported <value>: (default) true, false.",
         "subDesc": [
             {
@@ -34,7 +42,10 @@
     },
     {
         "key": "enable-desugar",
-        "values": ["true", "false"],
+        "values": [
+            "true",
+            "false"
+        ],
         "mainDesc": "Dump desugared code when <value> is true. Supported <value>: (default) true, false.",
         "subDesc": [
             {
@@ -51,7 +62,14 @@
     },
     {
         "key": "filter-decls",
-        "values": ["func", "var", "struct", "enum", "interface", "class"],
+        "values": [
+            "func",
+            "var",
+            "struct",
+            "enum",
+            "interface",
+            "class"
+        ],
         "mainDesc": "Filter top-level decls of <value>. Supported <value>: func, var, struct, enum, interface, class",
         "subDesc": [
             {
@@ -90,6 +108,14 @@
         "key": "task-config",
         "values": [],
         "mainDesc": "Pass the task config file name.",
+        "subDesc": [],
+        "single": true,
+        "visible": false
+    },
+    {
+        "key": "parallel-tasks",
+        "values": [],
+        "mainDesc": "Run tasks in parallel with <value> threads.",
         "subDesc": [],
         "single": true,
         "visible": false

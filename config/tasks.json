@@ -1,12 +1,74 @@
 [
     {
-        "stage": "parse",
+        "stage": "desugared-sema",
         "enableDesugar": true,
         "enableMacro": true,
         "filterDecls": [],
         "ignoreDecls": [],
         "ignoreAnnotations": [],
-        "passes": ["check-desugar", "replace-desugar", "to-cangjie"],
-        "args": ["--output-type=dylib", "test/data/inputs/desugar.cj", "--output-dir", "test/data/output"]
+        "passes": [
+            "replace-desugar",
+            "to-cangjie"
+        ],
+        "args": [
+            "--output-type=dylib",
+            "test/data/inputs/desugar.cj",
+            "--output-dir",
+            "test/data/output"
+        ]
+    },
+    {
+        "stage": "desugared-sema",
+        "enableDesugar": true,
+        "enableMacro": true,
+        "filterDecls": [],
+        "ignoreDecls": [],
+        "ignoreAnnotations": [],
+        "passes": [
+            "replace-desugar",
+            "to-cangjie"
+        ],
+        "args": [
+            "--output-type=dylib",
+            "test/data/inputs/main.cj",
+            "--output-dir",
+            "test/data/output"
+        ]
+    },
+    {
+        "stage": "desugared-sema",
+        "enableDesugar": true,
+        "enableMacro": true,
+        "filterDecls": [],
+        "ignoreDecls": [],
+        "ignoreAnnotations": [],
+        "passes": [
+            "replace-desugar",
+            "to-cangjie"
+        ],
+        "args": [
+            "--output-type=dylib",
+            "test/data/inputs/annotation.cj",
+            "--output-dir",
+            "test/data/output"
+        ]
+    },
+    {
+        "stage": "desugared-sema",
+        "enableDesugar": true,
+        "enableMacro": true,
+        "filterDecls": [],
+        "ignoreDecls": [],
+        "ignoreAnnotations": [],
+        "passes": [
+            "replace-desugar",
+            "to-cangjie"
+        ],
+        "args": [
+            "--output-type=dylib",
+            "test/data/inputs/macro.cj",
+            "--output-dir",
+            "test/data/output"
+        ]
     }
 ]
