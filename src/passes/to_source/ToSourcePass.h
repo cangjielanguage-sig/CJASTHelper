@@ -7,9 +7,11 @@
 
 #include "core/pass/Pass.h"
 #include "core/visitor/ConstAstVisitor.h"
+#include "utils/Cast.h"
+#include "utils/FileHelper.h"
+#include "utils/Logger.h"
 #include "utils/Macro.h"
 #include "utils/Printer.h"
-#include <fstream>
 
 /**
  * @class ToSourcePass
@@ -21,10 +23,16 @@ public:
      * @brief 构造函数，初始化输出文件、缩进和标志。
      * @param config 配置对象，包含输出文件、缩进和标志信息。
      */
-    ToSourcePass(const ToSourcePassConfig& config);
+    ToSourcePass(const ToSourcePassConfig& config) : Pass(config), prt(ofs, Config().indent)
+    {
+    }
     ~ToSourcePass() override = default;
 
-    void Run(AstNode& node) override;
+    void Run(AstNode& node) override
+    {
+        CreateDirIfNotExists(Config().out);
+        (void)Traverse(node, visitor);
+    }
 
 protected:
     /**
@@ -60,9 +68,15 @@ protected:
      * @brief 获取 `Printer` 实例。
      * @return `Printer` 的引用。
      */
-    Printer& PRT();
+    Printer& PRT()
+    {
+        return prt;
+    }
 
-    const ToSourcePassConfig& Config() const;
+    const ToSourcePassConfig& Config() const
+    {
+        return Cast<const ToSourcePassConfig&>(config);
+    }
 
 protected:
     std::fstream ofs;                                                /**< 输出文件流 */

@@ -77,7 +77,7 @@ protected:
      * @tparam T 节点的具体类型。
      * @param nodes 要遍历的节点指针数组。
      */
-    template <template <typename> class Ptr, typename T> inline void VisitNodes(const std::vector<Ptr<T>>& nodes)
+    template <template <typename> class Ptr, typename T> inline void VisitNodes(ConVec<Ptr<T>>& nodes)
     {
         for (auto& node : nodes) {
             Traverse(*node, visitor);
@@ -128,7 +128,7 @@ private:
     /**
      * @brief 辅助打印继承类型。
      */
-    void PrintInheritedTypes(const std::vector<OwnedPtr<Type>>& types);
+    void PrintInheritedTypes(ConVec<OwnedPtr<Type>>& types);
     /**
      * @brief 辅助打印可继承类型头部。
      */
@@ -137,12 +137,12 @@ private:
     /**
      * @brief 辅助打印一组声明。
      */
-    void PrintDecls(const std::vector<OwnedPtr<Decl>>& decls);
+    void PrintDecls(ConVec<OwnedPtr<Decl>>& decls);
 
     /**
      * @brief 辅助打印可继承类型定义体。
      */
-    void PrintInheritableDeclBody(const std::vector<OwnedPtr<Decl>>& members);
+    void PrintInheritableDeclBody(ConVec<OwnedPtr<Decl>>& members);
 
     /**
      * @brief 辅助打印泛型参数。

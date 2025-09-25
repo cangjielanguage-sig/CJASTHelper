@@ -4,15 +4,11 @@
  * This file implements the ToJavaPass.
  */
 #include "ToJavaPass.h"
-#include "utils/Cast.h"
-#include "utils/FileHelper.h"
-#include "utils/Logger.h"
-#include <filesystem>
 
 namespace fs = std::filesystem;
 
 REG_PASS("to-java", ([](const PassConfig& config) {
-    return std::unique_ptr<Pass>(new ToJavaPass{Cast<const ToSourcePassConfig&>(config)});
+    return UniquePtr<Pass>(new ToJavaPass{Cast<const ToSourcePassConfig&>(config)});
 }));
 
 ToJavaPass::ToJavaPass(const ToSourcePassConfig& config) : ToSourcePass(config)

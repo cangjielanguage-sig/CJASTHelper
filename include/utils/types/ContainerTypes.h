@@ -15,7 +15,7 @@
 
 // ====== 常用容器（通用）======
 template <typename T> using Vec = std::vector<T>;
-template <typename T> using ConVec = Vec<T>;
+template <typename T> using ConVec = const Vec<T>;
 
 template <typename T> using List = std::list<T>;
 
