@@ -51,7 +51,7 @@ protected:
     template <template <typename> class Ptr, typename T> inline void VisitNodes(const std::vector<Ptr<T>>& nodes)
     {
         for (auto& node : nodes) {
-            Traverse(*node, visitor);
+            VisitNode(node, visitor);
         }
     }
 
