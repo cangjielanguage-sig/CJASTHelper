@@ -5,10 +5,8 @@
  */
 #pragma once
 
-#include <functional>
-#include <tuple>
+#include "utils/types/TypeAlias.h"
 #include <type_traits>
-#include <unordered_map>
 
 // 检查类型包是否有重复
 template <typename... Ts> struct has_duplicates : std::bool_constant<false> {};
@@ -58,7 +56,7 @@ concept enum_type = std::is_enum_v<T>;
 // 通用回调管理器
 template <enum_type Key, unique_callable_tuple Callbacks> class CallbackManager {
 private:
-    std::unordered_map<Key, Callbacks> callbacks;
+    UnorderedMap<Key, Callbacks> callbacks;
 
 public:
     template <is_functional Callback> CallbackManager& Reg(Key key, Callback&& cb)
@@ -67,7 +65,7 @@ public:
         return *this;
     }
 
-    template <is_functional Callback> std::optional<std::reference_wrapper<Callback>> TryGet(Key key)
+    template <is_functional Callback> Opt<std::reference_wrapper<Callback>> TryGet(Key key)
     {
         // 获取对应位置的回调函数指针
         if (auto it = callbacks.find(key); it != callbacks.end())

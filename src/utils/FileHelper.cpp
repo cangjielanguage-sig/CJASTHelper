@@ -55,3 +55,35 @@ Str FileName(ConStr& filePath)
 {
     return fs::path(filePath).stem();
 }
+
+void CreateDirIfNotExists(ConStr& path)
+{
+    if (fs::exists(path)) {
+        return;
+    }
+    // 创建目录（包括父目录）
+    if (!fs::create_directories(path)) {
+        throw std::logic_error("Try to create directory: " + path + " failed!");
+    }
+}
+
+Str SearchPath(ConStr& name, ConStrVec& paths)
+{
+    // path is empty, find default path
+    auto pre = getExecutablePath().parent_path().string();
+    for (auto& p : paths) {
+        auto filePath = pre + "/" + p + "/" + name;
+        if (CheckExist(filePath)) {
+            return filePath;
+        }
+    }
+    throw std::invalid_argument("The file is not found: " + name);
+}
+
+// Json 配置文件解析
+ConfigParser::ConfigParser(ConStr& name) : path(SearchPath(name, searchPaths)), fs(path)
+{
+    if (!fs.is_open()) {
+        throw std::logic_error("Try to open config file: " + name + " failed!");
+    }
+}

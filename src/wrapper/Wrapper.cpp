@@ -4,17 +4,14 @@
  * This file implements the wrapper ast nodes.
  */
 
-#include "wrapper/AstNodeHelper.h"
-#include "wrapper/CangjieFrontendHelper.h"
-
 #include "cangjie/AST/PrintNode.h"
 #include "utils/Cast.h"
 #include "utils/Logger.h"
 #include "utils/Macro.h"
-#include <fstream>
-#include <iostream>
+#include "wrapper/AstNodeHelper.h"
+#include "wrapper/CangjieFrontendHelper.h"
 
-CangjieFrontendHelper::CangjieFrontendHelper(StrVec&& args, StrMap&& env)
+CangjieFrontendHelper::CangjieFrontendHelper(StrVec&& args, StrMap<Str>&& env)
     : mci(ParseArgs(std::move(args), std::move(env)), diag)
 {
     ci.globalOptions.executablePath = ci.frontendOptions.environment.cangjieHome.value_or(".") + "/bin/cjc";
@@ -68,7 +65,7 @@ PkgPtrVec CangjieFrontendHelper::GetImportedPackages()
     return mci.GetPackages();
 }
 
-CompilerInvocation& CangjieFrontendHelper::ParseArgs(StrVec&& args, StrMap&& env)
+CompilerInvocation& CangjieFrontendHelper::ParseArgs(StrVec&& args, StrMap<Str>&& env)
 {
     ci.frontendOptions.ReadPathsFromEnvironmentVars(env);
     ci.ParseArgs(args);
@@ -78,9 +75,9 @@ CompilerInvocation& CangjieFrontendHelper::ParseArgs(StrVec&& args, StrMap&& env
 /**
  * @brief 获取AstKind对应的字符串
  */
-std::string AstKind2Str(AstKind kind)
+Str AstKind2Str(AstKind kind)
 {
-    static std::unordered_map<AstKind, std::string> kindsInfo{
+    static UnorderedMap<AstKind, Str> kindsInfo{
 #define AST_INFO(KIND, STR, DEF) {AstKind::KIND, STR},
 #include "wrapper/AstInfo.inc"
 #undef AST_INFO
@@ -88,47 +85,33 @@ std::string AstKind2Str(AstKind kind)
     return kindsInfo.at(kind);
 }
 
-std::vector<Ptr<AstNode>> AstNodeHelper::GetChildren(const AstNode& node)
+Vec<Ptr<AstNode>> AstNodeHelper::GetChildren(const AstNode& node)
 {
-    std::vector<Ptr<AstNode>> result;
+    Vec<Ptr<AstNode>> result;
     if (auto fn = AstNodeHelper::GetInstance().handlers.TryGet<CollectFunc>(node.astKind)) {
         fn->get()(node, result);
-    } else {
-        // DEBUG("unregistered kind ", AstKind2Str(node.astKind));
     }
     return result;
 }
 
-void AstNodeHelper::ReplaceChildren(AstNode& node, std::vector<OwnedPtr<AstNode>>& children)
+void AstNodeHelper::ReplaceChildren(AstNode& node, Vec<OwnedPtr<AstNode>>& children)
 {
     if (auto fn = AstNodeHelper::GetInstance().handlers.TryGet<ReplaceFunc>(node.astKind)) {
         fn->get()(node, children);
-    } else {
-        // DEBUG("unregistered kind ", AstKind2Str(node.astKind));
     }
 }
 
-void AstNodeHelper::DumpAst(const AstNode& node, const std::string& out)
+void AstNodeHelper::DumpAst(const AstNode& node, const Str&)
 {
-    std::ofstream file(out);
-    if (!file.is_open()) {
-        DEBUG("open file failed: ", out);
-        return;
-    }
-    DEBUG("open file success! ", out);
-    std::streambuf* original_cout_buf = std::cout.rdbuf();
-    std::cout.rdbuf(file.rdbuf());
     Cangjie::PrintNode(&node);
-    std::cout.rdbuf(original_cout_buf);
-    file.close();
 }
 
-std::unique_ptr<AstNodeHelper> AstNodeHelper::helper;
+UniquePtr<AstNodeHelper> AstNodeHelper::helper;
 
 AstNodeHelper& AstNodeHelper::GetInstance()
 {
     if (!helper) {
-        helper = std::unique_ptr<AstNodeHelper>(new AstNodeHelper());
+        helper = UniquePtr<AstNodeHelper>(new AstNodeHelper());
     }
     return *helper;
 }
@@ -140,21 +123,20 @@ AstNodeHelper::AstNodeHelper()
 }
 
 namespace {
-template <typename T> inline void CollectChildren(const OwnedPtr<T>& node, std::vector<Ptr<AstNode>>& children)
+template <typename T> inline void CollectChildren(const OwnedPtr<T>& node, Vec<Ptr<AstNode>>& children)
 {
     if (node) {
         children.push_back(node);
     }
 }
-template <typename T>
-inline void CollectChildren(const std::vector<OwnedPtr<T>>& nodes, std::vector<Ptr<AstNode>>& children)
+template <typename T> inline void CollectChildren(const Vec<OwnedPtr<T>>& nodes, Vec<Ptr<AstNode>>& children)
 {
     for (auto& node : nodes) {
         CollectChildren(node, children);
     }
 }
 
-inline void CollectChildren(const Decl& decl, std::vector<Ptr<AstNode>>& children)
+inline void CollectChildren(const Decl& decl, Vec<Ptr<AstNode>>& children)
 {
     CollectChildren(decl.annotations, children);
     CollectChildren(decl.annotationsArray, children);
@@ -170,40 +152,40 @@ void AstNodeHelper::RegCollectHandlers()
     // JumpExpr
     handlers
         .Reg<CollectFunc>(AstKind::FILE,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& file = Cast<const File&>(node);
                 CollectChildren(file.package, children);
                 CollectChildren(file.imports, children);
                 CollectChildren(file.decls, children);
             })
         .Reg<CollectFunc>(AstKind::PACKAGE,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 CollectChildren(Cast<const Package&>(node).files, children);
             })
         .Reg<CollectFunc>(AstKind::PACKAGE_SPEC,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 CollectChildren(Cast<const PackageSpec&>(node).modifier, children);
             })
         .Reg<CollectFunc>(AstKind::IMPORT_SPEC,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& is = Cast<const ImportSpec&>(node);
                 CollectChildren(is.modifier, children);
                 // children.push_back(&is.content);
             })
         .Reg<CollectFunc>(AstKind::INTERFACE_BODY,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 CollectChildren(Cast<const InterfaceBody&>(node).decls, children);
             })
         .Reg<CollectFunc>(AstKind::CLASS_BODY,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 CollectChildren(Cast<const ClassBody&>(node).decls, children);
             })
         .Reg<CollectFunc>(AstKind::STRUCT_BODY,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 CollectChildren(Cast<const StructBody&>(node).decls, children);
             })
         .Reg<CollectFunc>(AstKind::FUNC_BODY,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& body = Cast<const FuncBody&>(node);
                 CollectChildren(body.paramLists[0], children);
                 CollectChildren(body.generic, children);
@@ -211,40 +193,40 @@ void AstNodeHelper::RegCollectHandlers()
                 CollectChildren(body.body, children);
             })
         .Reg<CollectFunc>(AstKind::FUNC_PARAM_LIST,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 CollectChildren(Cast<const FuncParamList&>(node).params, children);
             })
         .Reg<CollectFunc>(AstKind::FUNC_ARG,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 CollectChildren(Cast<const FuncArg&>(node).expr, children);
             })
         .Reg<CollectFunc>(AstKind::MATCH_CASE_OTHER,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& mco = Cast<const MatchCaseOther&>(node);
                 CollectChildren(mco.matchExpr, children);
                 CollectChildren(mco.exprOrDecls, children);
             })
         .Reg<CollectFunc>(AstKind::MATCH_CASE,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& mc = Cast<const MatchCase&>(node);
                 CollectChildren(mc.patterns, children);
                 CollectChildren(mc.patternGuard, children);
                 CollectChildren(mc.exprOrDecls, children);
             })
         .Reg<CollectFunc>(AstKind::GENERIC_CONSTRAINT,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& gc = Cast<const GenericConstraint&>(node);
                 CollectChildren(gc.type, children);
                 CollectChildren(gc.upperBounds, children);
             })
         .Reg<CollectFunc>(AstKind::GENERIC,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& generic = Cast<const Generic&>(node);
                 CollectChildren(generic.typeParameters, children);
                 CollectChildren(generic.genericConstraints, children);
             })
         .Reg<CollectFunc>(AstKind::MACRO_EXPAND_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const MacroExpandExpr&>(node);
                 CollectChildren(expr.annotations, children);
                 // To Check
@@ -253,36 +235,36 @@ void AstNodeHelper::RegCollectHandlers()
                 // }
             })
         .Reg<CollectFunc>(AstKind::SYNCHRONIZED_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const SynchronizedExpr&>(node);
                 CollectChildren(expr.mutex, children);
                 CollectChildren(expr.body, children);
             })
         .Reg<CollectFunc>(AstKind::SPAWN_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const SpawnExpr&>(node);
                 CollectChildren(expr.futureObj, children);
                 CollectChildren(expr.task, children);
                 CollectChildren(expr.arg, children);
             })
         .Reg<CollectFunc>(AstKind::THROW_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 CollectChildren(Cast<const ThrowExpr&>(node).expr, children);
             })
         .Reg<CollectFunc>(AstKind::TYPE_CONV_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const TypeConvExpr&>(node);
                 CollectChildren(expr.type, children);
                 CollectChildren(expr.expr, children);
             })
         .Reg<CollectFunc>(AstKind::DO_WHILE_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const DoWhileExpr&>(node);
                 CollectChildren(expr.body, children);
                 CollectChildren(expr.condExpr, children);
             })
         .Reg<CollectFunc>(AstKind::FOR_IN_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const ForInExpr&>(node);
                 CollectChildren(expr.pattern, children);
                 CollectChildren(expr.patternGuard, children);
@@ -290,24 +272,24 @@ void AstNodeHelper::RegCollectHandlers()
                 CollectChildren(expr.body, children);
             })
         .Reg<CollectFunc>(AstKind::TRAIL_CLOSURE_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const TrailingClosureExpr&>(node);
                 CollectChildren(expr.expr, children);
                 CollectChildren(expr.lambda, children);
             })
         .Reg<CollectFunc>(AstKind::LAMBDA_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const LambdaExpr&>(node);
                 CollectChildren(expr.funcBody, children);
             })
         .Reg<CollectFunc>(AstKind::WHILE_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const WhileExpr&>(node);
                 CollectChildren(expr.condExpr, children);
                 CollectChildren(expr.body, children);
             })
         .Reg<CollectFunc>(AstKind::TRY_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const TryExpr&>(node);
                 CollectChildren(expr.resourceSpec, children);
                 CollectChildren(expr.tryBlock, children);
@@ -316,78 +298,78 @@ void AstNodeHelper::RegCollectHandlers()
                 CollectChildren(expr.finallyBlock, children);
             })
         .Reg<CollectFunc>(AstKind::QUOTE_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const QuoteExpr&>(node);
                 CollectChildren(expr.exprs, children);
             })
         .Reg<CollectFunc>(AstKind::LET_PATTERN_DESTRUCTOR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const LetPatternDestructor&>(node);
                 CollectChildren(expr.patterns, children);
                 CollectChildren(expr.initializer, children);
             })
         .Reg<CollectFunc>(AstKind::IF_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const IfExpr&>(node);
                 CollectChildren(expr.condExpr, children);
                 CollectChildren(expr.thenBody, children);
                 CollectChildren(expr.elseBody, children);
             })
         .Reg<CollectFunc>(AstKind::BLOCK,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const Block&>(node);
                 CollectChildren(expr.body, children);
             })
         .Reg<CollectFunc>(AstKind::MATCH_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const MatchExpr&>(node);
                 CollectChildren(expr.selector, children);
                 CollectChildren(expr.matchCases, children);
                 CollectChildren(expr.matchCaseOthers, children);
             })
         .Reg<CollectFunc>(AstKind::TUPLE_LIT,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const TupleLit&>(node);
                 CollectChildren(expr.children, children);
             })
         .Reg<CollectFunc>(AstKind::POINTER_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const PointerExpr&>(node);
                 CollectChildren(expr.type, children);
                 CollectChildren(expr.arg, children);
             })
         .Reg<CollectFunc>(AstKind::ARRAY_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const ArrayExpr&>(node);
                 CollectChildren(expr.type, children);
                 CollectChildren(expr.args, children);
             })
         .Reg<CollectFunc>(AstKind::ARRAY_LIT,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const ArrayLit&>(node);
                 CollectChildren(expr.children, children);
             })
         .Reg<CollectFunc>(AstKind::RANGE_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const RangeExpr&>(node);
                 CollectChildren(expr.startExpr, children);
                 CollectChildren(expr.stopExpr, children);
                 CollectChildren(expr.stepExpr, children);
             })
         .Reg<CollectFunc>(AstKind::AS_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const AsExpr&>(node);
                 CollectChildren(expr.leftExpr, children);
                 CollectChildren(expr.asType, children);
             })
         .Reg<CollectFunc>(AstKind::IS_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const IsExpr&>(node);
                 CollectChildren(expr.leftExpr, children);
                 CollectChildren(expr.isType, children);
             })
         .Reg<CollectFunc>(AstKind::SUBSCRIPT_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const SubscriptExpr&>(node);
                 if (expr.desugarExpr) {
                     CollectChildren(expr.desugarExpr, children);
@@ -397,133 +379,133 @@ void AstNodeHelper::RegCollectHandlers()
                 }
             })
         .Reg<CollectFunc>(AstKind::INC_OR_DEC_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const IncOrDecExpr&>(node);
                 CollectChildren(expr.expr, children);
             })
         .Reg<CollectFunc>(AstKind::BINARY_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const BinaryExpr&>(node);
                 CollectChildren(expr.leftExpr, children);
                 CollectChildren(expr.rightExpr, children);
             })
         .Reg<CollectFunc>(AstKind::UNARY_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const UnaryExpr&>(node);
                 CollectChildren(expr.expr, children);
             })
         .Reg<CollectFunc>(AstKind::ASSIGN_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const AssignExpr&>(node);
                 CollectChildren(expr.leftValue, children);
                 CollectChildren(expr.rightExpr, children);
             })
 
         .Reg<CollectFunc>(AstKind::STR_INTERPOLATION_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const StrInterpolationExpr&>(node);
                 CollectChildren(expr.strPartExprs, children);
             })
         .Reg<CollectFunc>(AstKind::INTERPOLATION_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const InterpolationExpr&>(node);
                 CollectChildren(expr.block, children);
             })
         .Reg<CollectFunc>(AstKind::LIT_CONST_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const LitConstExpr&>(node);
                 CollectChildren(expr.ref, children);
                 CollectChildren(expr.siExpr, children);
             })
         .Reg<CollectFunc>(AstKind::RETURN_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const ReturnExpr&>(node);
                 CollectChildren(expr.expr, children);
             })
         .Reg<CollectFunc>(AstKind::OPTIONAL_CHAIN_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const OptionalChainExpr&>(node);
                 CollectChildren(expr.expr, children);
             })
         .Reg<CollectFunc>(AstKind::OPTIONAL_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const OptionalExpr&>(node);
                 CollectChildren(expr.baseExpr, children);
             })
         .Reg<CollectFunc>(AstKind::REF_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const RefExpr&>(node);
                 CollectChildren(expr.typeArguments, children);
             })
         .Reg<CollectFunc>(AstKind::MEMBER_ACCESS,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const MemberAccess&>(node);
                 CollectChildren(expr.baseExpr, children);
                 CollectChildren(expr.typeArguments, children);
             })
         .Reg<CollectFunc>(AstKind::PAREN_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const ParenExpr&>(node);
                 CollectChildren(expr.expr, children);
             })
         .Reg<CollectFunc>(AstKind::CALL_EXPR,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& expr = Cast<const CallExpr&>(node);
                 CollectChildren(expr.baseFunc, children);
                 CollectChildren(expr.args, children);
                 CollectChildren(expr.defaultArgs, children);
             })
         .Reg<CollectFunc>(AstKind::TUPLE_TYPE,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& ty = Cast<const TupleType&>(node);
                 CollectChildren(ty.fieldTypes, children);
             })
         .Reg<CollectFunc>(AstKind::FUNC_TYPE,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& ty = Cast<const FuncType&>(node);
                 CollectChildren(ty.paramTypes, children);
                 CollectChildren(ty.retType, children);
             })
         .Reg<CollectFunc>(AstKind::PAREN_TYPE,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& ty = Cast<const ParenType&>(node);
                 CollectChildren(ty.type, children);
             })
         .Reg<CollectFunc>(AstKind::VARRAY_TYPE,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& ty = Cast<const VArrayType&>(node);
                 CollectChildren(ty.typeArgument, children);
                 CollectChildren(ty.constantType, children);
             })
         .Reg<CollectFunc>(AstKind::CONSTANT_TYPE,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& ty = Cast<const ConstantType&>(node);
                 CollectChildren(ty.constantExpr, children);
             })
         .Reg<CollectFunc>(AstKind::OPTION_TYPE,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& ty = Cast<const OptionType&>(node);
                 CollectChildren(ty.componentType, children);
             })
         .Reg<CollectFunc>(AstKind::QUALIFIED_TYPE,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& ty = Cast<const QualifiedType&>(node);
                 CollectChildren(ty.baseType, children);
                 CollectChildren(ty.typeArguments, children);
             })
         .Reg<CollectFunc>(AstKind::REF_TYPE,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& ty = Cast<const RefType&>(node);
                 CollectChildren(ty.typeArguments, children);
             })
         .Reg<CollectFunc>(AstKind::EXCEPT_TYPE_PATTERN,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& pat = Cast<const ExceptTypePattern&>(node);
                 CollectChildren(pat.pattern, children);
                 CollectChildren(pat.types, children);
             })
         .Reg<CollectFunc>(AstKind::TYPE_PATTERN,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& pat = Cast<const TypePattern&>(node);
                 CollectChildren(pat.pattern, children);
                 CollectChildren(pat.type, children);
@@ -531,99 +513,99 @@ void AstNodeHelper::RegCollectHandlers()
                 // CollectChildren(pat.desugarVarPattern, children);
             })
         .Reg<CollectFunc>(AstKind::VAR_OR_ENUM_PATTERN,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& pat = Cast<const VarOrEnumPattern&>(node);
                 CollectChildren(pat.pattern, children);
             })
         .Reg<CollectFunc>(AstKind::ENUM_PATTERN,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& pat = Cast<const EnumPattern&>(node);
                 CollectChildren(pat.constructor, children);
                 CollectChildren(pat.patterns, children);
             })
         .Reg<CollectFunc>(AstKind::TUPLE_PATTERN,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& pat = Cast<const TuplePattern&>(node);
                 CollectChildren(pat.patterns, children);
             })
         .Reg<CollectFunc>(AstKind::CONST_PATTERN,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& pat = Cast<const ConstPattern&>(node);
                 CollectChildren(pat.literal, children);
                 CollectChildren(pat.operatorCallExpr, children);
             })
         .Reg<CollectFunc>(AstKind::VAR_PATTERN,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& ident = Cast<const VarPattern&>(node);
                 CollectChildren(ident.varDecl, children);
                 // CollectChildren(ident.desugarExpr, children);
             })
         .Reg<CollectFunc>(AstKind::MACRO_EXPAND_DECL,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& decl = Cast<const MacroExpandDecl&>(node);
                 CollectChildren(decl, children);
                 CollectChildren(decl.invocation.decl, children);
                 CollectChildren(decl.invocation.nodes, children);
             })
         .Reg<CollectFunc>(AstKind::GENERIC_PARAM_DECL,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 CollectChildren(Cast<const GenericParamDecl&>(node), children);
             })
         .Reg<CollectFunc>(AstKind::VAR_WITH_PATTERN_DECL,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& decl = Cast<const VarWithPatternDecl&>(node);
                 CollectChildren(decl, children);
                 CollectChildren(decl.irrefutablePattern, children);
             })
         .Reg<CollectFunc>(AstKind::FUNC_PARAM,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& decl = Cast<const FuncParam&>(node);
                 CollectChildren(decl, children);
                 CollectChildren(decl.assignment, children);
             })
         .Reg<CollectFunc>(AstKind::MACRO_EXPAND_PARAM,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 CollectChildren(Cast<const MacroExpandParam&>(node), children);
             })
         .Reg<CollectFunc>(AstKind::PROP_DECL,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& decl = Cast<const PropDecl&>(node);
                 CollectChildren(decl, children);
                 CollectChildren(decl.getters, children);
                 CollectChildren(decl.setters, children);
             })
         .Reg<CollectFunc>(AstKind::VAR_DECL,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& decl = Cast<const VarDecl&>(node);
                 CollectChildren(decl, children);
                 CollectChildren(decl.type, children);
                 CollectChildren(decl.initializer, children);
             })
         .Reg<CollectFunc>(AstKind::BUILTIN_DECL,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 CollectChildren(Cast<const BuiltInDecl&>(node), children);
             })
         .Reg<CollectFunc>(AstKind::PRIMARY_CTOR_DECL,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& decl = Cast<const PrimaryCtorDecl&>(node);
                 CollectChildren(decl, children);
                 CollectChildren(decl.funcBody, children);
             })
         .Reg<CollectFunc>(AstKind::TYPE_ALIAS_DECL,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& decl = Cast<const TypeAliasDecl&>(node);
                 CollectChildren(decl, children);
                 CollectChildren(decl.type, children);
             })
         .Reg<CollectFunc>(AstKind::STRUCT_DECL,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& decl = Cast<const StructDecl&>(node);
                 CollectChildren(decl, children);
                 CollectChildren(decl.inheritedTypes, children);
                 CollectChildren(decl.body, children);
             })
         .Reg<CollectFunc>(AstKind::ENUM_DECL,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& decl = Cast<const EnumDecl&>(node);
                 CollectChildren(decl, children);
                 CollectChildren(decl.inheritedTypes, children);
@@ -631,7 +613,7 @@ void AstNodeHelper::RegCollectHandlers()
                 CollectChildren(decl.members, children);
             })
         .Reg<CollectFunc>(AstKind::EXTEND_DECL,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& decl = Cast<const ExtendDecl&>(node);
                 CollectChildren(decl, children);
                 CollectChildren(decl.extendedType, children);
@@ -639,32 +621,32 @@ void AstNodeHelper::RegCollectHandlers()
                 CollectChildren(decl.members, children);
             })
         .Reg<CollectFunc>(AstKind::INTERFACE_DECL,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& decl = Cast<const InterfaceDecl&>(node);
                 CollectChildren(decl, children);
                 CollectChildren(decl.inheritedTypes, children);
                 CollectChildren(decl.body, children);
             })
         .Reg<CollectFunc>(AstKind::CLASS_DECL,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& decl = Cast<const ClassDecl&>(node);
                 CollectChildren(decl, children);
                 CollectChildren(decl.inheritedTypes, children);
                 CollectChildren(decl.body, children);
             })
         .Reg<CollectFunc>(AstKind::MACRO_DECL,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& decl = Cast<const MacroDecl&>(node);
                 CollectChildren(decl, children);
                 CollectChildren(decl.funcBody, children);
             })
         .Reg<CollectFunc>(AstKind::FUNC_DECL,
-            [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+            [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& decl = Cast<const FuncDecl&>(node);
                 CollectChildren(decl, children);
                 CollectChildren(decl.funcBody, children);
             })
-        .Reg<CollectFunc>(AstKind::MAIN_DECL, [](const AstNode& node, std::vector<Ptr<AstNode>>& children) {
+        .Reg<CollectFunc>(AstKind::MAIN_DECL, [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
             auto& decl = Cast<const MainDecl&>(node);
             CollectChildren(decl, children);
             CollectChildren(decl.funcBody, children);
@@ -704,7 +686,7 @@ template <std::derived_from<AstNode> T> inline bool TrySwap(OwnedPtr<T>& dst, Ow
     return true;
 }
 
-template <typename T> using OwnedVec = std::vector<OwnedPtr<T>>;
+template <typename T> using OwnedVec = Vec<OwnedPtr<T>>;
 using OwnedNodeIter = OwnedVec<AstNode>::iterator;
 
 template <std::derived_from<AstNode> T> inline void ReplaceNode(OwnedPtr<T>& dst, OwnedNodeIter& pos)

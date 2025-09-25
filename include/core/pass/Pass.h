@@ -6,8 +6,9 @@
 
 #pragma once
 
-#include "utils/TypeAlias.h"
-#include "wrapper/AstNodeHelper.h"
+#include "utils/Logger.h"
+#include "utils/types/TypeAlias.h"
+#include "wrapper/TypeAlias.h"
 
 /**
  * @typedef Flag
@@ -72,13 +73,13 @@ public:
      * @param out 输出文件路径。
      * @return 返回当前构建器实例的引用，支持链式调用。
      */
-    ToSourcePassConfig& Output(const std::string& out);
+    ToSourcePassConfig& Output(ConStr& out);
     /**
      * @brief 设置输出文件后缀。
      * @param suffix 输出文件后缀名。
      * @return 返回当前构建器实例的引用，支持链式调用。
      */
-    ToSourcePassConfig& Suffix(const std::string& suffix);
+    ToSourcePassConfig& Suffix(ConStr& suffix);
 
     /**
      * @brief 设置输出缩进大小。
@@ -91,41 +92,40 @@ public:
      * @brief 设置关注的注解属性。
      * @param attrs 关注的注解属性名称列表。
      */
-    ToSourcePassConfig& FocusAnnotationAttrs(const std::vector<std::string>& attrs);
+    ToSourcePassConfig& FocusAnnotationAttrs(ConStrVec& attrs);
     /**
      * @brief 设置忽略的顶层声明。
      * @param decls 忽略的声明标识符列表。
      */
-    ToSourcePassConfig& IgnoreDecls(const std::unordered_set<std::string>& decls);
+    ToSourcePassConfig& IgnoreDecls(ConStrSet& decls);
     /**
      * @brief 设置忽略的注解。
      * @param annos 忽略的注解名称列表。
      */
-    ToSourcePassConfig& IgnoreAnnotations(const std::unordered_set<std::string>& annos);
+    ToSourcePassConfig& IgnoreAnnotations(ConStrSet& annos);
     /**
      * @brief 设置关注的顶层声明类型。
      * @param kinds 关注的声明类型名称列表。
      */
-    ToSourcePassConfig& Focus(const std::unordered_set<std::string>& kinds);
+    ToSourcePassConfig& Focus(ConStrSet& kinds);
     /**
      * @brief 设置关注的修饰符属性。
      * @param attrs 关注的修饰符属性名称列表。
      * @param kinds 关注的修饰符属性所在的声明类型名称列表（白名单）。
      */
-    ToSourcePassConfig& FocusModifierAttrs(
-        const std::vector<std::string>& attrs, const std::vector<std::string>& kinds);
+    ToSourcePassConfig& FocusModifierAttrs(ConStrVec& attrs, ConStrVec& kinds);
 
-    int indent;         /**< 输出缩进大小 */
-    std::string out;    /**< 输出文件路径 */
-    std::string suffix; /**< 输出文件后缀 */
+    int indent; /**< 输出缩进大小 */
+    Str out;    /**< 输出文件路径 */
+    Str suffix; /**< 输出文件后缀 */
     // 可配置属性: Attribute::C, Attribute::INTRINSIC, ...
-    std::unordered_set<std::string> focusAnnotationAttrs; /**< 关注的注解对应的属性列表 */
+    StrSet focusAnnotationAttrs; /**< 关注的注解对应的属性列表 */
     // 可配置属性: Attribute::PUBLIC, ...
-    std::unordered_set<std::string> focusModifierAttrs; /**< 关注的修饰符对应的属性列表 */
-    std::unordered_set<AstKind> focusModifierWhiteList; /**< 关注的语义后修饰符的节点白名单 */
-    std::unordered_set<std::string> ignoreAnnotations;  /**< 忽略的注解对应的属性列表 */
-    std::unordered_set<std::string> ignoreDecls;        /**< 忽略的顶层声明列表 */
-    std::unordered_set<AstKind> focusDecls;             /**< 关注的顶层声明类型 */
+    StrSet focusModifierAttrs;                    /**< 关注的修饰符对应的属性列表 */
+    UnorderedSet<AstKind> focusModifierWhiteList; /**< 关注的语义后修饰符的节点白名单 */
+    StrSet ignoreAnnotations;                     /**< 忽略的注解对应的属性列表 */
+    StrSet ignoreDecls;                           /**< 忽略的顶层声明列表 */
+    UnorderedSet<AstKind> focusDecls;             /**< 关注的顶层声明类型 */
 };
 
 /**
@@ -144,7 +144,7 @@ protected:
     const PassConfig& config;
 };
 
-using PassBuilder = std::function<std::unique_ptr<Pass>(const PassConfig&)>;
+using PassBuilder = Function<UniquePtr<Pass>(const PassConfig&)>;
 
 struct PassInfo {
     Str name;                      /**< pass 名称 */
@@ -157,7 +157,7 @@ struct PassInfo {
 
 class PassManager {
 public:
-    PassManager(std::unique_ptr<PassConfig> config) : config(std::move(config))
+    PassManager(UniquePtr<PassConfig> config) : config(std::move(config))
     {
     }
 
@@ -166,7 +166,7 @@ public:
      *
      * @param path pass配置文件路径
      */
-    void Init(ConStr& path);
+    static void Init(ConStr& path);
 
     /**
      * 执行 passes 中的所有 pass
@@ -201,10 +201,9 @@ private:
     Pass* TryGetPass(ConStr& name);
 
 private:
-    std::unique_ptr<PassConfig> config;
-    std::unordered_map<std::string, std::unique_ptr<Pass>> passMap; /**< 注册的分析pass: name -> Pass */
-
-    static inline std::unordered_map<Str, PassInfo> passInfoMap;
+    UniquePtr<PassConfig> config;               /**< 配置信息 */
+    StrMap<UniquePtr<Pass>> passMap;            /**< 注册的分析pass: name -> Pass */
+    static inline StrMap<PassInfo> passInfoMap; /**< 注册的pass信息: name -> PassInfo  */
 };
 
 #define CONCAT_IMPL(a, b) a##b

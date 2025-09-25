@@ -1,4 +1,4 @@
-#include "AstHelper.h"
+#include "core/AstHelper.h"
 #include "test_helper.h"
 #include <gtest/gtest.h>
 
@@ -7,11 +7,9 @@ protected:
     std::vector<std::string> args{"--dump-source=parse"};
     std::vector<char*> rawArgs;
     ArgHelper argHelper;
-    AstHelper astHelper;
 
     // 构造函数：用于初始化成员变量
-    AstHelperTest()
-        : rawArgs(CreateArgv(args)), astHelper(argHelper.ParseArgs(GetArgc(rawArgs), rawArgs.data(), nullptr))
+    AstHelperTest() : rawArgs(CreateArgv(args))
     {
     }
 
@@ -40,7 +38,7 @@ TEST_F(AstHelperTest, ParseArgs01)
     auto envp = CreateArgv(env);
 
     EXPECT_NO_THROW({
-        auto options = argHelper.ParseArgs(argc, argv.data(), envp.data());
+        auto options = argHelper.ParseArgs(argc, argv.data(), envp.data())[0];
         EXPECT_EQ(options.stage, SourceStage::PARSE);
         EXPECT_EQ(options.passes.size(), 1);
         EXPECT_EQ(options.passes[0], "to-source");
@@ -54,7 +52,7 @@ TEST_F(AstHelperTest, ParseArgs02)
     int argc = GetArgc(argv);
 
     EXPECT_NO_THROW({
-        auto options = argHelper.ParseArgs(argc, argv.data(), nullptr);
+        auto options = argHelper.ParseArgs(argc, argv.data(), nullptr)[0];
         EXPECT_EQ(options.stage, SourceStage::DEFAULT);
         argHelper.ShowHelperInfo();
     });

@@ -6,7 +6,6 @@
 
 #include "core/visitor/VisitorBase.h"
 #include "utils/Cast.h"
-#include "utils/Logger.h"
 
 // VisitResult 实现方法
 VisitResult::VisitResult(bool cont) : status(cont)

@@ -1,9 +1,6 @@
 #include "test_helper.h"
-#include <algorithm>
-#include <array>
 #include <filesystem>
 #include <fstream>
-#include <functional>
 #include <sstream>
 
 namespace fs = std::filesystem;

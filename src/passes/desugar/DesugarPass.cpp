@@ -9,10 +9,8 @@
 #include "utils/Logger.h"
 
 // 注意：这里使用 c++20 inline static 避免在cpp文件中全局变量初始化不被执行问题
-REG_PASS("replace-desugar",
-    ([](const PassConfig& config) { return std::unique_ptr<Pass>(new ReplaceDesugarPass{config}); }));
-REG_PASS(
-    "check-desugar", ([](const PassConfig& config) { return std::unique_ptr<Pass>(new CheckDesugarPass{config}); }));
+REG_PASS("replace-desugar", ([](const PassConfig& config) { return UniquePtr<Pass>(new ReplaceDesugarPass{config}); }));
+REG_PASS("check-desugar", ([](const PassConfig& config) { return UniquePtr<Pass>(new CheckDesugarPass{config}); }));
 
 /// DesugarPass
 
@@ -37,14 +35,14 @@ CheckDesugarPass::CheckDesugarPass(const PassConfig& config) : DesugarPass(confi
 
 void CheckDesugarPass::Run(AstNode& node)
 {
-    DEBUG();
+    LOGD();
     auto res = MutTraverse(node, visitor);
-    DEBUG("res: ", *res.TryGet<DefaultValue>());
+    LOGD("res: ", *res.TryGet<DefaultValue>());
 }
 
 void CheckDesugarPass::Visit(OptionType& node, ValuedResult& res)
 {
-    DEBUG("OptionType");
+    LOGD("OptionType");
     if (node.desugarType) {
         res.Set<DefaultValue>(1);
     }
@@ -52,7 +50,7 @@ void CheckDesugarPass::Visit(OptionType& node, ValuedResult& res)
 
 void CheckDesugarPass::Visit(Expr& node, ValuedResult& res)
 {
-    DEBUG("Expr");
+    LOGD("Expr");
     if (node.desugarExpr) {
         res.Set<DefaultValue>(1);
     }
@@ -67,14 +65,13 @@ ReplaceDesugarPass::ReplaceDesugarPass(const PassConfig& config) : DesugarPass(c
 
 void ReplaceDesugarPass::Run(AstNode& node)
 {
-    // AstNodeHelper::DumpAst(node, "input.txt");
-    DEBUG();
+    LOGD();
     MutTraverse(node, visitor);
 }
 
 void ReplaceDesugarPass::Visit(OptionType& node, ValuedResult& res)
 {
-    DEBUG("OptionType");
+    LOGD("OptionType");
     if (node.desugarType) {
         res.Set<OwnedNodeValue>(std::move(node.desugarType));
     }
@@ -82,7 +79,7 @@ void ReplaceDesugarPass::Visit(OptionType& node, ValuedResult& res)
 
 void ReplaceDesugarPass::Visit(Expr& node, ValuedResult& res)
 {
-    DEBUG("Expr");
+    LOGD("Expr");
     if (node.desugarExpr) {
         res.Set<OwnedNodeValue>(std::move(node.desugarExpr));
     }

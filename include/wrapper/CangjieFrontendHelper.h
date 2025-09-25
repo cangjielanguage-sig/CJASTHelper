@@ -6,14 +6,14 @@
 
 #pragma once
 
-#include "utils/TypeAlias.h"
+#include "utils/types/TypeAlias.h"
 
 #include "cangjie/Frontend/CompilerInstance.h"
 #include "cangjie/Sema/Desugar.h"
 
 using Cangjie::CompilerInvocation;
 
-using PkgPtrVec = std::vector<Ptr<Package>>;
+using PkgPtrVec = Vec<Ptr<Package>>;
 
 class CangjieFrontendHelper {
 public:
@@ -22,7 +22,7 @@ public:
      * @param args command line arguments
      * @param env environment variables
      */
-    CangjieFrontendHelper(StrVec&& args, StrMap&& env);
+    CangjieFrontendHelper(StrVec&& args, StrMap<Str>&& env);
     virtual ~CangjieFrontendHelper() = default;
 
     bool Parse();
@@ -38,7 +38,7 @@ public:
     PkgPtrVec GetImportedPackages();
 
 private:
-    CompilerInvocation& ParseArgs(StrVec&& args, StrMap&& env);
+    CompilerInvocation& ParseArgs(StrVec&& args, StrMap<Str>&& env);
 
 private:
     Cangjie::DiagnosticEngine diag; /**< 诊断引擎实例 */

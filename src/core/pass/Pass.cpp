@@ -4,15 +4,8 @@
  * This file implements the ToSourcePass.
  */
 #include "core/pass/Pass.h"
-#include "utils/Logger.h"
-#include <fstream>
-#include <nlohmann/json.hpp>
-
-#ifdef _WIN32
-#include <windows.h>
-#else
-#include <dlfcn.h>
-#endif
+#include "utils/FileHelper.h"
+#include "utils/LibraryLoader.h"
 
 /// PassConfig 实现方法
 bool PassConfig::Desugar() const
@@ -47,13 +40,13 @@ ToSourcePassConfig::ToSourcePassConfig() : indent(4), suffix("_source.cj")
 {
 }
 
-ToSourcePassConfig& ToSourcePassConfig::Output(const std::string& out)
+ToSourcePassConfig& ToSourcePassConfig::Output(ConStr& out)
 {
     this->out = out;
     return *this;
 }
 
-ToSourcePassConfig& ToSourcePassConfig::Suffix(const std::string& suffix)
+ToSourcePassConfig& ToSourcePassConfig::Suffix(ConStr& suffix)
 {
     this->suffix = suffix;
     return *this;
@@ -69,7 +62,7 @@ ToSourcePassConfig& ToSourcePassConfig::Indent(int indent)
  * @brief 设置关注的注解属性。
  * @param attrs 关注的注解属性名称列表。
  */
-ToSourcePassConfig& ToSourcePassConfig::FocusAnnotationAttrs(const std::vector<std::string>& attrs)
+ToSourcePassConfig& ToSourcePassConfig::FocusAnnotationAttrs(ConStrVec& attrs)
 {
     this->focusAnnotationAttrs.insert(attrs.begin(), attrs.end());
     return *this;
@@ -79,12 +72,11 @@ namespace {
 /**
  * @brief 将字符串键映射到AstKind
  */
-const std::unordered_map<std::string, AstKind> key2DeclKind{{"func", AstKind::FUNC_DECL},
-    {"class", AstKind::CLASS_DECL}, {"interface", AstKind::INTERFACE_DECL}, {"struct", AstKind::STRUCT_DECL},
-    {"var", AstKind::VAR_DECL}};
+const StrMap<AstKind> key2DeclKind{{"func", AstKind::FUNC_DECL}, {"class", AstKind::CLASS_DECL},
+    {"interface", AstKind::INTERFACE_DECL}, {"struct", AstKind::STRUCT_DECL}, {"var", AstKind::VAR_DECL}};
 } // namespace
 
-ToSourcePassConfig& ToSourcePassConfig::Focus(const std::unordered_set<std::string>& kinds)
+ToSourcePassConfig& ToSourcePassConfig::Focus(ConStrSet& kinds)
 {
     for (auto& kind : kinds) {
         this->focusDecls.insert(key2DeclKind.at(kind));
@@ -96,8 +88,7 @@ ToSourcePassConfig& ToSourcePassConfig::Focus(const std::unordered_set<std::stri
  * @brief 设置关注的修饰符属性。
  * @param attrs 关注的修饰符属性名称列表。
  */
-ToSourcePassConfig& ToSourcePassConfig::FocusModifierAttrs(
-    const std::vector<std::string>& attrs, const std::vector<std::string>& kinds)
+ToSourcePassConfig& ToSourcePassConfig::FocusModifierAttrs(ConStrVec& attrs, ConStrVec& kinds)
 {
     this->focusModifierAttrs.insert(attrs.begin(), attrs.end());
     for (auto& kind : kinds) {
@@ -110,7 +101,7 @@ ToSourcePassConfig& ToSourcePassConfig::FocusModifierAttrs(
  * @brief 设置忽略的顶层声明。
  * @param decls 忽略的声明标识符列表。
  */
-ToSourcePassConfig& ToSourcePassConfig::IgnoreDecls(const std::unordered_set<std::string>& decls)
+ToSourcePassConfig& ToSourcePassConfig::IgnoreDecls(ConStrSet& decls)
 {
     this->ignoreDecls = decls;
     return *this;
@@ -120,55 +111,44 @@ ToSourcePassConfig& ToSourcePassConfig::IgnoreDecls(const std::unordered_set<std
  * @brief 设置忽略的注解。
  * @param annos 忽略的注解名称列表。
  */
-ToSourcePassConfig& ToSourcePassConfig::IgnoreAnnotations(const std::unordered_set<std::string>& annos)
+ToSourcePassConfig& ToSourcePassConfig::IgnoreAnnotations(ConStrSet& annos)
 {
     this->ignoreAnnotations.insert(annos.begin(), annos.end());
     return *this;
 }
 
-using json = nlohmann::json;
-
-void from_json(const json& j, PassInfo& p)
-{
-    j.at("name").get_to(p.name);
-    j.at("lib").get_to(p.lib);
-    j.at("description").get_to(p.desc);
-    j.at("version").get_to(p.version);
-    j.at("dependencies").get_to(p.depends);
-}
+namespace nlohmann {
+template <> struct adl_serializer<PassInfo> {
+    // 只实现反序列化
+    static void from_json(const json& j, PassInfo& p)
+    {
+        j.at("name").get_to(p.name);
+        j.at("lib").get_to(p.lib);
+        j.at("description").get_to(p.desc);
+        j.at("version").get_to(p.version);
+        j.at("dependencies").get_to(p.depends);
+    }
+};
+} // namespace nlohmann
 
 void PassManager::Init(ConStr& path)
 {
     if (!passInfoMap.empty()) {
         return;
     }
-    DEBUG("Init pass manager...", path);
-    std::fstream fs(path);
-    // 打开 JSON 文件
-    if (!fs.is_open()) {
-        ERROR("Failed to open file: ", path);
-        throw std::logic_error("Failed to open file: " + path);
-    }
-
-    // 读取整个文件到 json 对象
-    json j;
-    try {
-        fs >> j;
-    } catch (const json::parse_error& e) {
-        throw std::logic_error("Parse json file error: " + path);
-    }
-
-    std::vector<PassInfo> passes = j.get<std::vector<PassInfo>>();
+    LOGD("Init pass manager...", path);
+    ConfigParser parser(path);
+    auto passes = parser.Parse<Vec<PassInfo>>();
     for (auto& pass : passes) {
-        DEBUG("Reg Info for", pass.name);
+        LOGD("Reg Info for", pass.name);
         auto res = PassManager::passInfoMap.emplace(pass.name, pass);
         if (!res.second) {
-            WARN("Pass info already exists: ", pass.name);
+            LOGW("Pass info already exists: ", pass.name);
         }
     }
 }
 
-void PassManager::Run(AstNode& node, const std::vector<std::string>& passes)
+void PassManager::Run(AstNode& node, ConStrVec& passes)
 {
     for (auto& name : passes) {
         if (auto pass = TryGetPass(name)) {
@@ -180,26 +160,17 @@ void PassManager::Run(AstNode& node, const std::vector<std::string>& passes)
 bool PassManager::LoadPass(ConStr& lib)
 {
     Str libname = lib;
-    DEBUG("Load pass: ", lib);
-#ifdef _WIN32
-    HMODULE handle = LoadLibrary(libname.c_str());
-#else
-#if defined(__linux__)
-    libname = libname + ".so";
-#else
-    libname = libname + ".dylib";
-#endif
-    void* handle = dlopen(libname.c_str(), RTLD_LAZY);
-#endif
+    LOGD("Load pass: ", lib);
+    Handle handle = LibraryLoader::GetInstance().LoadLib(libname);
     if (!handle) {
-        ERROR("Failed to load pass from lib: ", libname);
+        LOGE("Failed to load pass from lib: ", libname);
         return false;
     }
-    INFO("Load pass from lib: ", libname, " successfully!");
+    LOGI("Load pass from lib: ", libname, " successfully!");
     return true;
 }
 
-Pass* PassManager::TryGetPass(const std::string& name)
+Pass* PassManager::TryGetPass(ConStr& name)
 {
     if (auto it = passMap.find(name); it != passMap.end()) {
         return it->second.get();
@@ -216,11 +187,11 @@ Pass* PassManager::TryGetPass(const std::string& name)
     return nullptr;
 }
 
-void PassManager::RegPassBuilder(const std::string& name, const PassBuilder& builder)
+void PassManager::RegPassBuilder(ConStr& name, const PassBuilder& builder)
 {
     if (auto it = passInfoMap.find(name); it != passInfoMap.end()) {
         it->second.builder = builder;
     } else {
-        WARN("Pass info not found: ", name);
+        LOGW("Pass info not found: ", name);
     }
 }

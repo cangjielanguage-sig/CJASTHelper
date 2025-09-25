@@ -8,7 +8,6 @@
 #include "VisitorBase.h"
 #include "utils/CallbackManger.h"
 #include <functional>
-#include <map>
 #include <tuple>
 
 class ConstAstVisitor : public ConstAstVisitorBase {

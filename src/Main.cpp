@@ -4,8 +4,28 @@
  * This file implements the main entry of the AstHelper.
  */
 
-#include "AstHelper.h"
+#include "core/AstHelper.h"
+#include "utils/TaskExecutor.h"
 #include <iostream>
+
+void RunParallel(Vec<Options>& options)
+{
+    TaskExecutor exector(Options::parallels);
+    for (auto& option : options) {
+        exector.Post([&option]() {
+            AstHelper ah(std::move(option));
+            ah.Run();
+        });
+    }
+}
+
+void RunSerial(Vec<Options>& options)
+{
+    for (auto option : options) {
+        AstHelper ah(std::move(option));
+        ah.Run();
+    }
+}
 
 /**
  * @brief 程序主入口函数
@@ -19,12 +39,11 @@ int main(int argc, const char* const* argv, const char* const* envp)
     try {
         auto argHelper = ArgHelper();
         auto options = argHelper.ParseArgs(argc, argv, envp);
-        if (options.stage == SourceStage::DEFAULT) {
+        if (options.empty() || options[0].stage == SourceStage::DEFAULT) {
             argHelper.ShowHelperInfo();
             return 0;
         }
-        AstHelper ah(std::move(options));
-        ah.Run();
+        Options::parallels > 1 ? RunParallel(options) : RunSerial(options);
     } catch (const std::exception& ex) {
         std::cerr << "Exception: " << ex.what() << std::endl;
         return 1;

@@ -20,7 +20,6 @@ if(CMAKE_BUILD_TYPE MATCHES Release)
     if(APPLE)
         target_link_options(cjah PRIVATE -dead_strip -flto)
         # macOS: 使用 @loader_path 表示可执行文件所在目录
-        set(CMAKE_INSTALL_RPATH "@loader_path/../lib")
 
         # 仅对某个 target 设置 RPATH
         set_target_properties(cjah PROPERTIES
@@ -29,7 +28,7 @@ if(CMAKE_BUILD_TYPE MATCHES Release)
         )
         
         # 为共享库设置RPATH
-        set_target_properties(cjast_helper_core cjast_wrapper utils PROPERTIES
+        set_target_properties(${CJAH_LIBS} PROPERTIES
             INSTALL_RPATH "@loader_path"
             BUILD_WITH_INSTALL_RPATH ON
         )

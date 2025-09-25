@@ -14,8 +14,17 @@
         "dependencies": []
     },
     {
-        "name": "to-source",
+        "name": "to-cangjie",
         "description": "ToSource pass",
+        "version": "0.0.1",
+        "lib": "libcjast_to_source_pass",
+        "dependencies": [
+            "replace-desugar"
+        ]
+    },
+    {
+        "name": "to-java",
+        "description": "To Java pass",
         "version": "0.0.1",
         "lib": "libcjast_to_source_pass",
         "dependencies": [
