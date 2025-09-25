@@ -4,7 +4,7 @@
  * This file implements the main entry of the AstHelper.
  */
 
-#include "AstHelper.h"
+#include "core/AstHelper.h"
 #include <iostream>
 
 /**
