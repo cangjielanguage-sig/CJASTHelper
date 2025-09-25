@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "utils/TypeAlias.h"
+#include "utils/types/TypeAlias.h"
 #include "wrapper/AstNodeHelper.h"
 
 /**

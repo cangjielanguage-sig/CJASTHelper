@@ -4,89 +4,13 @@
  * This file implements the ArgParser & ArgHelper.
  */
 #include "core/ArgHelper.h"
+#include "utils/ArgParser.h"
 #include "utils/FileHelper.h"
 #include "utils/Printer.h"
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
 #include <stdexcept>
-
-/// ArgParser
-
-ArgumentParser::ArgumentParser(const std::unordered_map<std::string, std::unordered_set<std::string>>& validOptions)
-    : validOptions(validOptions)
-{
-}
-
-void ArgumentParser::Parse(const std::vector<std::string>& args)
-{
-    for (const auto& arg : args) {
-        if (arg.rfind("--", 0) != 0) {
-            throw std::invalid_argument("ArgumentParser: Invalid argument format: " + arg);
-        }
-
-        size_t equalPos = arg.find('=');
-        if (equalPos == std::string::npos) {
-            throw std::invalid_argument("ArgumentParser: Missing '=' in argument: " + arg);
-        }
-
-        std::string option = arg.substr(2, equalPos - 2);
-        std::string valueStr = arg.substr(equalPos + 1);
-
-        std::vector<std::string> values;
-        std::stringstream ss(valueStr);
-        std::string value;
-        while (std::getline(ss, value, ',')) {
-            values.push_back(value);
-        }
-        ValidateOption(option, values);
-        parsedOptions[option] = values;
-    }
-}
-
-std::string ArgumentParser::GetSingleValue(const std::string& option) const
-{
-    auto it = parsedOptions.find(option);
-    if (it == parsedOptions.end() || it->second.size() != 1) {
-        throw std::invalid_argument("ArgumentParser: Invalid option: " + option);
-    }
-    return it->second[0];
-}
-
-std::string ArgumentParser::GetSingleValue(const std::string& option, const std::string& dv) const
-{
-    auto it = parsedOptions.find(option);
-    if (it == parsedOptions.end() || it->second.size() != 1) {
-        return dv;
-    }
-    return it->second[0];
-}
-
-std::vector<std::string> ArgumentParser::GetMultiValue(const std::string& option) const
-{
-    auto it = parsedOptions.find(option);
-    if (it == parsedOptions.end()) {
-        return {};
-    }
-    return it->second;
-}
-
-void ArgumentParser::ValidateOption(const std::string& option, const std::vector<std::string>& values) const
-{
-    auto it = validOptions.find(option);
-    if (it == validOptions.end()) {
-        throw std::invalid_argument("ArgumentParser: Invalid option: " + option);
-    }
-    // 未配置有效选项值，默认不限制
-    if (it->second.empty()) {
-        return;
-    }
-    for (const auto& value : values) {
-        if (it->second.find(value) == it->second.end()) {
-            throw std::invalid_argument("ArgumentParser: Invalid value for option " + option + ": " + value);
-        }
-    }
-}
 
 /// OptionDes 实现函数
 
@@ -125,9 +49,8 @@ namespace {
 /**
  * @brief 将字符串键映射到SourceStage值
  */
-const std::unordered_map<std::string, SourceStage> key2Stage{{"parse", SourceStage::PARSE},
-    {"desugared-parse", SourceStage::DESUGARED_PARSE}, {"sema", SourceStage::SEMA},
-    {"desugared-sema", SourceStage::DESUGARED_SEMA}};
+ConStrMap<SourceStage> key2Stage{{"parse", SourceStage::PARSE}, {"desugared-parse", SourceStage::DESUGARED_PARSE},
+    {"sema", SourceStage::SEMA}, {"desugared-sema", SourceStage::DESUGARED_SEMA}};
 } // namespace
 Options& Options::Stage(ConStr& stage)
 {
@@ -146,31 +69,31 @@ Options& Options::EnableMacro(ConStr& enable)
     return *this;
 }
 
-Options& Options::FilterDecls(const StrVec& decl)
+Options& Options::FilterDecls(ConStrVec& decl)
 {
-    this->filterDecls = std::unordered_set<std::string>{decl.begin(), decl.end()};
+    this->filterDecls = StrSet{decl.begin(), decl.end()};
     return *this;
 }
-Options& Options::IgnoreDecls(const StrVec& decl)
+Options& Options::IgnoreDecls(ConStrVec& decl)
 {
-    this->ignoreDecls = std::unordered_set<std::string>{decl.begin(), decl.end()};
+    this->ignoreDecls = StrSet{decl.begin(), decl.end()};
     return *this;
 }
-Options& Options::IgnoreAnnotations(const StrVec& annotations)
+Options& Options::IgnoreAnnotations(ConStrVec& annotations)
 {
-    this->ignoreAnnotations = std::unordered_set<std::string>{annotations.begin(), annotations.end()};
+    this->ignoreAnnotations = StrSet{annotations.begin(), annotations.end()};
     return *this;
 }
-Options& Options::ImportedPkgs(const StrVec& pkgs)
+Options& Options::ImportedPkgs(ConStrVec& pkgs)
 {
     if (pkgs.empty()) {
         return *this;
     }
     this->stage = SourceStage::IMPORT;
-    this->importedPkgs = std::unordered_set<std::string>{pkgs.begin(), pkgs.end()};
+    this->importedPkgs = StrSet{pkgs.begin(), pkgs.end()};
     return *this;
 }
-Options& Options::Passes(const StrVec& passes)
+Options& Options::Passes(ConStrVec& passes)
 {
     this->passes = passes;
     return *this;
@@ -180,7 +103,7 @@ Options& Options::Args(StrVec&& args)
     this->args = std::move(args);
     return *this;
 }
-Options& Options::Env(StrMap&& env)
+Options& Options::Env(StrMap<Str>&& env)
 {
     this->env = std::move(env);
     return *this;
@@ -274,9 +197,9 @@ namespace {
  * @param argv 参数字符串数组
  * @return 解析后的参数向量
  */
-std::vector<std::string> ParseRawArgs(int argc, const char* const* argv)
+StrVec ParseRawArgs(int argc, const char* const* argv)
 {
-    std::vector<std::string> args;
+    StrVec args;
     for (int i = 0; i < argc; ++i) {
         if (!argv[i]) {
             continue;
@@ -286,7 +209,7 @@ std::vector<std::string> ParseRawArgs(int argc, const char* const* argv)
     return std::move(args);
 }
 
-inline bool ContainHelpArg(const StrVec& args)
+inline bool ContainHelpArg(ConStrVec& args)
 {
     for (auto arg : args) {
         if (arg == "--help" || arg == "-h") {
@@ -297,7 +220,7 @@ inline bool ContainHelpArg(const StrVec& args)
 }
 
 inline void SplitArgs(
-    const StrVec& args, StrVec& toolArgs, StrVec& ciArgs, const std::unordered_map<std::string, StrSet>& validOpts)
+    ConStrVec& args, StrVec& toolArgs, StrVec& ciArgs, const std::unordered_map<std::string, StrSet>& validOpts)
 {
     // 过滤当前工具参数和其它参数
     for (auto& arg : args) {
@@ -364,14 +287,14 @@ void ValidateConfigPath(Str& path)
 Options ArgHelper::ParseArgs(int argc, const char* const* argv, const char* const* envp)
 {
     Options options;
-    std::vector<std::string> args = ParseRawArgs(argc, argv);
+    StrVec args = ParseRawArgs(argc, argv);
     // Help
     if (ContainHelpArg(args)) {
         return options;
     }
-    std::unordered_map<std::string, StrSet> validOpts;
+    StrMap<StrSet> validOpts;
     for (auto& [key, opt] : validOptions) {
-        validOpts.emplace(key, std::unordered_set<std::string>(opt.values.begin(), opt.values.end()));
+        validOpts.emplace(key, StrSet(opt.values.begin(), opt.values.end()));
     }
 
     StrVec toolArgs;
@@ -425,7 +348,7 @@ inline void ArgHelper::PL(ConStr& opt, ConStr& desc, int blanks)
     p.PNL(blanks);
 }
 
-inline void ArgHelper::PWILines(const StrPairVec& lines)
+inline void ArgHelper::PWILines(ConStrPairVec& lines)
 {
     p.Indent();
     for (const auto& [p0, p1] : lines) {

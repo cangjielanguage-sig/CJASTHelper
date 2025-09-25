@@ -1,5 +1,5 @@
 #pragma once
-#include "utils/TypeAlias.h"
+#include "utils/types/TypeAlias.h"
 #include <filesystem>
 
 std::filesystem::path getExecutablePath();
