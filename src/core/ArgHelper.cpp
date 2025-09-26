@@ -89,7 +89,7 @@ template <> struct adl_serializer<OptionDesc> {
             od.subDesc.emplace_back(item["sub"], item["desc"]);
         }
         j.at("single").get_to(od.single);
-        j.at("visible").get_to(od.single);
+        j.at("visible").get_to(od.visible);
     }
 };
 
