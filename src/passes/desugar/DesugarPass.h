@@ -63,3 +63,32 @@ protected:
 private:
     ReplaceAstVisitor visitor;
 };
+
+/**
+ * RecoverDesugarPass
+ *
+ * Recover desugared AST nodes into the original AST nodes.
+ * For example, replace `?Int64` with `Option<Int64>`, remove `Option<Int64>`.
+ */
+class RecoverDesugarPass : public DesugarPass {
+public:
+    RecoverDesugarPass(const PassConfig& config);
+    ~RecoverDesugarPass() override = default;
+
+    void Run(AstNode& node) override;
+
+protected:
+    void Visit(OptionType& node, ValuedResult& res) override;
+    void Visit(Expr& node, ValuedResult& res) override;
+
+private:
+    /**
+     * @brief 使用 Function 定义 BeforeVisit 的回调函数类型。
+     */
+    using RecoverFunc = Function<void(AstNode&)>;
+
+    void Recover(TrailingClosureExpr& node);
+
+    ReplaceAstVisitor visitor;
+    CallbackManager<AstKind, Tuple<RecoverFunc>> handlers;
+};

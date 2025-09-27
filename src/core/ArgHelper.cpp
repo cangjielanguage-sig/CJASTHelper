@@ -247,14 +247,22 @@ void ConfigOptions(Options& options, ArgumentParser& ap)
     options.IgnoreDecls(ap.GetMultiValue("ignore-decls"));
     options.ImportedPkgs(ap.GetMultiValue("dump-import"));
 
-    // config passes
-    if (options.stage > SourceStage::PARSE && options.enableDesugar) {
-        options.passes.push_back("check-desugar");
-        options.passes.push_back("replace-desugar");
-        options.passes.push_back("check-desugar");
-        options.passes.push_back("to-java");
+    auto passes = ap.GetMultiValue("enable-passes");
+    if (!passes.empty()) {
+        options.Passes(passes);
+        return;
     }
-    // 添加 to-source 作为最后一个 pass
+    // config passes
+    if (options.stage > SourceStage::PARSE) {
+        options.passes.push_back("check-desugar");
+        if (options.enableDesugar) {
+            options.passes.push_back("replace-desugar");
+        } else {
+            options.passes.push_back("recover-desugar");
+        }
+        options.passes.push_back("check-desugar");
+    }
+    // 添加 to-cangjie 作为最后一个 pass
     options.passes.push_back("to-cangjie");
 }
 } // namespace
