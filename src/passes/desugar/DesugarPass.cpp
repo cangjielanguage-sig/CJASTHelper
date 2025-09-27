@@ -8,8 +8,8 @@
 #include "utils/Cast.h"
 #include "utils/Logger.h"
 
-// 注意：这里使用 c++20 inline static 避免在cpp文件中全局变量初始化不被执行问题
 REG_PASS("replace-desugar", ([](const PassConfig& config) { return UniquePtr<Pass>(new ReplaceDesugarPass{config}); }));
+REG_PASS("recover-desugar", ([](const PassConfig& config) { return UniquePtr<Pass>(new RecoverDesugarPass{config}); }));
 REG_PASS("check-desugar", ([](const PassConfig& config) { return UniquePtr<Pass>(new CheckDesugarPass{config}); }));
 
 /// DesugarPass
@@ -83,4 +83,43 @@ void ReplaceDesugarPass::Visit(Expr& node, ValuedResult& res)
     if (node.desugarExpr) {
         res.Set<OwnedNodeValue>(std::move(node.desugarExpr));
     }
+}
+
+/// RecoverDesugarPass
+
+RecoverDesugarPass::RecoverDesugarPass(const PassConfig& config) : DesugarPass(config)
+{
+    RegVisitor(visitor);
+    handlers.Reg<RecoverFunc>(
+        AstKind::TRAIL_CLOSURE_EXPR, [this](AstNode& node) { Recover(Cast<TrailingClosureExpr&>(node)); });
+}
+
+void RecoverDesugarPass::Run(AstNode& node)
+{
+    LOGD();
+    MutTraverse(node, visitor);
+}
+
+void RecoverDesugarPass::Visit(OptionType& node, ValuedResult& res)
+{
+    LOGD("OptionType");
+    if (node.desugarType) {
+        node.desugarType.reset();
+    }
+}
+
+void RecoverDesugarPass::Visit(Expr& node, ValuedResult& res)
+{
+    LOGD("Expr");
+    if (!node.desugarExpr) {
+        return;
+    }
+    if (auto fn = handlers.TryGet<RecoverFunc>(node.astKind)) {
+        fn->get()(node);
+    }
+}
+
+void RecoverDesugarPass::Recover(TrailingClosureExpr& node)
+{
+    LOGD("TrailingClosureExpr");
 }

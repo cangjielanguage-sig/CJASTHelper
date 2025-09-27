@@ -3,6 +3,7 @@
         "group": "desugar",
         "names": [
             "check-desugar",
+            "recover-desugar",
             "replace-desugar"
         ],
         "description": "Desugar pass",

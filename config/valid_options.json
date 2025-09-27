@@ -119,5 +119,13 @@
         "subDesc": [],
         "single": true,
         "visible": false
+    },
+    {
+        "key": "enable-passes",
+        "values": [],
+        "mainDesc": "Enable passes whoes names is <value>.",
+        "subDesc": [],
+        "single": false,
+        "visible": false
     }
 ]
