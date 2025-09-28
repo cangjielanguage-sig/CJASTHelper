@@ -282,8 +282,8 @@ Vec<Options> ArgHelper::ParseArgs(int argc, const char* const* argv, const char*
     StrVec toolArgs;
     SplitArgs(args, toolArgs, options.args, validOpts);
     try {
-        Options::env =
-            ParseEnv(envp, {"CANGJIE_PATH", "CANGJIE_HOME", "LIBRARY_PATH", "LD_LIBRARY_PATH", "PATH", "SDKROOT"});
+        Options::env = ParseEnv(
+            envp, {"CANGJIE_PATH", "CANGJIE_HOME", "LIBRARY_PATH", "LD_LIBRARY_PATH", "PATH", "SDKROOT", "cjHeapSize"});
         // 解析并获取工具选项配置
         ArgumentParser ap(validOpts);
         ap.Parse(toolArgs);
