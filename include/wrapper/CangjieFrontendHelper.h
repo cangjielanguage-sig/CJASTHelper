@@ -22,7 +22,7 @@ public:
      * @param args command line arguments
      * @param env environment variables
      */
-    CangjieFrontendHelper(StrVec&& args, StrMap<Str>&& env);
+    CangjieFrontendHelper(ConStrVec& args, ConStrMap<Str>& env);
     virtual ~CangjieFrontendHelper() = default;
 
     bool Parse();
@@ -38,7 +38,7 @@ public:
     PkgPtrVec GetImportedPackages();
 
 private:
-    CompilerInvocation& ParseArgs(StrVec&& args, StrMap<Str>&& env);
+    CompilerInvocation& ParseArgs(ConStrVec& args, ConStrMap<Str>& env);
 
 private:
     Cangjie::DiagnosticEngine diag; /**< 诊断引擎实例 */

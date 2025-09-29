@@ -89,7 +89,7 @@ template <> struct adl_serializer<OptionDesc> {
             od.subDesc.emplace_back(item["sub"], item["desc"]);
         }
         j.at("single").get_to(od.single);
-        j.at("visible").get_to(od.single);
+        j.at("visible").get_to(od.visible);
     }
 };
 
@@ -247,14 +247,22 @@ void ConfigOptions(Options& options, ArgumentParser& ap)
     options.IgnoreDecls(ap.GetMultiValue("ignore-decls"));
     options.ImportedPkgs(ap.GetMultiValue("dump-import"));
 
-    // config passes
-    if (options.stage > SourceStage::PARSE && options.enableDesugar) {
-        options.passes.push_back("check-desugar");
-        options.passes.push_back("replace-desugar");
-        options.passes.push_back("check-desugar");
-        options.passes.push_back("to-java");
+    auto passes = ap.GetMultiValue("enable-passes");
+    if (!passes.empty()) {
+        options.Passes(passes);
+        return;
     }
-    // 添加 to-source 作为最后一个 pass
+    // config passes
+    if (options.stage > SourceStage::PARSE) {
+        options.passes.push_back("check-desugar");
+        if (options.enableDesugar) {
+            options.passes.push_back("replace-desugar");
+        } else {
+            options.passes.push_back("recover-desugar");
+        }
+        options.passes.push_back("check-desugar");
+    }
+    // 添加 to-cangjie 作为最后一个 pass
     options.passes.push_back("to-cangjie");
 }
 } // namespace
@@ -274,8 +282,8 @@ Vec<Options> ArgHelper::ParseArgs(int argc, const char* const* argv, const char*
     StrVec toolArgs;
     SplitArgs(args, toolArgs, options.args, validOpts);
     try {
-        Options::env =
-            ParseEnv(envp, {"CANGJIE_PATH", "CANGJIE_HOME", "LIBRARY_PATH", "LD_LIBRARY_PATH", "PATH", "SDKROOT"});
+        Options::env = ParseEnv(
+            envp, {"CANGJIE_PATH", "CANGJIE_HOME", "LIBRARY_PATH", "LD_LIBRARY_PATH", "PATH", "SDKROOT", "cjHeapSize"});
         // 解析并获取工具选项配置
         ArgumentParser ap(validOpts);
         ap.Parse(toolArgs);

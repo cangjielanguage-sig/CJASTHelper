@@ -147,12 +147,12 @@ protected:
 using PassBuilder = Function<UniquePtr<Pass>(const PassConfig&)>;
 
 struct PassInfo {
-    Str name;                      /**< pass 名称 */
-    Str lib;                       /**< lib 名称 */
-    Str desc;                      /**< pass 描述 */
-    Str version;                   /**< pass 版本 */
-    StrVec depends;                /**< pass 依赖的 pass */
-    PassBuilder builder = nullptr; /**< pass builder */
+    Str group;      /**< group 名称 */
+    StrVec names;   /**< pass names 名称 */
+    Str lib;        /**< lib 名称 */
+    Str desc;       /**< pass 组描述 */
+    Str version;    /**< pass 版本 */
+    StrVec depends; /**< 依赖的 pass 组 */
 };
 
 class PassManager {
@@ -201,9 +201,11 @@ private:
     Pass* TryGetPass(ConStr& name);
 
 private:
-    UniquePtr<PassConfig> config;               /**< 配置信息 */
-    StrMap<UniquePtr<Pass>> passMap;            /**< 注册的分析pass: name -> Pass */
-    static inline StrMap<PassInfo> passInfoMap; /**< 注册的pass信息: name -> PassInfo  */
+    UniquePtr<PassConfig> config;                 /**< 配置信息 */
+    StrMap<UniquePtr<Pass>> passMap;              /**< 注册的分析 pass: name -> Pass */
+    static inline StrMap<PassBuilder> builderMap; /**< pass name -> Builder */
+    static inline StrMap<Str> groupMap;           /**< pass name -> group name */
+    static inline StrMap<PassInfo> passInfoMap;   /**< 注册的pass信息: group name -> PassInfo  */
 };
 
 #define CONCAT_IMPL(a, b) a##b

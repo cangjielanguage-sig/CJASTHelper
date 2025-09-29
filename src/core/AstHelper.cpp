@@ -8,9 +8,7 @@
 #include "utils/Logger.h"
 
 AstHelper::AstHelper(Options&& options)
-    : options(std::move(options)),
-      cjfeHelper(std::move(this->options.args), std::move(this->options.env)),
-      passManager(MakePassConfig())
+    : options(std::move(options)), cjfeHelper(this->options.args, Options::env), passManager(MakePassConfig())
 {
     // 注册 stage 回调函数
     RegisterStages();
@@ -38,24 +36,14 @@ void AstHelper::DisplayOptions()
     p << "Options: {";
     p.PNL().Indent();
     p.PVals("enableDesugar: ", options.enableDesugar).PNL();
-    p.PVec<Str>(
-         options.filterDecls, [](ConStr& decl) { return decl; }, ", ", "filterDecls: {", "}", true)
-        .PNL();
-    p.PVec<Str>(
-         options.ignoreDecls, [](ConStr& anno) { return anno; }, ", ", "ignoreDecls: {", "}", true)
-        .PNL();
+    p.PVec<Str>(options.filterDecls, [](ConStr& decl) { return decl; }, ", ", "filterDecls: {", "}", true).PNL();
+    p.PVec<Str>(options.ignoreDecls, [](ConStr& anno) { return anno; }, ", ", "ignoreDecls: {", "}", true).PNL();
     p.PVec<Str>(
          options.ignoreAnnotations, [](ConStr& anno) { return anno; }, ", ", "ignoreAnnotations: {", "}", true)
         .PNL();
-    p.PVec<Str>(
-         options.importedPkgs, [](ConStr& pkg) { return pkg; }, ", ", "importedPkgs: {", "}", true)
-        .PNL();
-    p.PVec<Str>(
-         options.passes, [](ConStr& pass) { return pass; }, ", ", "passes: {", "}")
-        .PNL();
-    p.PVec<Str>(
-         options.args, [](ConStr& arg) { return arg; }, ", ", "args: {", "}")
-        .PNL();
+    p.PVec<Str>(options.importedPkgs, [](ConStr& pkg) { return pkg; }, ", ", "importedPkgs: {", "}", true).PNL();
+    p.PVec<Str>(options.passes, [](ConStr& pass) { return pass; }, ", ", "passes: {", "}").PNL();
+    p.PVec<Str>(options.args, [](ConStr& arg) { return arg; }, ", ", "args: {", "}").PNL();
     p.Unindent();
     p << "}\n";
     LOGD(oss.str());
