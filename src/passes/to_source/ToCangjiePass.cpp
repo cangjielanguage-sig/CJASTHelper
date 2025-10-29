@@ -643,6 +643,12 @@ void ToCangjiePass::Visit(const TypeConvExpr& node, VisitResult&)
     TryPrintNode(node.expr, "(", ")");
 }
 
+void ToCangjiePass::Visit(const ParenExpr& node, VisitResult&)
+{
+    LOGD("For ParenExpr");
+    TryPrintNode(node.expr, "(", ")");
+}
+
 namespace {
 // 检查 expr 是否是对 Enum 类型的引用
 inline bool IsRefEnum(const Expr& expr)
@@ -878,7 +884,9 @@ void ToCangjiePass::Visit(const IfExpr& node, VisitResult&)
     PRT().PVal("if ");
     TryPrintNode(node.condExpr.get(), "(", ")");
     PRT().PWI([this, &node] { VisitNode(node.thenBody); }, " {", "}");
-    TryPrintNode(node.elseBody.get(), " else ");
+    if (node.elseBody) {
+        PRT().PWI([this, &node] { VisitNode(node.elseBody); }, " else {", "}");
+    }
 }
 
 void ToCangjiePass::Visit(const WhileExpr& node, VisitResult&)
@@ -984,7 +992,7 @@ void ToCangjiePass::RegisterHandlers()
     EXPAND4(GEN_REG_VISIT_HANDLER, JumpExpr, LetPatternDestructor, TupleLit, TypeConvExpr);
     EXPAND4(GEN_REG_VISIT_HANDLER, IfExpr, DoWhileExpr, WhileExpr, ForInExpr);
     EXPAND4(GEN_REG_VISIT_HANDLER, AssignExpr, UnaryExpr, BinaryExpr, RefExpr);
-    EXPAND1(GEN_REG_VISIT_HANDLER, SubscriptExpr);
+    EXPAND2(GEN_REG_VISIT_HANDLER, SubscriptExpr, ParenExpr);
     // Generic
     EXPAND3(GEN_REG_VISIT_HANDLER, Generic, GenericParamDecl, GenericConstraint);
 }
