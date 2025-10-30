@@ -14,13 +14,20 @@ Cangjie Abstract Syntax Tree Helper, providing extended capabilities for manipul
 
 Refer to the [Cangjie SDK Build Guide](https://gitcode.com/Cangjie/cangjie_build) to build the required components as needed.
 
+[Json Open Source Repository](https://github.com/nlohmann/json/releases/download/v3.12.0/include.zip)
+
 ### Environment Variable Configuration
 
-This tool depends on the header files and build artifacts from the Cangjie open-source repository. Assume the local Cangjie source directory is `${xxx}/cangjie_compiler/` and the built SDK directory is `${yyy}/cangjie/`.
+This tool depends on the header files and build artifacts from the Cangjie open-source repository. It also depends on the json open-source library (header files).
+
+Assume the local Cangjie source directory is `${xxx}/cangjie_compiler/`, the built SDK directory is `${yyy}/cangjie/`, and the downloaded json source directory is `${third_party}/json`.
+
+> Note: The json directory should contain `nlohmann/json.hpp`.
 
 ```bash
 # Configure the Cangjie source path
 export CANGJIE_SRC_HOME=${xxx}/cangjie_compiler
+export JSON_PATH=${third_party}/json
 # Configure the Cangjie binary environment (CANGJIE_HOME, LD_LIBRARY_PATH environment variables)
 source ${yyy}/cangjie/envsetup.sh
 ```
@@ -42,10 +49,10 @@ bash build.sh -t Release -b
 
 ### Print Source Code
 
-The `--dump-source` option is provided to support printing the source code after a specific stage, outputting it to a specified directory. Supported parameter values: `parser`, `desugared-parser`, `sema`, `desugared-sema`.
+The `--dump-source` option is provided to support printing the source code after a specific stage, outputting it to a specified directory. Supported parameter values: `parse`, `desugared-parse`, `sema`, `desugared-sema`.
 
-- `parser`: Prints the source code after syntax parsing.
-- `desugared-parser`: Prints the source code after syntax parsing and desugaring.
+- `parse`: Prints the source code after syntax parsing.
+- `desugared-parse`: Prints the source code after syntax parsing and desugaring.
 - `sema`: Prints the source code after semantic analysis.
 - `desugared-sema`: Prints the source code after semantic analysis and desugaring.
 
