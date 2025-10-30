@@ -41,7 +41,7 @@ TEST_F(AstHelperTest, ParseArgs01)
         auto options = argHelper.ParseArgs(argc, argv.data(), envp.data())[0];
         EXPECT_EQ(options.stage, SourceStage::PARSE);
         EXPECT_EQ(options.passes.size(), 1);
-        EXPECT_EQ(options.passes[0], "to-source");
+        EXPECT_EQ(options.passes[0], "to-cangjie");
     });
 }
 
