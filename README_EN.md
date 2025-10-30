@@ -121,5 +121,5 @@ bash build.sh -g -t Release -b
 ./build/bin/cjah_test
 
 # Run CI test cases
-./build/bin/cjah_test --gtest_filter="CJAHTest.Integration*"
+./build/bin/cjah_test --gtest_filter="*/CJAHTest.CI001/*"
 ```
