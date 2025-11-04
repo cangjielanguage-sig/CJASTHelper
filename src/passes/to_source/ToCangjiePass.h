@@ -164,6 +164,7 @@ private:
      * @brief 辅助打印 Type 节点。
      */
     bool TryPrintType(const Ptr<Type> type);
+    void PrintType(const Type& type);
     /**
      * @brief 辅助打印 Ty 标注。
      */

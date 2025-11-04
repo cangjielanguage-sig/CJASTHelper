@@ -38,6 +38,7 @@ void CheckDesugarPass::Run(AstNode& node)
     LOGD();
     auto res = MutTraverse(node, visitor);
     LOGD("res: ", *res.TryGet<DefaultValue>());
+    // AstNodeHelper::DumpAst(node, "~/work/tmp/a.ast");
 }
 
 void CheckDesugarPass::Visit(OptionType& node, ValuedResult& res)

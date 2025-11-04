@@ -488,8 +488,11 @@ void ToCangjiePass::Visit(const FuncType& node, VisitResult&)
 {
     LOGD("For FuncType");
     PRT().PVec<Type>(
-        node.paramTypes, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "(", ")", true);
-    TryPrintNode(node.retType.get(), " -> ");
+        node.paramTypes, [this](const Type& tp) { PrintType(tp); }, ", ", "(", ")", true);
+    if (node.retType.get()) {
+    }
+    PRT().PVal(" -> ");
+    PrintType(*node.retType);
 }
 
 // Pattern
@@ -1323,6 +1326,15 @@ bool ToCangjiePass::TryPrintType(const Ptr<Type> type)
         return TryPrintTy(type->ty);
     }
     return false;
+}
+
+void ToCangjiePass::PrintType(const Type& type)
+{
+    if (type.astKind != AstKind::TYPE) {
+        Traverse(type, visitor);
+    } else if (Config().Sema() && type.ty) {
+        PrintTy(*type.ty);
+    }
 }
 
 /**
