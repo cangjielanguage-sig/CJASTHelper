@@ -38,7 +38,7 @@ public:
         return AstCloner::Clone<T>(&node);
     }
 
-    static void DumpAst(const AstNode& node, ConStr&);
+    static void DumpAst(const AstNode& node, ConStr& path);
 
     using CollectFunc = Function<void(const AstNode&, Vec<Ptr<AstNode>>&)>;
     using ReplaceFunc = Function<void(AstNode&, Vec<OwnedPtr<AstNode>>&)>;
