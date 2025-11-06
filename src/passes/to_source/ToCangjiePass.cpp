@@ -289,6 +289,11 @@ void ToCangjiePass::Visit(const FuncBody& node, VisitResult&)
 void ToCangjiePass::Visit(const FuncDecl& node, VisitResult&)
 {
     LOGD("For FuncDecl: ", node.identifier.Val());
+    if (node.IsFinalizer()) {
+        PRT().PVal("~init");
+        TryPrintNode(node.funcBody);
+        return;
+    }
     PrintDecl(node);
     if (TryPrintEnumConstructor(node) || TryPrintConstructor(node) || TryPrintGetter(node) || TryPrintSetter(node)) {
         return;
@@ -558,10 +563,18 @@ void ToCangjiePass::Visit(const TuplePattern& node, VisitResult&)
 void ToCangjiePass::Visit(const Block& node, VisitResult&)
 {
     LOGD("For Block: ", node.body.size());
+    if (node.TestAttr(Attribute::UNSAFE)) {
+        PRT().PValNL("unsafe {");
+        PRT().Indent();
+    }
     PRT().PVec<AstNode>(node.body, [this](const AstNode& node) {
         auto res = Traverse(node, visitor);
         PRT().PNL();
     });
+    if (node.TestAttr(Attribute::UNSAFE)) {
+        PRT().Unindent();
+        PRT().PVal("}");
+    }
 }
 
 VisitResult ToCangjiePass::Before(const RefExpr& node)
