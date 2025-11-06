@@ -621,15 +621,19 @@ void ToCangjiePass::Visit(const ReturnExpr& node, VisitResult& res)
     LOGD("For ReturnExpr");
     // return in init, skip
     auto body = node.refFuncBody;
-    if (body && body->funcDecl && body->funcDecl->TestAttr(Attribute::CONSTRUCTOR)) {
+    if (!body) {
+        return;
+    }
+    bool isCtor = body->funcDecl && body->funcDecl->TestAttr(Attribute::CONSTRUCTOR);
+    if (isCtor) {
         res.status = false;
         return;
     }
-    PRT().PVal("return");
-    if (node.expr) {
-        PRT().PVal(" ");
-        VisitNode(node.expr);
+    bool isFinalizer = body->funcDecl && body->funcDecl->IsFinalizer();
+    if (!isFinalizer) {
+        PRT().PVal("return");
     }
+    TryPrintNode(node.expr, isFinalizer ? "" : " ");
 }
 
 void ToCangjiePass::Visit(const LitConstExpr& node, VisitResult&)
