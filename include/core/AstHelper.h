@@ -42,6 +42,12 @@ protected:
      * @return 解析阶段执行成功返回true，否则返回false
      */
     bool DoParse();
+
+    /**
+     * @brief 执行打印AST阶段
+     */
+    void DumpAst();
+
     /**
      * @brief 执行分析阶段 调用注册的分析pass
      * @return 分析阶段执行成功返回true，否则返回false
