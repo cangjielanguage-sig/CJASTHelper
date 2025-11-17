@@ -108,6 +108,7 @@ void AstNodeHelper::DumpAst(const AstNode& node, const Str& path)
         LOGE("open file failed: ", path);
         return;
     }
+    LOGD("dump ast to: ", path);
     Cangjie::PrintNode(&node, 0, "", file);
     file.close();
 }

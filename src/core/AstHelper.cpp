@@ -6,6 +6,7 @@
 #include "core/AstHelper.h"
 #include "core/pass/Pass.h"
 #include "utils/Logger.h"
+#include "wrapper/AstNodeHelper.h"
 
 AstHelper::AstHelper(Options&& options)
     : options(std::move(options)), cjfeHelper(this->options.args, Options::env), passManager(MakePassConfig())
@@ -21,6 +22,7 @@ void AstHelper::Run()
         LOGD("DoParse failed.");
         return;
     }
+    DumpAst();
     if (!DoAnalysis()) {
         LOGD("DoAnalysis failed.");
         return;
@@ -36,14 +38,27 @@ void AstHelper::DisplayOptions()
     p << "Options: {";
     p.PNL().Indent();
     p.PVals("enableDesugar: ", options.enableDesugar).PNL();
-    p.PVec<Str>(options.filterDecls, [](ConStr& decl) { return decl; }, ", ", "filterDecls: {", "}", true).PNL();
-    p.PVec<Str>(options.ignoreDecls, [](ConStr& anno) { return anno; }, ", ", "ignoreDecls: {", "}", true).PNL();
+    if (options.astOutPath.has_value()) {
+        p.PVals("astOutPath: ", options.astOutPath.value()).PNL();
+    }
+    p.PVec<Str>(
+         options.filterDecls, [](ConStr& decl) { return decl; }, ", ", "filterDecls: {", "}", true)
+        .PNL();
+    p.PVec<Str>(
+         options.ignoreDecls, [](ConStr& anno) { return anno; }, ", ", "ignoreDecls: {", "}", true)
+        .PNL();
     p.PVec<Str>(
          options.ignoreAnnotations, [](ConStr& anno) { return anno; }, ", ", "ignoreAnnotations: {", "}", true)
         .PNL();
-    p.PVec<Str>(options.importedPkgs, [](ConStr& pkg) { return pkg; }, ", ", "importedPkgs: {", "}", true).PNL();
-    p.PVec<Str>(options.passes, [](ConStr& pass) { return pass; }, ", ", "passes: {", "}").PNL();
-    p.PVec<Str>(options.args, [](ConStr& arg) { return arg; }, ", ", "args: {", "}").PNL();
+    p.PVec<Str>(
+         options.importedPkgs, [](ConStr& pkg) { return pkg; }, ", ", "importedPkgs: {", "}", true)
+        .PNL();
+    p.PVec<Str>(
+         options.passes, [](ConStr& pass) { return pass; }, ", ", "passes: {", "}")
+        .PNL();
+    p.PVec<Str>(
+         options.args, [](ConStr& arg) { return arg; }, ", ", "args: {", "}")
+        .PNL();
     p.Unindent();
     p << "}\n";
     LOGD(oss.str());
@@ -77,6 +92,23 @@ bool AstHelper::DoParse()
         pkgs = cjfeHelper.GetSourcePackages();
     }
     return true;
+}
+
+/**
+ * @brief 执行打印AST阶段 (文件粒度)
+ */
+void AstHelper::DumpAst()
+{
+    if (!options.astOutPath.has_value()) {
+        return;
+    }
+    if (pkgs.empty()) {
+        return;
+    }
+    auto& outPath = options.astOutPath.value();
+    for (auto& file : pkgs[0]->files) {
+        AstNodeHelper::DumpAst(*file, outPath + "/" + file->fileName + ".ast");
+    }
 }
 
 /**

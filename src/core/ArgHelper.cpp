@@ -37,6 +37,14 @@ Options& Options::EnableMacro(ConStr& enable)
     return *this;
 }
 
+Options& Options::EnableAstOutPath(ConStr& path)
+{
+    if (!path.empty()) {
+        this->astOutPath = path;
+    }
+    return *this;
+}
+
 Options& Options::FilterDecls(ConStrVec& decl)
 {
     this->filterDecls = StrSet{decl.begin(), decl.end()};
@@ -239,6 +247,7 @@ void ConfigOptions(Options& options, ArgumentParser& ap)
 {
     // config options
     options.Stage(ap.GetSingleValue("dump-source"));
+    options.EnableAstOutPath(ap.GetSingleValue("dump-ast", ""));
     options.FilterDecls(ap.GetMultiValue("filter-decls"));
     // TODO: update default false
     options.EnableDesugar(ap.GetSingleValue("enable-desugar", "true"));
