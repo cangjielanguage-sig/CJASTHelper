@@ -1050,7 +1050,7 @@ void ToCangjiePass::PrintDecl(const Decl& node)
 
 namespace {
 // 关注的注解属性映射表
-StrMap<Attribute> focusAttrsMap = {{"C", Attribute::C}, {"public", Attribute::PUBLIC},
+StrMap<Attribute> focusAttrsMap = {{"C", Attribute::C}, {"static", Attribute::STATIC}, {"public", Attribute::PUBLIC},
     {"protected", Attribute::PROTECTED}, {"private", Attribute::PRIVATE}, {"internal", Attribute::INTERNAL}};
 } // namespace
 
