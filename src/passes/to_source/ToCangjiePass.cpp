@@ -559,6 +559,14 @@ void ToCangjiePass::Visit(const TuplePattern& node, VisitResult&)
         node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, ", ", "(", ")");
 }
 
+void ToCangjiePass::Visit(const ExceptTypePattern& node, VisitResult&)
+{
+    LOGD("For ExceptTypePattern");
+    TryPrintNode(node.pattern, "", ": ");
+    PRT().PVec<Type>(
+        node.types, [this](const Type& ty) { Traverse(ty, visitor); }, " | ");
+}
+
 // Expr
 void ToCangjiePass::Visit(const Block& node, VisitResult&)
 {
@@ -667,6 +675,32 @@ void ToCangjiePass::Visit(const ParenExpr& node, VisitResult&)
 {
     LOGD("For ParenExpr");
     TryPrintNode(node.expr, "(", ")");
+}
+
+void ToCangjiePass::Visit(const TryExpr& node, VisitResult&)
+{
+    LOGD("For TryExpr");
+    PRT().PVal("try ");
+    // TODO: desugared 支持
+    // try (r0 = a.asResource(), r1 = a.asResource())
+    PRT().PVec<VarDecl>(
+        node.resourceSpec,
+        [this](const VarDecl& var) {
+            PRT().PVal(Id(var.identifier));
+            TryPrintNode(var.initializer, " = ");
+        },
+        ", ", "(", ")");
+    // try block
+    PRT().PWI([this, &node] { VisitNode(node.tryBlock); }, " {", "}");
+    // optional catch blocks
+    for (size_t i = 0; i < node.catchBlocks.size(); ++i) {
+        TryPrintNode(node.catchPatterns[i], " catch (", ") ");
+        PRT().PWI([this, &node, i] { VisitNode(node.catchBlocks[i].get()); }, " {", "}");
+    }
+    // optional finally block
+    if (node.finallyBlock) {
+        PRT().PWI([this, &node] { VisitNode(node.finallyBlock); }, " finally {", "}");
+    }
 }
 
 namespace {
@@ -1003,7 +1037,7 @@ void ToCangjiePass::RegisterHandlers()
     EXPAND2(GEN_REG_VISIT_HANDLER, ConstantType, FuncType);
     // Pattern
     EXPAND4(GEN_REG_VISIT_HANDLER, WildcardPattern, ConstPattern, EnumPattern, VarPattern);
-    EXPAND3(GEN_REG_VISIT_HANDLER, TypePattern, VarOrEnumPattern, TuplePattern);
+    EXPAND4(GEN_REG_VISIT_HANDLER, TypePattern, VarOrEnumPattern, TuplePattern, ExceptTypePattern);
     // Expr
     EXPAND4(GEN_REG_VISIT_HANDLER, Block, FuncArg, MatchCase, MatchCaseOther);
     EXPAND4(GEN_REG_VISIT_HANDLER, MemberAccess, CallExpr, IncOrDecExpr, RangeExpr);
@@ -1012,7 +1046,7 @@ void ToCangjiePass::RegisterHandlers()
     EXPAND4(GEN_REG_VISIT_HANDLER, JumpExpr, LetPatternDestructor, TupleLit, TypeConvExpr);
     EXPAND4(GEN_REG_VISIT_HANDLER, IfExpr, DoWhileExpr, WhileExpr, ForInExpr);
     EXPAND4(GEN_REG_VISIT_HANDLER, AssignExpr, UnaryExpr, BinaryExpr, RefExpr);
-    EXPAND2(GEN_REG_VISIT_HANDLER, SubscriptExpr, ParenExpr);
+    EXPAND3(GEN_REG_VISIT_HANDLER, SubscriptExpr, ParenExpr, TryExpr);
     // Generic
     EXPAND3(GEN_REG_VISIT_HANDLER, Generic, GenericParamDecl, GenericConstraint);
 }

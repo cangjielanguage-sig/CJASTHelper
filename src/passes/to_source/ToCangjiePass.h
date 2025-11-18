@@ -42,7 +42,7 @@ protected:
     EXPAND2(GEN_VISIT_OVERRIDE, ConstantType, FuncType);
     // Pattern
     EXPAND4(GEN_VISIT_OVERRIDE, WildcardPattern, ConstPattern, EnumPattern, VarPattern);
-    EXPAND3(GEN_VISIT_OVERRIDE, TypePattern, VarOrEnumPattern, TuplePattern);
+    EXPAND4(GEN_VISIT_OVERRIDE, TypePattern, VarOrEnumPattern, TuplePattern, ExceptTypePattern);
     // Expr
     EXPAND4(GEN_VISIT_OVERRIDE, Block, FuncArg, MatchCase, MatchCaseOther);
     EXPAND3(GEN_VISIT_OVERRIDE, RefExpr, MemberAccess, CallExpr);
@@ -51,7 +51,7 @@ protected:
     EXPAND4(GEN_VISIT_OVERRIDE, AssignExpr, UnaryExpr, IncOrDecExpr, BinaryExpr);
     EXPAND4(GEN_VISIT_OVERRIDE, SubscriptExpr, JumpExpr, RangeExpr, LetPatternDestructor);
     EXPAND4(GEN_VISIT_OVERRIDE, IfExpr, DoWhileExpr, WhileExpr, ForInExpr);
-    EXPAND3(GEN_VISIT_OVERRIDE, TupleLit, TypeConvExpr, ParenExpr);
+    EXPAND4(GEN_VISIT_OVERRIDE, TupleLit, TypeConvExpr, ParenExpr, TryExpr);
     // Generic
     EXPAND3(GEN_VISIT_OVERRIDE, Generic, GenericParamDecl, GenericConstraint);
 
