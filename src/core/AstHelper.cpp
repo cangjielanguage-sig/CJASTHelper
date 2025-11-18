@@ -141,7 +141,7 @@ UniquePtr<PassConfig> AstHelper::MakePassConfig()
     }
     config->Focus(options.filterDecls);
     config->FocusAnnotationAttrs({"C"});
-    config->FocusModifierAttrs({"public", "protected", "internal", "private", "static"}, {"func", "var"});
+    config->FocusModifierAttrs({"public", "protected", "internal", "private", "static", "override"}, {"func", "var"});
     config->IgnoreDecls(options.ignoreDecls);
     config->IgnoreAnnotations(options.ignoreAnnotations);
     config->Output(cjfeHelper.GetOutDir());

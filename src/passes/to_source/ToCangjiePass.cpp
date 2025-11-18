@@ -1084,8 +1084,9 @@ void ToCangjiePass::PrintDecl(const Decl& node)
 
 namespace {
 // 关注的注解属性映射表
-StrMap<Attribute> focusAttrsMap = {{"C", Attribute::C}, {"static", Attribute::STATIC}, {"public", Attribute::PUBLIC},
-    {"protected", Attribute::PROTECTED}, {"private", Attribute::PRIVATE}, {"internal", Attribute::INTERNAL}};
+StrMap<Attribute> focusAttrsMap = {{"C", Attribute::C}, {"static", Attribute::STATIC},
+    {"override", Attribute::OVERRIDE}, {"public", Attribute::PUBLIC}, {"protected", Attribute::PROTECTED},
+    {"private", Attribute::PRIVATE}, {"internal", Attribute::INTERNAL}};
 } // namespace
 
 /**
@@ -1341,7 +1342,7 @@ void ToCangjiePass::PrintInstArgs(const NameReferenceExpr& ref, bool isPattern)
 {
     if (!ref.typeArguments.empty()) {
         PRT().PVec<Type>(
-            ref.typeArguments, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "<", ">");
+            ref.typeArguments, [this](const Type& tp) { PrintType(tp); }, ", ", "<", ">");
     } else if (Config().Sema() && !isPattern) {
         PRT().PVec<Ty>(
             ref.instTys, [this](const Ty& ty) { PrintTy(ty); }, ", ", "<", ">");
@@ -1432,6 +1433,9 @@ void ToCangjiePass::PrintTy(const Ty& ty)
             return;
         case TypeKind::TYPE_GENERICS:
             PRT().PVal(ty.name);
+            return;
+        case TypeKind::TYPE_UNIT:
+            PRT().PVal("Unit");
             return;
         default:
             break;
