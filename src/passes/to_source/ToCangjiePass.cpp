@@ -279,7 +279,8 @@ void ToCangjiePass::Visit(const FuncBody& node, VisitResult&)
     LOGD("For FuncBody");
     TryPrintGenericParams(node.generic.get());
     VisitNode(node.paramLists[0]);
-    if (!TryPrintType(node.retType) && Config().Sema()) {
+    bool isFinalizer = node.funcDecl && node.funcDecl->IsFinalizer();
+    if (!isFinalizer && !TryPrintType(node.retType) && Config().Sema()) {
         TryPrintTy(TryGetRetTy(node.ty));
     }
     TryPrintGenericConstraints(node.generic);
