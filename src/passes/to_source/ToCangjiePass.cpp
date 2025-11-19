@@ -1424,7 +1424,7 @@ void ToCangjiePass::PrintTy(const Ty& ty)
         case TypeKind::TYPE_INTERFACE:
         case TypeKind::TYPE_STRUCT:
         case TypeKind::TYPE_ENUM:
-            PRT().PVal(ty.name);
+            PRT().PVal(Id(Ty::GetDeclOfTy(&ty)->identifier));
             PRT().PVec<Ty>(
                 ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "<", ">");
             return;
