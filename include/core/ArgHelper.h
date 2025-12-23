@@ -28,6 +28,7 @@ struct Options {
     SourceStage stage = SourceStage::DEFAULT; /**< 当前的源代码阶段 */
     bool enableDesugar = false;               /**< 是否启用语法糖打印 */
     bool enableMacro = true;                  /**< 是否启用宏展开 */
+    StrOpt astOutPath = std::nullopt;         /**< Ast 输出路径,  None 表示不输出 */
     StrSet filterDecls;                       /**< 过滤打印decl配置 */
     StrSet ignoreDecls;                       /**< 忽略打印decl配置 */
     StrSet ignoreAnnotations;                 /**< 忽略打印annotations配置 */
@@ -40,6 +41,7 @@ struct Options {
     Options& Stage(ConStr& stage);
     Options& EnableDesugar(ConStr& enable);
     Options& EnableMacro(ConStr& enable);
+    Options& EnableAstOutPath(ConStr& path);
     Options& FilterDecls(ConStrVec& decl);
     Options& IgnoreDecls(ConStrVec& decl);
     Options& IgnoreAnnotations(ConStrVec& annotations);

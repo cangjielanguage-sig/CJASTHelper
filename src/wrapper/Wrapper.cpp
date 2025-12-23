@@ -10,6 +10,7 @@
 #include "utils/Macro.h"
 #include "wrapper/AstNodeHelper.h"
 #include "wrapper/CangjieFrontendHelper.h"
+#include <fstream>
 
 CangjieFrontendHelper::CangjieFrontendHelper(ConStrVec& args, ConStrMap<Str>& env) : mci(ParseArgs(args, env), diag)
 {
@@ -100,9 +101,16 @@ void AstNodeHelper::ReplaceChildren(AstNode& node, Vec<OwnedPtr<AstNode>>& child
     }
 }
 
-void AstNodeHelper::DumpAst(const AstNode& node, const Str&)
+void AstNodeHelper::DumpAst(const AstNode& node, const Str& path)
 {
-    Cangjie::PrintNode(&node);
+    std::ofstream file(path);
+    if (!file.is_open()) {
+        LOGE("open file failed: ", path);
+        return;
+    }
+    LOGD("dump ast to: ", path);
+    Cangjie::PrintNode(&node, 0, "", file);
+    file.close();
 }
 
 UniquePtr<AstNodeHelper> AstNodeHelper::helper;

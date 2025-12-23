@@ -7,5 +7,6 @@ log.txt
 .lingma
 .cache
 .plans
+.magic-cli
 # 数据不上传
 test/data

@@ -279,7 +279,8 @@ void ToCangjiePass::Visit(const FuncBody& node, VisitResult&)
     LOGD("For FuncBody");
     TryPrintGenericParams(node.generic.get());
     VisitNode(node.paramLists[0]);
-    if (!TryPrintType(node.retType) && Config().Sema()) {
+    bool isFinalizer = node.funcDecl && node.funcDecl->IsFinalizer();
+    if (!isFinalizer && !TryPrintType(node.retType) && Config().Sema()) {
         TryPrintTy(TryGetRetTy(node.ty));
     }
     TryPrintGenericConstraints(node.generic);
@@ -289,6 +290,11 @@ void ToCangjiePass::Visit(const FuncBody& node, VisitResult&)
 void ToCangjiePass::Visit(const FuncDecl& node, VisitResult&)
 {
     LOGD("For FuncDecl: ", node.identifier.Val());
+    if (node.IsFinalizer()) {
+        PRT().PVal("~init");
+        TryPrintNode(node.funcBody);
+        return;
+    }
     PrintDecl(node);
     if (TryPrintEnumConstructor(node) || TryPrintConstructor(node) || TryPrintGetter(node) || TryPrintSetter(node)) {
         return;
@@ -488,8 +494,11 @@ void ToCangjiePass::Visit(const FuncType& node, VisitResult&)
 {
     LOGD("For FuncType");
     PRT().PVec<Type>(
-        node.paramTypes, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "(", ")", true);
-    TryPrintNode(node.retType.get(), " -> ");
+        node.paramTypes, [this](const Type& tp) { PrintType(tp); }, ", ", "(", ")", true);
+    if (node.retType.get()) {
+    }
+    PRT().PVal(" -> ");
+    PrintType(*node.retType);
 }
 
 // Pattern
@@ -551,14 +560,30 @@ void ToCangjiePass::Visit(const TuplePattern& node, VisitResult&)
         node.patterns, [this](const Pattern& pat) { Traverse(pat, visitor); }, ", ", "(", ")");
 }
 
+void ToCangjiePass::Visit(const ExceptTypePattern& node, VisitResult&)
+{
+    LOGD("For ExceptTypePattern");
+    TryPrintNode(node.pattern, "", ": ");
+    PRT().PVec<Type>(
+        node.types, [this](const Type& ty) { Traverse(ty, visitor); }, " | ");
+}
+
 // Expr
 void ToCangjiePass::Visit(const Block& node, VisitResult&)
 {
     LOGD("For Block: ", node.body.size());
+    if (node.TestAttr(Attribute::UNSAFE)) {
+        PRT().PValNL("unsafe {");
+        PRT().Indent();
+    }
     PRT().PVec<AstNode>(node.body, [this](const AstNode& node) {
         auto res = Traverse(node, visitor);
         PRT().PNL();
     });
+    if (node.TestAttr(Attribute::UNSAFE)) {
+        PRT().Unindent();
+        PRT().PVal("}");
+    }
 }
 
 VisitResult ToCangjiePass::Before(const RefExpr& node)
@@ -605,15 +630,19 @@ void ToCangjiePass::Visit(const ReturnExpr& node, VisitResult& res)
     LOGD("For ReturnExpr");
     // return in init, skip
     auto body = node.refFuncBody;
-    if (body && body->funcDecl && body->funcDecl->TestAttr(Attribute::CONSTRUCTOR)) {
+    if (!body) {
+        return;
+    }
+    bool isCtor = body->funcDecl && body->funcDecl->TestAttr(Attribute::CONSTRUCTOR);
+    if (isCtor) {
         res.status = false;
         return;
     }
-    PRT().PVal("return");
-    if (node.expr) {
-        PRT().PVal(" ");
-        VisitNode(node.expr);
+    bool isFinalizer = body->funcDecl && body->funcDecl->IsFinalizer();
+    if (!isFinalizer) {
+        PRT().PVal("return");
     }
+    TryPrintNode(node.expr, isFinalizer ? "" : " ");
 }
 
 void ToCangjiePass::Visit(const LitConstExpr& node, VisitResult&)
@@ -647,6 +676,32 @@ void ToCangjiePass::Visit(const ParenExpr& node, VisitResult&)
 {
     LOGD("For ParenExpr");
     TryPrintNode(node.expr, "(", ")");
+}
+
+void ToCangjiePass::Visit(const TryExpr& node, VisitResult&)
+{
+    LOGD("For TryExpr");
+    PRT().PVal("try ");
+    // TODO: desugared 支持
+    // try (r0 = a.asResource(), r1 = a.asResource())
+    PRT().PVec<VarDecl>(
+        node.resourceSpec,
+        [this](const VarDecl& var) {
+            PRT().PVal(Id(var.identifier));
+            TryPrintNode(var.initializer, " = ");
+        },
+        ", ", "(", ")");
+    // try block
+    PRT().PWI([this, &node] { VisitNode(node.tryBlock); }, " {", "}");
+    // optional catch blocks
+    for (size_t i = 0; i < node.catchBlocks.size(); ++i) {
+        TryPrintNode(node.catchPatterns[i], " catch (", ") ");
+        PRT().PWI([this, &node, i] { VisitNode(node.catchBlocks[i].get()); }, " {", "}");
+    }
+    // optional finally block
+    if (node.finallyBlock) {
+        PRT().PWI([this, &node] { VisitNode(node.finallyBlock); }, " finally {", "}");
+    }
 }
 
 namespace {
@@ -983,7 +1038,7 @@ void ToCangjiePass::RegisterHandlers()
     EXPAND2(GEN_REG_VISIT_HANDLER, ConstantType, FuncType);
     // Pattern
     EXPAND4(GEN_REG_VISIT_HANDLER, WildcardPattern, ConstPattern, EnumPattern, VarPattern);
-    EXPAND3(GEN_REG_VISIT_HANDLER, TypePattern, VarOrEnumPattern, TuplePattern);
+    EXPAND4(GEN_REG_VISIT_HANDLER, TypePattern, VarOrEnumPattern, TuplePattern, ExceptTypePattern);
     // Expr
     EXPAND4(GEN_REG_VISIT_HANDLER, Block, FuncArg, MatchCase, MatchCaseOther);
     EXPAND4(GEN_REG_VISIT_HANDLER, MemberAccess, CallExpr, IncOrDecExpr, RangeExpr);
@@ -992,7 +1047,7 @@ void ToCangjiePass::RegisterHandlers()
     EXPAND4(GEN_REG_VISIT_HANDLER, JumpExpr, LetPatternDestructor, TupleLit, TypeConvExpr);
     EXPAND4(GEN_REG_VISIT_HANDLER, IfExpr, DoWhileExpr, WhileExpr, ForInExpr);
     EXPAND4(GEN_REG_VISIT_HANDLER, AssignExpr, UnaryExpr, BinaryExpr, RefExpr);
-    EXPAND2(GEN_REG_VISIT_HANDLER, SubscriptExpr, ParenExpr);
+    EXPAND3(GEN_REG_VISIT_HANDLER, SubscriptExpr, ParenExpr, TryExpr);
     // Generic
     EXPAND3(GEN_REG_VISIT_HANDLER, Generic, GenericParamDecl, GenericConstraint);
 }
@@ -1030,8 +1085,9 @@ void ToCangjiePass::PrintDecl(const Decl& node)
 
 namespace {
 // 关注的注解属性映射表
-StrMap<Attribute> focusAttrsMap = {{"C", Attribute::C}, {"public", Attribute::PUBLIC},
-    {"protected", Attribute::PROTECTED}, {"private", Attribute::PRIVATE}, {"internal", Attribute::INTERNAL}};
+StrMap<Attribute> focusAttrsMap = {{"C", Attribute::C}, {"static", Attribute::STATIC},
+    {"override", Attribute::OVERRIDE}, {"public", Attribute::PUBLIC}, {"protected", Attribute::PROTECTED},
+    {"private", Attribute::PRIVATE}, {"internal", Attribute::INTERNAL}};
 } // namespace
 
 /**
@@ -1287,7 +1343,7 @@ void ToCangjiePass::PrintInstArgs(const NameReferenceExpr& ref, bool isPattern)
 {
     if (!ref.typeArguments.empty()) {
         PRT().PVec<Type>(
-            ref.typeArguments, [this](const Type& tp) { Traverse(tp, visitor); }, ", ", "<", ">");
+            ref.typeArguments, [this](const Type& tp) { PrintType(tp); }, ", ", "<", ">");
     } else if (Config().Sema() && !isPattern) {
         PRT().PVec<Ty>(
             ref.instTys, [this](const Ty& ty) { PrintTy(ty); }, ", ", "<", ">");
@@ -1325,6 +1381,15 @@ bool ToCangjiePass::TryPrintType(const Ptr<Type> type)
     return false;
 }
 
+void ToCangjiePass::PrintType(const Type& type)
+{
+    if (type.astKind != AstKind::TYPE) {
+        Traverse(type, visitor);
+    } else if (Config().Sema() && type.ty) {
+        PrintTy(*type.ty);
+    }
+}
+
 /**
  * @brief 辅助打印 Ty 标注。
  */
@@ -1359,7 +1424,7 @@ void ToCangjiePass::PrintTy(const Ty& ty)
         case TypeKind::TYPE_INTERFACE:
         case TypeKind::TYPE_STRUCT:
         case TypeKind::TYPE_ENUM:
-            PRT().PVal(ty.name);
+            PRT().PVal(Id(Ty::GetDeclOfTy(&ty)->identifier));
             PRT().PVec<Ty>(
                 ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "<", ">");
             return;
@@ -1369,6 +1434,9 @@ void ToCangjiePass::PrintTy(const Ty& ty)
             return;
         case TypeKind::TYPE_GENERICS:
             PRT().PVal(ty.name);
+            return;
+        case TypeKind::TYPE_UNIT:
+            PRT().PVal("Unit");
             return;
         default:
             break;

@@ -124,5 +124,5 @@ bash build.sh -g -t Release -b
 ./build/bin/cjah_test
 
 # 执行 CI 用例
-./build/bin/cjah_test --gtest_filter="CJAHTest.Integration*"
+./build/bin/cjah_test --gtest_filter="*/CJAHTest.CI001/*"
 ```

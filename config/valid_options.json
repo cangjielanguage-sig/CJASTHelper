@@ -13,6 +13,14 @@
         "visible": true
     },
     {
+        "key": "dump-ast",
+        "values": [],
+        "mainDesc": "Dump ast into file path <value>.",
+        "subDesc": [],
+        "single": true,
+        "visible": true
+    },
+    {
         "key": "pass-config",
         "values": [],
         "mainDesc": "Pass config file name, default: passes.json.",
