@@ -25,7 +25,7 @@ protected:
 
     // 递归展开需要重写的解糖节点
     EXPAND4(GEN_BEFORE_OVERRIDE, MainDecl, AssignExpr, UnaryExpr, BinaryExpr);
-    EXPAND3(GEN_BEFORE_OVERRIDE, RefExpr, SubscriptExpr, OptionType);
+    EXPAND4(GEN_BEFORE_OVERRIDE, CallExpr, RefExpr, SubscriptExpr, OptionType);
 
     // 递归展开需要重写的节点
     EXPAND2(GEN_VISIT_OVERRIDE, Annotation, Modifier);

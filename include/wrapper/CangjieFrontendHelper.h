@@ -26,6 +26,7 @@ public:
     virtual ~CangjieFrontendHelper() = default;
 
     bool Parse();
+    bool ConditionCompile();
     bool DesugaredParse();
     bool ImportPackage();
     bool MacroExpand();
