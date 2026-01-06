@@ -247,7 +247,9 @@ public:
     inline Printer& PVec(
         const C& con, const CB& cb, ConStr& sep = "", ConStr& pre = "", ConStr& suf = "", bool b = false)
     {
-        EnsureIndent();
+        if (b) {
+            EnsureIndent();
+        }
         printcc<T>(os_, con, cb, sep, pre, suf, b);
         return *this;
     }
