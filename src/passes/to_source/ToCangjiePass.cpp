@@ -413,7 +413,11 @@ void ToCangjiePass::Visit(const TypeAliasDecl& node, VisitResult&)
 void ToCangjiePass::Visit(const PrimitiveType& node, VisitResult&)
 {
     LOGD("For PrimitiveType");
-    PRT().PVal(node.str);
+    if (node.str == "" && Config().Sema() && node.ty) {
+        PrintTy(*node.ty);
+    } else {
+        PRT().PVal(node.str);
+    }
 }
 
 void ToCangjiePass::Visit(const RefType& node, VisitResult& res)
@@ -597,6 +601,17 @@ VisitResult ToCangjiePass::Before(const RefExpr& node)
         PRT().PVal(it->second);
         return VisitResult::Skip();
     }
+    // Enum constructor: Some -> Option<T>.Some
+    if (target && target->TestAttr(Attribute::ENUM_CONSTRUCTOR) && node.ty) {
+        auto ty = node.ty;
+        if (target->astKind == AstKind::FUNC_DECL) {
+            ty = Cast<FuncTy*>(node.ty.get())->retTy;
+        }
+        PrintTy(*ty);
+        PRT().PVal(".");
+        PRT().PVal(Id(node.ref.identifier));
+        return VisitResult::Skip();
+    }
     return VisitResult::Cont();
 }
 
@@ -611,6 +626,18 @@ void ToCangjiePass::Visit(const FuncArg& node, VisitResult&)
 {
     LOGD("For FuncArg");
     VisitNode(node.expr);
+}
+
+VisitResult ToCangjiePass::Before(const CallExpr& node)
+{
+    if (!node.desugarExpr) {
+        return VisitResult::Cont();
+    }
+    LOGD("For CallExpr");
+    if (Config().Desugar() || node.desugarExpr) {
+        Traverse(*node.desugarExpr, visitor);
+    }
+    return VisitResult::Skip();
 }
 
 void ToCangjiePass::Visit(const CallExpr& node, VisitResult&)
@@ -1022,7 +1049,7 @@ void ToCangjiePass::RegisterHandlers()
     // 使用宏生成代码
     // 递归展开需要重写的解糖节点
     EXPAND4(GEN_REG_BEFORE_HANDLER, MainDecl, AssignExpr, UnaryExpr, BinaryExpr);
-    EXPAND3(GEN_REG_BEFORE_HANDLER, RefExpr, SubscriptExpr, OptionType);
+    EXPAND4(GEN_REG_BEFORE_HANDLER, CallExpr, RefExpr, SubscriptExpr, OptionType);
 
     // 递归展开需要重写的节点
     EXPAND3(GEN_REG_VISIT_HANDLER, Annotation, Modifier, File);

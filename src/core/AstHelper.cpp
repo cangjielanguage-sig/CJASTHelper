@@ -155,7 +155,7 @@ void AstHelper::RegisterStages()
 {
     stageMap.emplace(SourceStage::PARSE, [this]() {
         LOGD();
-        return cjfeHelper.Parse();
+        return cjfeHelper.Parse() && cjfeHelper.ConditionCompile();
     });
     stageMap.emplace(SourceStage::DESUGARED_PARSE, [this]() {
         LOGD();

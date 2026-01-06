@@ -22,6 +22,11 @@ bool CangjieFrontendHelper::Parse()
     return mci.PerformParse();
 }
 
+bool CangjieFrontendHelper::ConditionCompile()
+{
+    return mci.PerformConditionCompile();
+}
+
 bool CangjieFrontendHelper::DesugaredParse()
 {
     for (auto& pkg : mci.GetSourcePackages()) {
