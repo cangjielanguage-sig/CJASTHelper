@@ -18,7 +18,7 @@ namespace {
  * @brief 将字符串键映射到SourceStage值
  */
 ConStrMap<SourceStage> key2Stage{{"parse", SourceStage::PARSE}, {"desugared-parse", SourceStage::DESUGARED_PARSE},
-    {"sema", SourceStage::SEMA}, {"desugared-sema", SourceStage::DESUGARED_SEMA}};
+    {"macro", SourceStage::MACRO_EXPAND}, {"sema", SourceStage::SEMA}, {"desugared-sema", SourceStage::DESUGARED_SEMA}};
 } // namespace
 Options& Options::Stage(ConStr& stage)
 {

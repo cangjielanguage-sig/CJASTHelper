@@ -4,6 +4,7 @@
         "values": [
             "parse",
             "desugared-parse",
+            "macro",
             "sema",
             "desugared-sema"
         ],

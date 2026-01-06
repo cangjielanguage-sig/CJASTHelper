@@ -17,6 +17,7 @@ enum class SourceStage {
     PARSE,           /**< Source of parsed ast. */
     DESUGARED_PARSE, /**< Source of desugared parsed ast. */
     IMPORT,          /**< Import Depend Packages for dump imports. */
+    MACRO_EXPAND,    /**< Source of macro expand. */
     SEMA,            /**< Source of typechecked ast. */
     DESUGARED_SEMA,  /**< Source of desugared typechecked ast. */
 };

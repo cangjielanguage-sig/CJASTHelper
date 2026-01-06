@@ -136,7 +136,7 @@ UniquePtr<PassConfig> AstHelper::MakePassConfig()
     if (options.enableDesugar) {
         config->EnableDesugar();
     }
-    if (options.stage >= SourceStage::IMPORT) {
+    if (options.stage >= SourceStage::SEMA) {
         config->EnableSema();
     }
     config->Focus(options.filterDecls);
@@ -165,11 +165,15 @@ void AstHelper::RegisterStages()
         LOGD();
         return cjfeHelper.ImportPackage();
     });
+    stageMap.emplace(SourceStage::MACRO_EXPAND, [this]() {
+        if (options.enableMacro) {
+            LOGD();
+            return cjfeHelper.MacroExpand();
+        }
+        return true;
+    });
     stageMap.emplace(SourceStage::SEMA, [this]() {
         LOGD();
-        if (options.enableMacro) {
-            cjfeHelper.MacroExpand();
-        }
         return cjfeHelper.Sema();
     });
     stageMap.emplace(SourceStage::DESUGARED_SEMA, [this]() {

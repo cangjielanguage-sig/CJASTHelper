@@ -53,7 +53,11 @@ bool CheckExist(ConStr& file)
 
 Str FileName(ConStr& filePath)
 {
-    return fs::path(filePath).stem();
+    fs::path base = fs::path(filePath);
+    while (!base.extension().empty()) {
+        base = base.stem();
+    }
+    return base;
 }
 
 void CreateDirIfNotExists(ConStr& path)
