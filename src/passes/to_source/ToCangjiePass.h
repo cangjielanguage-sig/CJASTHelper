@@ -37,6 +37,7 @@ protected:
     EXPAND4(GEN_VISIT_OVERRIDE, FuncParamList, FuncBody, FuncDecl, MainDecl);
     EXPAND4(GEN_VISIT_OVERRIDE, PrimaryCtorDecl, ClassDecl, InterfaceDecl, StructDecl);
     EXPAND4(GEN_VISIT_OVERRIDE, EnumDecl, ExtendDecl, TypeAliasDecl, MacroDecl);
+    EXPAND1(GEN_VISIT_OVERRIDE, MacroExpandDecl);
     // Type
     EXPAND4(GEN_VISIT_OVERRIDE, PrimitiveType, RefType, OptionType, TupleType);
     EXPAND4(GEN_VISIT_OVERRIDE, QualifiedType, ThisType, VArrayType, ParenType);
@@ -53,7 +54,7 @@ protected:
     EXPAND4(GEN_VISIT_OVERRIDE, SubscriptExpr, JumpExpr, RangeExpr, LetPatternDestructor);
     EXPAND4(GEN_VISIT_OVERRIDE, IfExpr, DoWhileExpr, WhileExpr, ForInExpr);
     EXPAND4(GEN_VISIT_OVERRIDE, TupleLit, TypeConvExpr, ParenExpr, TryExpr);
-    EXPAND2(GEN_VISIT_OVERRIDE, QuoteExpr, TokenPart);
+    EXPAND3(GEN_VISIT_OVERRIDE, QuoteExpr, TokenPart, MacroExpandExpr);
     // Generic
     EXPAND3(GEN_VISIT_OVERRIDE, Generic, GenericParamDecl, GenericConstraint);
 
@@ -100,6 +101,10 @@ private:
      * @brief 辅助打印声明节点。
      */
     void PrintDecl(const Decl& node);
+    /**
+     * @brief 辅助打印MacroInvocation。
+     */
+    void PrintMacroInvocation(const MacroInvocation& node, const std::string& id);
     /**
      * @brief 辅助打印注解列表。
      */
