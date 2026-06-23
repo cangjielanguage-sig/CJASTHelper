@@ -409,11 +409,40 @@ void ToCangjiePass::Visit(const TypeAliasDecl& node, VisitResult&)
     TryPrintNode(node.type.get(), " = ");
 }
 
+VisitResult ToCangjiePass::Before(const MacroDecl& node)
+{
+    if (!node.desugarDecl) {
+        return VisitResult::Cont();
+    }
+    LOGD("For MacroDecl");
+    // 存在解糖节点
+    if (Config().Desugar() || node.desugarDecl) {
+        LOGD("For Desugared Decl of MacroDecl");
+        VisitNode(node.desugarDecl);
+    } else {
+        // 还原原节点
+        LOGD("For Recover Desugared Decl of Macro");
+        PrintDecl(node);
+        PRT().PVal("macro");
+        TryPrintNode(node.desugarDecl->funcBody);
+    }
+    return VisitResult::Skip();
+}
+
+void ToCangjiePass::Visit(const MacroDecl& node, VisitResult&)
+{
+    LOGD("For MacroDecl: ", node.identifier.Val());
+    PrintDecl(node);
+    // General macro decl.
+    PRT().PVals("macro ", Id(node.identifier));
+    TryPrintNode(node.funcBody);
+}
+
 // Type
 void ToCangjiePass::Visit(const PrimitiveType& node, VisitResult&)
 {
     LOGD("For PrimitiveType");
-    if (node.str == "" && Config().Sema() && node.GetTy()) {
+    if (Config().Sema()) {
         PrintTy(*node.GetTy());
     } else {
         PRT().PVal(node.str);
@@ -729,6 +758,25 @@ void ToCangjiePass::Visit(const TryExpr& node, VisitResult&)
     if (node.finallyBlock) {
         PRT().PWI([this, &node] { VisitNode(node.finallyBlock); }, " finally {", "}");
     }
+}
+
+void ToCangjiePass::Visit(const QuoteExpr& node, VisitResult&)
+{
+    LOGD("For QuoteExpr");
+    PRT().PVal("quote");
+    PRT().PVec<Expr>(node.exprs,
+        [this](const Expr& expr) { 
+            if (expr.astKind != AstKind::TOKEN_PART) {
+                PRT().PVal("$");
+            }
+            Traverse(expr, visitor);
+        }, "", "(", ")");
+}
+
+void ToCangjiePass::Visit(const TokenPart& node, VisitResult&)
+{
+    LOGD("For TokenPart");
+    PRT().PVal(node.ToString());
 }
 
 namespace {
@@ -1050,6 +1098,7 @@ void ToCangjiePass::RegisterHandlers()
     // 递归展开需要重写的解糖节点
     EXPAND4(GEN_REG_BEFORE_HANDLER, MainDecl, AssignExpr, UnaryExpr, BinaryExpr);
     EXPAND4(GEN_REG_BEFORE_HANDLER, CallExpr, RefExpr, SubscriptExpr, OptionType);
+    EXPAND1(GEN_REG_BEFORE_HANDLER, MacroDecl);
 
     // 递归展开需要重写的节点
     EXPAND3(GEN_REG_VISIT_HANDLER, Annotation, Modifier, File);
@@ -1058,7 +1107,7 @@ void ToCangjiePass::RegisterHandlers()
     EXPAND4(GEN_REG_VISIT_HANDLER, VarDecl, VarWithPatternDecl, PropDecl, FuncParam);
     EXPAND4(GEN_REG_VISIT_HANDLER, FuncParamList, FuncBody, FuncDecl, MainDecl);
     EXPAND4(GEN_REG_VISIT_HANDLER, PrimaryCtorDecl, ClassDecl, InterfaceDecl, StructDecl);
-    EXPAND3(GEN_REG_VISIT_HANDLER, EnumDecl, ExtendDecl, TypeAliasDecl);
+    EXPAND4(GEN_REG_VISIT_HANDLER, EnumDecl, ExtendDecl, TypeAliasDecl, MacroDecl);
     // Type
     EXPAND4(GEN_REG_VISIT_HANDLER, PrimitiveType, RefType, TupleType, OptionType);
     EXPAND4(GEN_REG_VISIT_HANDLER, QualifiedType, ThisType, VArrayType, ParenType);
@@ -1075,6 +1124,7 @@ void ToCangjiePass::RegisterHandlers()
     EXPAND4(GEN_REG_VISIT_HANDLER, IfExpr, DoWhileExpr, WhileExpr, ForInExpr);
     EXPAND4(GEN_REG_VISIT_HANDLER, AssignExpr, UnaryExpr, BinaryExpr, RefExpr);
     EXPAND3(GEN_REG_VISIT_HANDLER, SubscriptExpr, ParenExpr, TryExpr);
+    EXPAND2(GEN_REG_VISIT_HANDLER, QuoteExpr, TokenPart);
     // Generic
     EXPAND3(GEN_REG_VISIT_HANDLER, Generic, GenericParamDecl, GenericConstraint);
 }
