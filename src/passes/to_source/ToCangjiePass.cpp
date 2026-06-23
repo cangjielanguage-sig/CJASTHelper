@@ -438,6 +438,12 @@ void ToCangjiePass::Visit(const MacroDecl& node, VisitResult&)
     TryPrintNode(node.funcBody);
 }
 
+void ToCangjiePass::Visit(const MacroExpandDecl& node, VisitResult&)
+{
+    LOGD("For MacroExpandDecl: ", node.identifier.Val());
+    PrintMacroInvocation(node.invocation, Id(node.identifier));
+}
+
 // Type
 void ToCangjiePass::Visit(const PrimitiveType& node, VisitResult&)
 {
@@ -779,6 +785,12 @@ void ToCangjiePass::Visit(const TokenPart& node, VisitResult&)
     PRT().PVal(node.ToString());
 }
 
+void ToCangjiePass::Visit(const MacroExpandExpr& node, VisitResult&)
+{
+    LOGD("For MacroExpandExpr: ", node.identifier.Val());
+    PrintMacroInvocation(node.invocation, Id(node.identifier));
+}
+
 namespace {
 // 检查 expr 是否是对 Enum 类型的引用
 inline bool IsRefEnum(const Expr& expr)
@@ -1108,6 +1120,7 @@ void ToCangjiePass::RegisterHandlers()
     EXPAND4(GEN_REG_VISIT_HANDLER, FuncParamList, FuncBody, FuncDecl, MainDecl);
     EXPAND4(GEN_REG_VISIT_HANDLER, PrimaryCtorDecl, ClassDecl, InterfaceDecl, StructDecl);
     EXPAND4(GEN_REG_VISIT_HANDLER, EnumDecl, ExtendDecl, TypeAliasDecl, MacroDecl);
+    EXPAND1(GEN_REG_VISIT_HANDLER, MacroExpandDecl);
     // Type
     EXPAND4(GEN_REG_VISIT_HANDLER, PrimitiveType, RefType, TupleType, OptionType);
     EXPAND4(GEN_REG_VISIT_HANDLER, QualifiedType, ThisType, VArrayType, ParenType);
@@ -1124,7 +1137,7 @@ void ToCangjiePass::RegisterHandlers()
     EXPAND4(GEN_REG_VISIT_HANDLER, IfExpr, DoWhileExpr, WhileExpr, ForInExpr);
     EXPAND4(GEN_REG_VISIT_HANDLER, AssignExpr, UnaryExpr, BinaryExpr, RefExpr);
     EXPAND3(GEN_REG_VISIT_HANDLER, SubscriptExpr, ParenExpr, TryExpr);
-    EXPAND2(GEN_REG_VISIT_HANDLER, QuoteExpr, TokenPart);
+    EXPAND3(GEN_REG_VISIT_HANDLER, QuoteExpr, TokenPart, MacroExpandExpr);
     // Generic
     EXPAND3(GEN_REG_VISIT_HANDLER, Generic, GenericParamDecl, GenericConstraint);
 }
@@ -1158,6 +1171,24 @@ void ToCangjiePass::PrintDecl(const Decl& node)
 {
     PrintAnnotations(node);
     PrintModifiers(node);
+}
+
+/**
+ * @brief 辅助打印MacroInvocation。
+ */
+void ToCangjiePass::PrintMacroInvocation(const MacroInvocation& node, const std::string& id)
+{
+    auto tag = node.isCompileTimeVisible ? "@!" : "@";
+    PRT().PVals(tag, id);
+    if (node.hasAttr) {
+        PRT().PVec<Token>(node.attrs, [this](const Token& tk) { PRT().PVal(tk.Value()); }, " ", "[", "]").PNL();
+    }
+    if (node.decl) {
+        // MacroExpandDecl
+        Traverse(*node.decl, visitor);
+    } else {
+        PRT().PVec<Token>(node.args, [this](const Token& tk) { PRT().PVal(tk.Value()); }, " ", "(", ")");
+    }
 }
 
 namespace {
