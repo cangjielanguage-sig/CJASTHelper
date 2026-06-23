@@ -281,7 +281,7 @@ void ToCangjiePass::Visit(const FuncBody& node, VisitResult&)
     VisitNode(node.paramLists[0]);
     bool isFinalizer = node.funcDecl && node.funcDecl->IsFinalizer();
     if (!isFinalizer && !TryPrintType(node.retType) && Config().Sema()) {
-        TryPrintTy(TryGetRetTy(node.ty));
+        TryPrintTy(TryGetRetTy(node.GetTy()));
     }
     TryPrintGenericConstraints(node.generic);
     PrintBlock(node.body);
@@ -413,8 +413,8 @@ void ToCangjiePass::Visit(const TypeAliasDecl& node, VisitResult&)
 void ToCangjiePass::Visit(const PrimitiveType& node, VisitResult&)
 {
     LOGD("For PrimitiveType");
-    if (node.str == "" && Config().Sema() && node.ty) {
-        PrintTy(*node.ty);
+    if (node.str == "" && Config().Sema() && node.GetTy()) {
+        PrintTy(*node.GetTy());
     } else {
         PRT().PVal(node.str);
     }
@@ -423,8 +423,8 @@ void ToCangjiePass::Visit(const PrimitiveType& node, VisitResult&)
 void ToCangjiePass::Visit(const RefType& node, VisitResult& res)
 {
     LOGD("For RefType");
-    if (node.ref.identifier.Val() == "" && Config().Sema() && node.ty) {
-        PrintTy(*node.ty);
+    if (node.ref.identifier.Val() == "" && Config().Sema() && node.GetTy()) {
+        PrintTy(*node.GetTy());
     } else {
         PRT().PVal(Id(node.ref.identifier));
         PRT().PVec<AstNode>(
@@ -602,10 +602,10 @@ VisitResult ToCangjiePass::Before(const RefExpr& node)
         return VisitResult::Skip();
     }
     // Enum constructor: Some -> Option<T>.Some
-    if (target && target->TestAttr(Attribute::ENUM_CONSTRUCTOR) && node.ty) {
-        auto ty = node.ty;
+    if (target && target->TestAttr(Attribute::ENUM_CONSTRUCTOR) && node.GetTy()) {
+        auto ty = node.GetTy();
         if (target->astKind == AstKind::FUNC_DECL) {
-            ty = Cast<FuncTy*>(node.ty.get())->retTy;
+            ty = Cast<FuncTy*>(node.GetTy().get())->retTy;
         }
         PrintTy(*ty);
         PRT().PVal(".");
@@ -1383,7 +1383,7 @@ void ToCangjiePass::PrintInstArgs(const NameReferenceExpr& ref, bool isPattern)
 inline void ToCangjiePass::PrintVarType(const VarDeclAbstract& node)
 {
     if (!TryPrintType(node.type.get()) && Config().Sema()) {
-        TryPrintTy(node.ty);
+        TryPrintTy(node.GetTy());
     }
 }
 
@@ -1403,7 +1403,7 @@ bool ToCangjiePass::TryPrintType(const Ptr<Type> type)
         return true;
     }
     if (Config().Sema()) {
-        return TryPrintTy(type->ty);
+        return TryPrintTy(type->GetTy());
     }
     return false;
 }
@@ -1412,8 +1412,8 @@ void ToCangjiePass::PrintType(const Type& type)
 {
     if (type.astKind != AstKind::TYPE) {
         Traverse(type, visitor);
-    } else if (Config().Sema() && type.ty) {
-        PrintTy(*type.ty);
+    } else if (Config().Sema() && type.GetTy()) {
+        PrintTy(*type.GetTy());
     }
 }
 
@@ -1549,10 +1549,10 @@ bool ToCangjiePass::TryPrintInitCall(const CallExpr& node)
     if (!IsInitCall(node)) {
         return false;
     }
-    AH_CHECK_NULL(node.ty);
+    AH_CHECK_NULL(node.GetTy());
     // 构造函数调用 init() -> A(), TODO: 应该缩小下范围， 构造函数内的init不需要替换
     // 特殊场景处理: init() -> ??A 是解糖表达式
-    PrintTy(*TryGetBaseTy(node.ty));
+    PrintTy(*TryGetBaseTy(node.GetTy()));
     PRT().PVec<FuncArg>(
         node.args, [this](const FuncArg& arg) { Traverse(arg, visitor); }, ", ", "(", ")", true);
     return true;

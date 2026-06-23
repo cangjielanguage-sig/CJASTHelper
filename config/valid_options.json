@@ -8,7 +8,7 @@
             "sema",
             "desugared-sema"
         ],
-        "mainDesc": "Dump source after <value> stage. Supported value: parse, desugared-parse, sema, desugared-sema.",
+        "mainDesc": "Dump source after <value> stage. Supported value: parse, desugared-parse, macro, sema, desugared-sema.",
         "subDesc": [],
         "single": true,
         "visible": true
