@@ -51,6 +51,9 @@ inline void NormalizedId(Str& id)
     }
     replaceAll(id, "$", "");
     replaceAll(id, "-", "_");
+    if (id.starts_with(".")) {
+        id.replace(0, 1, "_");
+    }
 }
 /**
  * 标识符转换函数
@@ -311,7 +314,7 @@ VisitResult ToCangjiePass::Before(const MainDecl& node)
     }
     LOGD("For MainDecl");
     // 存在解糖节点
-    if (Config().Desugar() || node.desugarDecl) {
+    if (Config().Desugar()) {
         LOGD("For Desugared Decl of MainDecl");
         if (node.TestAttr(Attribute::UNSAFE)) {
             PRT().PVal("unsafe ");
@@ -416,7 +419,7 @@ VisitResult ToCangjiePass::Before(const MacroDecl& node)
     }
     LOGD("For MacroDecl");
     // 存在解糖节点
-    if (Config().Desugar() || node.desugarDecl) {
+    if (Config().Desugar()) {
         LOGD("For Desugared Decl of MacroDecl");
         VisitNode(node.desugarDecl);
     } else {
@@ -442,6 +445,12 @@ void ToCangjiePass::Visit(const MacroExpandDecl& node, VisitResult&)
 {
     LOGD("For MacroExpandDecl: ", node.identifier.Val());
     PrintMacroInvocation(node.invocation, Id(node.identifier));
+}
+
+void ToCangjiePass::Visit(const BuiltInDecl& node, VisitResult&)
+{
+    LOGD("For BuiltInDecl: ", node.identifier.Val());
+    PrintDecl(node);
 }
 
 // Type
@@ -669,7 +678,7 @@ VisitResult ToCangjiePass::Before(const CallExpr& node)
         return VisitResult::Cont();
     }
     LOGD("For CallExpr");
-    if (Config().Desugar() || node.desugarExpr) {
+    if (Config().Desugar()) {
         Traverse(*node.desugarExpr, visitor);
     }
     return VisitResult::Skip();
@@ -791,6 +800,77 @@ void ToCangjiePass::Visit(const MacroExpandExpr& node, VisitResult&)
     PrintMacroInvocation(node.invocation, Id(node.identifier));
 }
 
+void ToCangjiePass::Visit(const TrailingClosureExpr& node, VisitResult&)
+{
+    LOGD("For TrailingClosureExpr: ");
+    if (Config().Desugar() && node.desugarExpr) {
+        Traverse(*node.desugarExpr, visitor);
+    } else {
+        TryPrintNode(node.expr);
+        TryPrintNode(node.lambda);
+    }
+}
+
+void ToCangjiePass::Visit(const SpawnExpr& node, VisitResult&)
+{
+    LOGD("For SpawnExpr: ");
+    if (Config().Desugar()) {
+        if (node.arg && node.desugarExpr) {
+            LOGD("For SpawnExpr desugarExpr ");
+            // spawn (x) {} 特定使用场景，无法验证
+            Traverse(*node.desugarExpr, visitor);
+            return;
+        }
+        if (!node.arg && node.futureObj) {
+            LOGD("For SpawnExpr futureObj ");
+            // spawn {} TODO: need recover -> spawn {}
+            TryPrintNode(node.futureObj->initializer);
+            return;
+        }
+    }
+    PRT().PVal("spawn");
+    TryPrintNode(node.arg, "(", ")");
+    TryPrintNode(node.task);
+}
+
+void ToCangjiePass::Visit(const SynchronizedExpr& node, VisitResult&)
+{
+    LOGD("For SynchronizedExpr: ");
+    if (Config().Desugar() && node.desugarExpr) {
+        LOGD("For SynchronizedExpr: desugarExpr");
+        /**
+         * let .mtx = $mutex
+         * .mtx.lock()
+         * try {
+         *     $body
+         * } finally {
+         *     .mtx.unlock()
+         * }
+         */
+        auto& block = Cast<const Block&>(node.desugarExpr.get());
+        AH_ASSERT(block.body.size() == 3);
+        TryPrintNode(block.body[0], "", "", true); // var .mtx = $mutex
+        TryPrintNode(block.body[1], "", "", true); // .mtx.lock()
+        TryPrintNode(block.body[2], "", "", true); // try-finally
+        return;
+    }
+    PRT().PVal("synchronized");
+    TryPrintNode(node.mutex, "(", ")");
+    PrintBlock(node.body);
+}
+
+void ToCangjiePass::Visit(const InterpolationExpr& node, VisitResult&)
+{
+    LOGD("For InterpolationExpr: ");
+    PRT().PVal(node.rawString);
+}
+
+void ToCangjiePass::Visit(const StrInterpolationExpr& node, VisitResult&)
+{
+    LOGD("For StrInterpolationExpr: ");
+    PRT().PVal(node.rawString);
+}
+
 namespace {
 // 检查 expr 是否是对 Enum 类型的引用
 inline bool IsRefEnum(const Expr& expr)
@@ -876,7 +956,7 @@ VisitResult ToCangjiePass::Before(const AssignExpr& node)
         return VisitResult::Cont();
     }
     LOGD("For AssignExpr");
-    if (Config().Desugar() || node.desugarExpr) {
+    if (Config().Desugar()) {
         Traverse(*node.desugarExpr, visitor);
     } else {
         // desugared: x.[](i, y) -> x[i] = v
@@ -912,7 +992,7 @@ VisitResult ToCangjiePass::Before(const UnaryExpr& node)
         return VisitResult::Cont();
     }
     LOGD("For UnaryExpr");
-    if (Config().Desugar() || node.desugarExpr) {
+    if (Config().Desugar()) {
         Traverse(*node.desugarExpr, visitor);
     } else {
         // desugared: val.!() -> !val
@@ -937,7 +1017,7 @@ VisitResult ToCangjiePass::Before(const BinaryExpr& node)
         return VisitResult::Cont();
     }
     LOGD("For BinaryExpr");
-    if (Config().Desugar() || node.desugarExpr) {
+    if (Config().Desugar()) {
         Traverse(*node.desugarExpr, visitor);
     } else {
         auto& callExpr = Cast<const CallExpr&>(node.desugarExpr.get());
@@ -970,7 +1050,7 @@ VisitResult ToCangjiePass::Before(const SubscriptExpr& node)
         return VisitResult::Cont();
     }
     LOGD("For SubscriptExpr");
-    if (Config().Desugar() || node.desugarExpr) {
+    if (Config().Desugar()) {
         Traverse(*node.desugarExpr, visitor);
     } else {
         // desugared: a.[](i) -> a[i]
@@ -1120,7 +1200,7 @@ void ToCangjiePass::RegisterHandlers()
     EXPAND4(GEN_REG_VISIT_HANDLER, FuncParamList, FuncBody, FuncDecl, MainDecl);
     EXPAND4(GEN_REG_VISIT_HANDLER, PrimaryCtorDecl, ClassDecl, InterfaceDecl, StructDecl);
     EXPAND4(GEN_REG_VISIT_HANDLER, EnumDecl, ExtendDecl, TypeAliasDecl, MacroDecl);
-    EXPAND1(GEN_REG_VISIT_HANDLER, MacroExpandDecl);
+    EXPAND2(GEN_REG_VISIT_HANDLER, MacroExpandDecl, BuiltInDecl);
     // Type
     EXPAND4(GEN_REG_VISIT_HANDLER, PrimitiveType, RefType, TupleType, OptionType);
     EXPAND4(GEN_REG_VISIT_HANDLER, QualifiedType, ThisType, VArrayType, ParenType);
@@ -1138,6 +1218,8 @@ void ToCangjiePass::RegisterHandlers()
     EXPAND4(GEN_REG_VISIT_HANDLER, AssignExpr, UnaryExpr, BinaryExpr, RefExpr);
     EXPAND3(GEN_REG_VISIT_HANDLER, SubscriptExpr, ParenExpr, TryExpr);
     EXPAND3(GEN_REG_VISIT_HANDLER, QuoteExpr, TokenPart, MacroExpandExpr);
+    EXPAND3(GEN_REG_VISIT_HANDLER, TrailingClosureExpr, SpawnExpr, SynchronizedExpr);
+    EXPAND2(GEN_REG_VISIT_HANDLER, InterpolationExpr, StrInterpolationExpr);
     // Generic
     EXPAND3(GEN_REG_VISIT_HANDLER, Generic, GenericParamDecl, GenericConstraint);
 }

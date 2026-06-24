@@ -37,7 +37,7 @@ protected:
     EXPAND4(GEN_VISIT_OVERRIDE, FuncParamList, FuncBody, FuncDecl, MainDecl);
     EXPAND4(GEN_VISIT_OVERRIDE, PrimaryCtorDecl, ClassDecl, InterfaceDecl, StructDecl);
     EXPAND4(GEN_VISIT_OVERRIDE, EnumDecl, ExtendDecl, TypeAliasDecl, MacroDecl);
-    EXPAND1(GEN_VISIT_OVERRIDE, MacroExpandDecl);
+    EXPAND2(GEN_VISIT_OVERRIDE, MacroExpandDecl, BuiltInDecl);
     // Type
     EXPAND4(GEN_VISIT_OVERRIDE, PrimitiveType, RefType, OptionType, TupleType);
     EXPAND4(GEN_VISIT_OVERRIDE, QualifiedType, ThisType, VArrayType, ParenType);
@@ -55,6 +55,9 @@ protected:
     EXPAND4(GEN_VISIT_OVERRIDE, IfExpr, DoWhileExpr, WhileExpr, ForInExpr);
     EXPAND4(GEN_VISIT_OVERRIDE, TupleLit, TypeConvExpr, ParenExpr, TryExpr);
     EXPAND3(GEN_VISIT_OVERRIDE, QuoteExpr, TokenPart, MacroExpandExpr);
+    EXPAND4(GEN_VISIT_OVERRIDE, WildcardExpr, ArrayExpr, PointerExpr, PrimitiveTypeExpr);
+    EXPAND3(GEN_VISIT_OVERRIDE, TrailingClosureExpr, SpawnExpr, SynchronizedExpr);
+    EXPAND2(GEN_VISIT_OVERRIDE, InterpolationExpr, StrInterpolationExpr);
     // Generic
     EXPAND3(GEN_VISIT_OVERRIDE, Generic, GenericParamDecl, GenericConstraint);
 
