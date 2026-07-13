@@ -8,7 +8,7 @@
         ],
         "description": "Desugar pass",
         "version": "0.0.1",
-        "lib": "libcjast_desugar_pass",
+        "lib": "cjast_desugar_pass",
         "dependencies": []
     },
     {
@@ -19,7 +19,7 @@
         ],
         "description": "ToSource pass",
         "version": "0.0.1",
-        "lib": "libcjast_to_source_pass",
+        "lib": "cjast_to_source_pass",
         "dependencies": [
             "desugar"
         ]

@@ -3,7 +3,12 @@
 #include "utils/types/TypeAlias.h"
 
 #ifdef _WIN32
+#ifndef __MINGW32__
+#include <windows.h>
 using Handle = HMODULE;
+#else
+using Handle = void*;
+#endif
 #else
 using Handle = void*;
 #endif
@@ -16,5 +21,5 @@ public:
     Handle LoadLib(ConStr& lib);
 
 private:
-    static inline ConStrVec searchPaths{"lib", "../lib", "../../lib"};
+    static inline ConStrVec searchPaths{"lib", "bin", "../lib", "../../lib"};
 };
