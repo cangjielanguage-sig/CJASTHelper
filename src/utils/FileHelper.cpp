@@ -12,6 +12,8 @@
 
 #include <system_error>
 
+#include <iostream>
+
 namespace fs = std::filesystem;
 
 [[nodiscard]] fs::path getExecutablePath()
@@ -57,7 +59,7 @@ Str FileName(ConStr& filePath)
     while (!base.extension().empty()) {
         base = base.stem();
     }
-    return base;
+    return base.string();
 }
 
 void CreateDirIfNotExists(ConStr& path)
@@ -71,12 +73,18 @@ void CreateDirIfNotExists(ConStr& path)
     }
 }
 
-Str SearchPath(ConStr& name, ConStrVec& paths)
+Str FindPath(ConStr& name, ConStrVec& paths)
 {
     // path is empty, find default path
     auto pre = getExecutablePath().parent_path().string();
+    auto filePath = pre + "/" + name;
+    std::cout << "find " << filePath << std::endl;
+    if (CheckExist(filePath)) {
+        return filePath;
+    }
     for (auto& p : paths) {
-        auto filePath = pre + "/" + p + "/" + name;
+        filePath = pre + "/" + p + "/" + name;
+        std::cout << "find " << filePath << std::endl;
         if (CheckExist(filePath)) {
             return filePath;
         }
@@ -85,7 +93,7 @@ Str SearchPath(ConStr& name, ConStrVec& paths)
 }
 
 // Json 配置文件解析
-ConfigParser::ConfigParser(ConStr& name) : path(SearchPath(name, searchPaths)), fs(path)
+ConfigParser::ConfigParser(ConStr& name) : path(FindPath(name, searchPaths)), fs(path)
 {
     if (!fs.is_open()) {
         throw std::logic_error("Try to open config file: " + name + " failed!");

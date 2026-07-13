@@ -15,11 +15,10 @@ LibraryLoader& LibraryLoader::GetInstance()
 
 Handle LibraryLoader::LoadLib(ConStr& lib)
 {
-    // TODO: 没有后缀 添加后缀
     Str libname = lib;
 #ifdef _WIN32
     libname = libname + ".dll";
-    libname = SearchPath(libname, searchPaths);
+    libname = FindPath(libname, searchPaths);
     Handle handle = LoadLibrary(libname.c_str());
 #else
 #if defined(__linux__)
@@ -27,7 +26,7 @@ Handle LibraryLoader::LoadLib(ConStr& lib)
 #else
     libname = libname + ".dylib";
 #endif
-    libname = SearchPath(libname, searchPaths);
+    libname = FindPath(libname, searchPaths);
     Handle handle = dlopen(libname.c_str(), RTLD_LAZY);
 #endif
     return handle;
