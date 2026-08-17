@@ -19,12 +19,14 @@ void RunParallel(Vec<Options>& options)
     }
 }
 
-void RunSerial(Vec<Options>& options)
+bool RunSerial(Vec<Options>& options)
 {
+    bool succeed = true;
     for (auto option : options) {
         AstHelper ah(std::move(option));
-        ah.Run();
+        succeed = ah.Run() && succeed;
     }
+    return succeed;
 }
 
 /**
@@ -40,10 +42,19 @@ int main(int argc, const char* const* argv, const char* const* envp)
         auto argHelper = ArgHelper();
         auto options = argHelper.ParseArgs(argc, argv, envp);
         if (options.empty() || options[0].stage == SourceStage::DEFAULT) {
+            if (!options.empty() && !options[0].valid) {
+                // 参数解析失败: 打印帮助信息后以错误码退出
+                argHelper.ShowHelperInfo();
+                return 1;
+            }
             argHelper.ShowHelperInfo();
             return 0;
         }
-        Options::parallels > 1 ? RunParallel(options) : RunSerial(options);
+        if (Options::parallels > 1) {
+            RunParallel(options);
+        } else {
+            return RunSerial(options) ? 0 : 1;
+        }
     } catch (const std::exception& ex) {
         std::cerr << "Exception: " << ex.what() << std::endl;
         return 1;

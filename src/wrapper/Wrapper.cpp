@@ -15,6 +15,8 @@
 CangjieFrontendHelper::CangjieFrontendHelper(ConStrVec& args, ConStrMap<Str>& env) : mci(ParseArgs(args, env), diag)
 {
     ci.globalOptions.executablePath = ci.frontendOptions.environment.cangjieHome.value_or(".") + "/bin/cjc";
+    // 将解析出的诊断格式应用到诊断引擎 (--diagnostic-format=json / noColor)
+    diag.RegisterHandler(ci.globalOptions.diagFormat);
 }
 
 bool CangjieFrontendHelper::Parse()
@@ -58,6 +60,11 @@ bool CangjieFrontendHelper::DesugaredSema()
 Str CangjieFrontendHelper::GetOutDir() const
 {
     return ci.globalOptions.outputDir.value_or(".");
+}
+
+uint64_t CangjieFrontendHelper::GetErrorCount()
+{
+    return diag.GetErrorCount();
 }
 
 PkgPtrVec CangjieFrontendHelper::GetSourcePackages()

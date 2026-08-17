@@ -29,6 +29,7 @@ struct Options {
     SourceStage stage = SourceStage::DEFAULT; /**< 当前的源代码阶段 */
     bool enableDesugar = false;               /**< 是否启用语法糖打印 */
     bool enableMacro = true;                  /**< 是否启用宏展开 */
+    bool checkSyntax = false;                 /**< 是否仅做语法检查: 解析完成即结束, 不做分析/转换 */
     StrOpt astOutPath = std::nullopt;         /**< Ast 输出路径,  None 表示不输出 */
     StrSet filterDecls;                       /**< 过滤打印decl配置 */
     StrSet ignoreDecls;                       /**< 忽略打印decl配置 */
@@ -38,10 +39,12 @@ struct Options {
     StrVec args;                              /**< 需要传递给前端的参数列表 */
     static inline StrMap<Str> env;            /**< 环境变量 */
     static inline int parallels = 1;          /**< 任务并发度 */
+    bool valid = true;                        /**< 参数解析是否成功 */
 
     Options& Stage(ConStr& stage);
     Options& EnableDesugar(ConStr& enable);
     Options& EnableMacro(ConStr& enable);
+    Options& CheckSyntax(ConStr& enable);
     Options& EnableAstOutPath(ConStr& path);
     Options& FilterDecls(ConStrVec& decl);
     Options& IgnoreDecls(ConStrVec& decl);

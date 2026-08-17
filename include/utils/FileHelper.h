@@ -11,6 +11,13 @@ Str FileName(ConStr& filePath);
 void CreateDirIfNotExists(ConStr& path);
 Str FindPath(ConStr& name, ConStrVec& paths);
 
+/**
+ * @brief 递归收集目录下所有 .cj 源码文件（跳过隐藏目录），结果按字典序排序
+ * @param dir 目录路径
+ * @return 收集到的 .cj 文件路径列表，目录为空或不存在时返回空列表
+ */
+StrVec CollectCjFiles(ConStr& dir);
+
 class ConfigParser {
 public:
     ConfigParser(ConStr& name);

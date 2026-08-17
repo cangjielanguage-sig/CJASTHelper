@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     CJASTHelper Build System for Windows with MinGW
 .DESCRIPTION
@@ -21,12 +21,11 @@ $NC = [ConsoleColor]::Gray
 # Toolchain Configuration (must be defined before use)
 # ==============================================================================
 
-# Toolchain paths (matching CMakeLists.txt)
-$global:MINGW_BIN = "D:/sdks/llvm-mingw-20220906-msvcrt-x86_64/bin"
-$global:CANGJIE_ROOT = "D:/sdks/cangjie"
-$global:CANGJIE_INCLUDE_DIR = "$global:CANGJIE_ROOT/include"
-$global:CANGJIE_LIB_DIR = "$global:CANGJIE_ROOT/tools/lib"
-$global:CANGJIE_CJNATIVE_LIB_DIR = "$global:CANGJIE_ROOT/lib/windows_x86_64_cjnative"
+# 机器/环境相关路径（SDK、工具链、安装目录）统一在 scripts/win_env.ps1 中配置，
+# 支持同名环境变量覆盖，本文件不再出现硬编码路径。
+. "$PSScriptRoot/scripts/win_env.ps1"
+
+# 仓库内相对路径（不依赖外部环境，仅依赖本仓库布局）
 $global:JSON_INC = "$PSScriptRoot/third_party/json/json"
 
 # Add MinGW to PATH for ninja
@@ -159,6 +158,8 @@ function Build-Project {
     
     if ($exitCode -eq 0) {
         Write-Success "Build completed successfully"
+        Copy-SdkRuntimeDeps -TargetDir "$global:BUILD_DIR/bin"
+        Deploy-Config -TargetDir "$global:BUILD_DIR/bin"
         Write-Info "Binaries in: $global:BUILD_DIR\bin\"
         Write-Info "Libraries in: $global:BUILD_DIR\lib\"
     } else {
@@ -186,6 +187,8 @@ function Install-Project {
     
     if ($exitCode -eq 0) {
         Write-Success "Installation completed successfully"
+        Copy-SdkRuntimeDeps -TargetDir "$global:PRE/bin"
+        Deploy-Config -TargetDir "$global:PRE/bin"
     } else {
         Write-Error "Installation failed"
     }
@@ -242,9 +245,6 @@ $global:EXT = ".exe"
 $global:CJAH = "$global:BUILD_DIR/bin/cjah$global:EXT"
 $global:TEST_RUNNER = "$global:BUILD_DIR/bin/cjah_test$global:EXT"
 $global:PRE = "$CWD/output"
-
-# Add Scoop shims to PATH for ninja
-$env:PATH += ";C:/Users/Administrator/scoop/shims"
 
 # Default configuration
 $global:ShowCmd = $false
@@ -317,6 +317,59 @@ while ($argIndex -lt $rawArgs.Count) {
 }
 
 Write-Info "Action: $global:action, Run args: $global:runArgs"
+
+# ==============================================================================
+# Unify Cangjie SDK (must be before cmake/run)
+# ==============================================================================
+# CANGJIE_HOME 必须与编译头文件同源。若用户环境中 CANGJIE_HOME 指向其他 SDK
+# （如 .cangjie-sdk/6.1），会与 win_env.ps1 配置的 SDK 头文件混用：编译按一套
+# 类布局构造对象，运行时却加载另一版本 libcangjie-lsp.dll，跨 DLL 访问即
+# 段错误（SIGSEGV）。此处强制统一，并让 CMakeLists 的 IMPORTED_IMPLIB
+# 和运行时 DLL 搜索都落到同一 SDK。
+if ($global:CangjieLib) {
+    $env:CANGJIE_HOME = $global:CangjieLib
+}
+Write-Info "CANGJIE_HOME (unified): $env:CANGJIE_HOME"
+$global:CANGJIE_INCLUDE_DIR     = "$env:CANGJIE_HOME/include"
+$global:CANGJIE_LIB_DIR         = "$env:CANGJIE_HOME/tools/lib"
+$global:CANGJIE_CJNATIVE_LIB_DIR = "$env:CANGJIE_HOME/lib/windows_x86_64_cjnative"
+
+# ==============================================================================
+# Runtime deployment helpers
+# ==============================================================================
+
+# 将 SDK 运行时依赖 DLL 复制到目标 bin 目录（exe 所在目录 DLL 搜索优先级最高，
+# 不依赖 PATH 中其它 SDK 的干扰）
+function Copy-SdkRuntimeDeps {
+    param([string]$TargetDir)
+    $sdkBin = Join-Path $env:CANGJIE_HOME "tools/bin"
+    if (-not (Test-Path $sdkBin)) {
+        Write-Warning "SDK bin dir not found: $sdkBin"
+        return
+    }
+    $deps = @("libcangjie-lsp.dll", "libc++.dll", "libunwind.dll", "libwinpthread-1.dll")
+    foreach ($d in $deps) {
+        $src = Join-Path $sdkBin $d
+        if (Test-Path $src) {
+            Copy-Item -Force $src $TargetDir
+            Write-Info "Deployed $d -> $TargetDir"
+        } else {
+            Write-Warning "SDK dep not found: $src"
+        }
+    }
+}
+
+# 将 config/*.json 部署到目标 bin/config（FindPath 的第二个候选位置，稳定命中）
+function Deploy-Config {
+    param([string]$TargetDir)
+    $cfgSrc = Join-Path $PSScriptRoot "config"
+    if (Test-Path $cfgSrc) {
+        $cfgDst = Join-Path $TargetDir "config"
+        New-Item -ItemType Directory -Force $cfgDst | Out-Null
+        Copy-Item -Force "$cfgSrc/*.json" $cfgDst
+        Write-Info "Deployed config -> $cfgDst"
+    }
+}
 
 # ==============================================================================
 # Dispatch Action

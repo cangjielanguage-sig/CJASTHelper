@@ -37,6 +37,12 @@ Options& Options::EnableMacro(ConStr& enable)
     return *this;
 }
 
+Options& Options::CheckSyntax(ConStr& enable)
+{
+    this->checkSyntax = enable == "true";
+    return *this;
+}
+
 Options& Options::EnableAstOutPath(ConStr& path)
 {
     if (!path.empty()) {
@@ -114,6 +120,12 @@ template <> struct adl_serializer<Options> {
         j.at("passes").get_to(op.passes);
         j.at("args").get_to(op.args);
         op.args.insert(op.args.begin(), "cjah");
+        // 语法检查模式: 强制只跑 parse 阶段, 跳过分析与转换
+        op.checkSyntax = j.value("checkSyntax", false);
+        if (op.checkSyntax) {
+            op.stage = SourceStage::PARSE;
+            op.passes.clear();
+        }
     }
 };
 } // namespace nlohmann
@@ -246,6 +258,28 @@ void ConfigGlobalOptions(ArgumentParser& ap)
 void ConfigOptions(Options& options, ArgumentParser& ap)
 {
     // config options
+    options.CheckSyntax(ap.GetSingleValue("check-syntax", "false"));
+    if (options.checkSyntax) {
+        // 语法检查模式: 只需要 parse 阶段, 无需 --dump-source, 不配置任何 pass
+        options.Stage("parse");
+        // 支持传入目录(项目目录): 递归展开为 .cj 文件列表后逐文件检查语法
+        StrVec expandedArgs;
+        expandedArgs.reserve(options.args.size());
+        for (auto& arg : options.args) {
+            std::error_code ec;
+            if (std::filesystem::is_directory(arg, ec)) {
+                auto files = CollectCjFiles(arg);
+                if (files.empty()) {
+                    std::cerr << "warning: no .cj file found in directory: " << arg << std::endl;
+                }
+                expandedArgs.insert(expandedArgs.end(), files.begin(), files.end());
+            } else {
+                expandedArgs.push_back(arg);
+            }
+        }
+        options.args = std::move(expandedArgs);
+        return;
+    }
     options.Stage(ap.GetSingleValue("dump-source"));
     options.EnableAstOutPath(ap.GetSingleValue("dump-ast", ""));
     options.FilterDecls(ap.GetMultiValue("filter-decls"));
@@ -290,6 +324,10 @@ Vec<Options> ArgHelper::ParseArgs(int argc, const char* const* argv, const char*
 
     StrVec toolArgs;
     SplitArgs(args, toolArgs, options.args, validOpts);
+    if (toolArgs.empty()) {
+        // 没有工具选项: 保持原有行为, 仅展示帮助信息
+        return {options};
+    }
     try {
         Options::env = ParseEnv(
             envp, {"CANGJIE_PATH", "CANGJIE_HOME", "LIBRARY_PATH", "LD_LIBRARY_PATH", "PATH", "SDKROOT", "cjHeapSize"});
@@ -310,6 +348,7 @@ Vec<Options> ArgHelper::ParseArgs(int argc, const char* const* argv, const char*
         std::cerr << "error: " << e.what() << std::endl;
         // Only do show help info.
         options.stage = SourceStage::DEFAULT;
+        options.valid = false;
     }
     return {options};
 }

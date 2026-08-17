@@ -10,9 +10,8 @@
 #include <unistd.h>
 #endif
 
+#include <algorithm>
 #include <system_error>
-
-#include <iostream>
 
 namespace fs = std::filesystem;
 
@@ -78,18 +77,43 @@ Str FindPath(ConStr& name, ConStrVec& paths)
     // path is empty, find default path
     auto pre = getExecutablePath().parent_path().string();
     auto filePath = pre + "/" + name;
-    std::cout << "find " << filePath << std::endl;
     if (CheckExist(filePath)) {
         return filePath;
     }
     for (auto& p : paths) {
         filePath = pre + "/" + p + "/" + name;
-        std::cout << "find " << filePath << std::endl;
         if (CheckExist(filePath)) {
             return filePath;
         }
     }
     throw std::invalid_argument("The file is not found: " + name);
+}
+
+StrVec CollectCjFiles(ConStr& dir)
+{
+    StrVec result;
+    std::error_code ec;
+    fs::recursive_directory_iterator iter(dir, fs::directory_options::skip_permission_denied, ec);
+    fs::recursive_directory_iterator end;
+    for (; iter != end; iter.increment(ec)) {
+        if (ec) {
+            // 遍历出错(权限/路径无效等)时中断, 返回已收集的部分
+            break;
+        }
+        const auto& entry = *iter;
+        if (entry.is_directory()) {
+            // 跳过隐藏目录(.git/.idea 等)
+            if (entry.path().filename().string().starts_with(".")) {
+                iter.disable_recursion_pending();
+            }
+            continue;
+        }
+        if (entry.path().extension() == ".cj") {
+            result.emplace_back(entry.path().string());
+        }
+    }
+    std::sort(result.begin(), result.end());
+    return result;
 }
 
 // Json 配置文件解析

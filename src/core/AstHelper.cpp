@@ -15,18 +15,25 @@ AstHelper::AstHelper(Options&& options)
     RegisterStages();
 }
 
-void AstHelper::Run()
+bool AstHelper::Run()
 {
     DisplayOptions();
     if (!DoParse()) {
         LOGD("DoParse failed.");
-        return;
+        return false;
+    }
+    if (options.checkSyntax) {
+        // 语法检查模式: 检查完语法后提前结束, 不做 ast 输出/分析/转换
+        bool succeed = cjfeHelper.GetErrorCount() == 0;
+        LOGD("check-syntax mode: skip ast dump, analysis and conversion.");
+        return succeed;
     }
     DumpAst();
     if (!DoAnalysis()) {
         LOGD("DoAnalysis failed.");
-        return;
+        return false;
     }
+    return true;
 }
 
 void AstHelper::DisplayOptions()
