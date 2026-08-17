@@ -28,8 +28,9 @@ public:
 
     /**
      * @brief 根据当前配置执行相应的阶段
+     * @return 执行成功返回true，否则返回false
      */
-    void Run();
+    bool Run();
 
     /**
      * @brief 打印当前配置

@@ -14,7 +14,6 @@
     预先设置环境变量即可，例如：
 
         $env:MINGW_BIN          = "D:/sdks/llvm-mingw-15/bin"
-        $env:CANGJIE_ROOT       = "D:/sdks/cangjie"
         $env:SCOOP_SHIMS        = "C:/Users/<name>/scoop/shims"
         $env:GTEST_RELEASE_PATH = "D:/sdks/googletest"
 
@@ -39,7 +38,7 @@ if ($env:MINGW_BIN) {
 # ------------------------------------------------------------------------------
 if ($env:CANGJIE_HOME) {
 } else {
-    $global:CANGJIE_HOME = "D:/sdks/cangjie"
+    $env:CANGJIE_HOME = "D:/sdks/cangjie"
 }
 
 # ------------------------------------------------------------------------------
@@ -62,7 +61,7 @@ if ($env:GTEST_RELEASE_PATH) {
 # ------------------------------------------------------------------------------
 # 轻量自检：必选 SDK/工具链路径缺失时给出提示，指向本配置文件而不是 build.ps1
 # ------------------------------------------------------------------------------
-foreach ($p in @($global:MINGW_BIN, $global:CANGJIE_ROOT, $env:GTEST_RELEASE_PATH)) {
+foreach ($p in @($global:MINGW_BIN, $env:GTEST_RELEASE_PATH)) {
     if (-not (Test-Path $p)) {
         Write-Warning "Path not found: $p (check scripts/win_env.ps1 or override via env vars)"
     }
