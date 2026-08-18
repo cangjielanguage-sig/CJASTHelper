@@ -75,11 +75,11 @@
       "true",
       "false"
     ],
-    "mainDesc": "Only check syntax errors of input when <value> is true, skip analysis and conversion. Input can be a .cj file or a directory (recursively collect all .cj files). Supported <value>: (default) false, true.",
+    "mainDesc": "Only check syntax errors of input when <value> is true, skip analysis and conversion. Input can be a .cj file or a directory. For a directory, each sub-directory that directly contains .cj files is treated as one package and checked per package (avoids missed errors when multi-package files are mixed in one frontend invocation). Supported <value>: (default) false, true.",
     "subDesc": [
       {
         "sub": "<value>=true",
-        "desc": "Parse the input file(s) and report syntax errors, then exit early (no ast dump / analysis / conversion). A directory input is walked recursively to collect all .cj source files. No need to pass --dump-source."
+        "desc": "Parse the input file(s) and report syntax errors, then exit early (no ast dump / analysis / conversion). A directory input is walked recursively and grouped per package (each directory directly containing .cj files), each package checked in its own frontend invocation. No need to pass --dump-source."
       },
       {
         "sub": "<value>=false",

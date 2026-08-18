@@ -6,6 +6,7 @@
 
 #include "core/AstHelper.h"
 #include "utils/TaskExecutor.h"
+#include "wrapper/JsonDiagCollector.h"
 #include <iostream>
 
 void RunParallel(Vec<Options>& options)
@@ -53,7 +54,10 @@ int main(int argc, const char* const* argv, const char* const* envp)
         if (Options::parallels > 1) {
             RunParallel(options);
         } else {
-            return RunSerial(options) ? 0 : 1;
+            bool succeed = RunSerial(options);
+            // 输出聚合的 JSON 诊断文档(多包 check-syntax 模式, 输出一份合并文档)
+            JsonDiagCollector::FlushIfJsonMode();
+            return succeed ? 0 : 1;
         }
     } catch (const std::exception& ex) {
         std::cerr << "Exception: " << ex.what() << std::endl;
