@@ -2,6 +2,7 @@
 #include "utils/types/TypeAlias.h"
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <nlohmann/json.hpp>
 
 std::filesystem::path getExecutablePath();
@@ -12,11 +13,13 @@ void CreateDirIfNotExists(ConStr& path);
 Str FindPath(ConStr& name, ConStrVec& paths);
 
 /**
- * @brief 递归收集目录下所有 .cj 源码文件（跳过隐藏目录），结果按字典序排序
- * @param dir 目录路径
- * @return 收集到的 .cj 文件路径列表，目录为空或不存在时返回空列表
+ * @brief 递归遍历目录, 按包分组: 每个直接包含 .cj 文件的目录视为一个包
+ * 返回 包目录 -> 该目录下直接包含的 .cj 文件列表(已按字典序排序);
+ * 键为目录绝对/相对路径(与输入写法一致的分隔符), 按 std::map 键序(包序确定).
+ * @param dir 根目录
+ * @return 包分组; 目录不存在或没有 .cj 文件时为空 map
  */
-StrVec CollectCjFiles(ConStr& dir);
+std::map<Str, StrVec> GroupCjFilesByDir(ConStr& dir);
 
 class ConfigParser {
 public:

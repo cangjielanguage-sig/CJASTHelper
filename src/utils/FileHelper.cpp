@@ -89,9 +89,9 @@ Str FindPath(ConStr& name, ConStrVec& paths)
     throw std::invalid_argument("The file is not found: " + name);
 }
 
-StrVec CollectCjFiles(ConStr& dir)
+std::map<Str, StrVec> GroupCjFilesByDir(ConStr& dir)
 {
-    StrVec result;
+    std::map<Str, StrVec> groups;
     std::error_code ec;
     fs::recursive_directory_iterator iter(dir, fs::directory_options::skip_permission_denied, ec);
     fs::recursive_directory_iterator end;
@@ -109,11 +109,13 @@ StrVec CollectCjFiles(ConStr& dir)
             continue;
         }
         if (entry.path().extension() == ".cj") {
-            result.emplace_back(entry.path().string());
+            groups[entry.path().parent_path().string()].emplace_back(entry.path().string());
         }
     }
-    std::sort(result.begin(), result.end());
-    return result;
+    for (auto& [pkgDir, files] : groups) {
+        std::sort(files.begin(), files.end());
+    }
+    return groups;
 }
 
 // Json 配置文件解析

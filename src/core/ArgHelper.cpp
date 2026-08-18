@@ -10,6 +10,7 @@
 #include "utils/Logger.h"
 #include <charconv>
 #include <iomanip>
+#include <map>
 #include <stdexcept>
 
 /// Option 配置方法实现
@@ -255,30 +256,59 @@ void ConfigGlobalOptions(ArgumentParser& ap)
     LOGD("paralles: ", Options::parallels);
 }
 
-void ConfigOptions(Options& options, ArgumentParser& ap)
+/**
+ * @brief 配置选项并生成检查任务
+ * check-syntax 模式下, 若输入是目录, 按包分组: 每个直接包含 .cj 文件的目录视为一个包,
+ * 返回 每个包一个 Options(各自独立一次前端调用), 避免把多个包的文件混在一次前端调用中
+ * 导致部分包的文件未被解析而漏报语法错误。其余模式返回单个 Options。
+ */
+Vec<Options> ConfigOptions(ArgumentParser& ap, Options options)
 {
     // config options
     options.CheckSyntax(ap.GetSingleValue("check-syntax", "false"));
     if (options.checkSyntax) {
         // 语法检查模式: 只需要 parse 阶段, 无需 --dump-source, 不配置任何 pass
         options.Stage("parse");
-        // 支持传入目录(项目目录): 递归展开为 .cj 文件列表后逐文件检查语法
-        StrVec expandedArgs;
-        expandedArgs.reserve(options.args.size());
-        for (auto& arg : options.args) {
+        // 按包分组: 包目录(排序保证包序确定) -> 该目录下的 .cj 文件
+        std::map<Str, StrVec> pkgFiles;
+        StrVec commonArgs;
+        if (!options.args.empty()) {
+            commonArgs.push_back(options.args.front()); // argv0 保留在每个包的最前面
+        }
+        for (size_t i = 1; i < options.args.size(); ++i) {
+            auto& arg = options.args[i];
             std::error_code ec;
             if (std::filesystem::is_directory(arg, ec)) {
-                auto files = CollectCjFiles(arg);
-                if (files.empty()) {
+                auto groups = GroupCjFilesByDir(arg);
+                if (groups.empty()) {
                     std::cerr << "warning: no .cj file found in directory: " << arg << std::endl;
                 }
-                expandedArgs.insert(expandedArgs.end(), files.begin(), files.end());
+                for (auto& [pkgDir, files] : groups) {
+                    auto& dst = pkgFiles[pkgDir];
+                    dst.insert(dst.end(), files.begin(), files.end());
+                }
+            } else if (std::filesystem::is_regular_file(arg, ec) && arg.ends_with(".cj")) {
+                // 显式指定的 .cj 文件: 按所在目录归入对应包
+                auto dir = std::filesystem::path(arg).parent_path().string();
+                pkgFiles[dir.empty() ? "." : dir].push_back(arg);
             } else {
-                expandedArgs.push_back(arg);
+                commonArgs.push_back(arg);
             }
         }
-        options.args = std::move(expandedArgs);
-        return;
+        if (pkgFiles.empty()) {
+            // 没有可检查的输入(目录为空或仅透传参数): 保持原参数交给前端报错
+            return {std::move(options)};
+        }
+        Vec<Options> opts;
+        for (auto& [pkgDir, files] : pkgFiles) {
+            std::sort(files.begin(), files.end());
+            files.erase(std::unique(files.begin(), files.end()), files.end());
+            Options o = options;
+            o.args = commonArgs;
+            o.args.insert(o.args.end(), files.begin(), files.end());
+            opts.push_back(std::move(o));
+        }
+        return opts;
     }
     options.Stage(ap.GetSingleValue("dump-source"));
     options.EnableAstOutPath(ap.GetSingleValue("dump-ast", ""));
@@ -293,7 +323,7 @@ void ConfigOptions(Options& options, ArgumentParser& ap)
     auto passes = ap.GetMultiValue("enable-passes");
     if (!passes.empty()) {
         options.Passes(passes);
-        return;
+        return {std::move(options)};
     }
     // config passes
     if (options.stage > SourceStage::PARSE) {
@@ -307,6 +337,7 @@ void ConfigOptions(Options& options, ArgumentParser& ap)
     }
     // 添加 to-cangjie 作为最后一个 pass
     options.passes.push_back("to-cangjie");
+    return {std::move(options)};
 }
 } // namespace
 Vec<Options> ArgHelper::ParseArgs(int argc, const char* const* argv, const char* const* envp)
@@ -343,7 +374,7 @@ Vec<Options> ArgHelper::ParseArgs(int argc, const char* const* argv, const char*
             ConfigParser parser(taskCfg);
             return parser.Parse<Vec<Options>>();
         }
-        ConfigOptions(options, ap);
+        return ConfigOptions(ap, options);
     } catch (std::invalid_argument& e) {
         std::cerr << "error: " << e.what() << std::endl;
         // Only do show help info.
