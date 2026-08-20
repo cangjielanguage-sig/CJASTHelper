@@ -9,7 +9,7 @@
  *  - HandleDiagnose 先交给基类收集进集合 —— GetErrorCount() 依赖 handler 集合, 这样
  *    check-syntax 的退出码(是否全部通过)仍然正确;
  *  - 同时把每条诊断格式化为 JSON 字符串聚合到进程级存储(按 文件/行/列 去重);
- *  - 全部包检查结束后由 cjah 统一输出一份合并后的 JSON 文档(按 文件/行/列 排序,
+ *  - 全部包(串行或并行, 并行时 TaskExecutor join 完成后)由 cjah 统一输出一份合并后的 JSON 文档(按 文件/行/列 排序,
  *    消除默认 handler 内部无序容器迭代导致的输出顺序随机性)。
  * 注意: 通过 RegisterHandler(unique_ptr) 注册的自定义 handler 不会触发默认的逐包打印
  * (探针实测), 因此不会产生重复输出。

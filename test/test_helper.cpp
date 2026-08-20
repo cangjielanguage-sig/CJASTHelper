@@ -49,7 +49,11 @@ Str ReadFileToString(ConStr& filename)
 
 void RemoveFiles(ConStr& dir, const std::function<bool(const fs::path&)>& pred)
 {
-    for (const auto& entry : fs::directory_iterator(dir)) {
+    std::error_code ec;
+    if (!fs::exists(dir, ec)) {
+        return; // 目录不存在时不抛异常(首次运行/全新检出场景)
+    }
+    for (const auto& entry : fs::directory_iterator(dir, ec)) {
         if (pred(entry.path())) {
             fs::remove(entry.path());
         }

@@ -251,9 +251,9 @@ void ConfigGlobalOptions(ArgumentParser& ap)
     auto parallels = ap.GetSingleValue("parallel-tasks", "1");
     auto [_, ec] = std::from_chars(parallels.data(), parallels.data() + parallels.size(), val);
     if (ec == std::errc()) {
-        Options::parallels = val;
+        Options::SetParallels(val);
     }
-    LOGD("paralles: ", Options::parallels);
+    LOGD("paralles: ", Options::Parallels());
 }
 
 /**
@@ -340,6 +340,29 @@ Vec<Options> ConfigOptions(ArgumentParser& ap, Options options)
     return {std::move(options)};
 }
 } // namespace
+
+/**
+ * 任务并发度的唯一存储点(core DLL 单 TU 导出, exe 经导入解析访问,
+ * 避免 static inline 成员跨 DLL 各持副本)。
+ */
+namespace {
+int& ParallelCountStorage()
+{
+    static int parallels = 1;
+    return parallels;
+}
+} // namespace
+
+int Options::Parallels()
+{
+    return ParallelCountStorage();
+}
+
+void Options::SetParallels(int value)
+{
+    ParallelCountStorage() = value;
+}
+
 Vec<Options> ArgHelper::ParseArgs(int argc, const char* const* argv, const char* const* envp)
 {
     Options options;

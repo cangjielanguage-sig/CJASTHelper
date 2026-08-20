@@ -38,7 +38,13 @@ struct Options {
     StrVec passes;                            /**< 配置需要执行的 passes 列表 */
     StrVec args;                              /**< 需要传递给前端的参数列表 */
     static inline StrMap<Str> env;            /**< 环境变量 */
-    static inline int parallels = 1;          /**< 任务并发度 */
+    /**
+     * 任务并发度。以导出访问器形式提供(定义于 core DLL 单 TU):
+     * 避免 static inline 数据成员在 Windows 多 DLL 布局下每模块各持一份副本,
+     * 导致 --parallel-tasks 的设置在 core DLL 内写、却被 exe 侧的独立副本读到。
+     */
+    static int Parallels();
+    static void SetParallels(int value);
     bool valid = true;                        /**< 参数解析是否成功 */
 
     Options& Stage(ConStr& stage);
