@@ -7,17 +7,30 @@
 #include "core/AstHelper.h"
 #include "utils/TaskExecutor.h"
 #include "wrapper/JsonDiagCollector.h"
+#include <atomic>
 #include <iostream>
 
-void RunParallel(Vec<Options>& options)
+/**
+ * @brief 并行执行所有包的检查
+ * @return 所有包是否全部通过(任一包失败返回 false)
+ */
+bool RunParallel(Vec<Options>& options)
 {
-    TaskExecutor exector(Options::parallels);
-    for (auto& option : options) {
-        exector.Post([&option]() {
-            AstHelper ah(std::move(option));
-            ah.Run();
-        });
+    std::atomic<bool> allOk{true};
+    {
+        // 内层作用域: TaskExecutor 析构(join 所有任务)必须先于读取 allOk,
+        // 否则 return 取到的是任务尚未完成时的初值
+        TaskExecutor exector(Options::Parallels());
+        for (auto& option : options) {
+            exector.Post([&option, &allOk]() {
+                AstHelper ah(std::move(option));
+                if (!ah.Run()) {
+                    allOk.store(false);
+                }
+            });
+        }
     }
+    return allOk.load();
 }
 
 bool RunSerial(Vec<Options>& options)
@@ -51,14 +64,16 @@ int main(int argc, const char* const* argv, const char* const* envp)
             argHelper.ShowHelperInfo();
             return 0;
         }
-        if (Options::parallels > 1) {
-            RunParallel(options);
+        bool succeed = true;
+        if (Options::Parallels() > 1) {
+            succeed = RunParallel(options);
         } else {
-            bool succeed = RunSerial(options);
-            // 输出聚合的 JSON 诊断文档(多包 check-syntax 模式, 输出一份合并文档)
-            JsonDiagCollector::FlushIfJsonMode();
-            return succeed ? 0 : 1;
+            succeed = RunSerial(options);
         }
+        // 所有包(串行或并行)检查结束后统一输出一份聚合的 JSON 诊断文档
+        // (多包 check-syntax 模式; TaskExecutor 析构时已 join 所有任务, 此处聚合必然完整)
+        JsonDiagCollector::FlushIfJsonMode();
+        return succeed ? 0 : 1;
     } catch (const std::exception& ex) {
         std::cerr << "Exception: " << ex.what() << std::endl;
         return 1;
