@@ -1,125 +1,102 @@
 # CJASTHelper
 
-Cangjie Abstract Syntax Tree Helper, providing extended capabilities for manipulating the Cangjie Abstract Syntax Tree, such as printing source code (after desugaring), etc.
+Cangjie Abstract Syntax Tree Helper — an AST manipulation and source-conversion tool
+built on the open-source Cangjie compiler frontend (`libcangjie-lsp`). It provides
+multi-stage source printing (including desugared output), AST dumping, syntax-only
+checking, macro expansion control, and a plugin-based analysis pass pipeline.
 
-> Note:
->
-> This tool is developed based on the open-source Cangjie project and is currently in the experimental stage.
+> Note: This tool is developed based on the open-source Cangjie project and is
+> currently in the experimental stage.
 
-## Build
+## Feature Overview
 
-### Dependency Download
+| Capability | Description | Usage |
+|---|---|---|
+| Multi-stage source printing | `parse` / `desugared-parse` / `macro` / `sema` / `desugared-sema` | `--dump-source` |
+| AST dumping | Dump the AST as text into files | `--dump-ast` |
+| Syntax-only checking | File or directory input (directories are checked per package automatically), with merged JSON diagnostics | `--check-syntax` |
+| Macro expansion control | Enable/disable macro expansion as needed | `--enable-macro` |
+| Declaration filtering | Keep only the specified kinds of top-level declarations | `--filter-decls` |
+| Pass plugin pipeline | Desugaring and source reconstruction (incl. Java output) loaded as plugin libraries | `--pass-config` + `passes.json` |
+| CJC option passthrough | Unrecognized arguments are forwarded verbatim to the frontend (`--output-dir`, `-p`, ...) | see `cjc -h` |
 
-[Cangjie Open Source Repository](https://gitcode.com/Cangjie/cangjie_compiler)
+## Quick Start
 
-Refer to the [Cangjie SDK Build Guide](https://gitcode.com/Cangjie/cangjie_build) to build the required components as needed.
+### Dependencies
 
-[Json Open Source Repository](https://github.com/nlohmann/json/releases/download/v3.12.0/include.zip)
-
-### Environment Variable Configuration
-
-This tool depends on the header files and build artifacts from the Cangjie open-source repository. It also depends on the json open-source library (header files).
-
-Assume the local Cangjie source directory is `${xxx}/cangjie_compiler/`, the built SDK directory is `${yyy}/cangjie/`, and the downloaded json source directory is `${third_party}/json`.
-
-> Note: The json directory should contain `nlohmann/json.hpp`.
-
-```bash
-# Configure the Cangjie source path
-export CANGJIE_SRC_HOME=${xxx}/cangjie_compiler
-export JSON_PATH=${third_party}/json
-# Configure the Cangjie binary environment (CANGJIE_HOME, LD_LIBRARY_PATH environment variables)
-source ${yyy}/cangjie/envsetup.sh
-```
-
-### Build Commands
-
-After setting up the dependencies and environment, use `build.sh` to build this tool.
-
-```bash
-# Assume the source path of this tool is CJASTHelper_SRC
-cd ${CJASTHelper_SRC}
-# Build the debug version of the tool
-bash build.sh -t Debug -b
-# Build the release version of the tool
-bash build.sh -t Release -b
-```
-
-## Features
-
-### Print Source Code
-
-The `--dump-source` option is provided to support printing the source code after a specific stage, outputting it to a specified directory. Supported parameter values: `parse`, `desugared-parse`, `sema`, `desugared-sema`.
-
-- `parse`: Prints the source code after syntax parsing.
-- `desugared-parse`: Prints the source code after syntax parsing and desugaring.
-- `sema`: Prints the source code after semantic analysis.
-- `desugared-sema`: Prints the source code after semantic analysis and desugaring.
-
-```bash
-# Assume the built tool is located at ${CJASTHelper_SRC}/build/bin/cjah, the source code is at ${zzz}/main.cj, and the output directory is ${OUT_DIR}.
-${CJASTHelper_SRC}/build/bin/cjah --dump-source=desugared-sema ${zzz}/main.cj --output-dir ${OUT_DIR}
-```
-
-> Note:
->
-> This tool requires the binary environment built by Cangjie. Please ensure you have executed `source ${yyy}/cangjie/envsetup.sh`.
-
-### Configure Whether to Print Desugared Code
-
-The `--dump-desugared` option is provided to configure whether to print desugared code. Supported parameter values: (default) `true`, `false`.
-
-- `true`: Print desugared code.
-- `false`: Do not print desugared code, attempt to restore the original user code before desugaring.
-
-```bash
-# Assume the built tool is located at ${CJASTHelper_SRC}/build/bin/cjah, the source code is at ${zzz}/main.cj, and the output directory is ${OUT_DIR}.
-${CJASTHelper_SRC}/build/bin/cjah --dump-source=desugared-sema --dump-desugar=true --filter-decls=class,func ${zzz}/main.cj --output-dir ${OUT_DIR}
-```
-
-> Note:
-> 
-> This option is not fully implemented yet!
-
-### Configure Declaration Filters
-
-The `--filter-decls` option is provided to configure the list of top-level declaration types to print. Multiple values are supported. Supported parameter values: `func`, `class`, `interface`, `struct`, `enum`, `var`.
-
-- By default, no filtering is applied, and all declarations are printed.
-- To configure multiple values, e.g., `--filter-decls=class,func`, only top-level classes and functions will be printed.
-
-```bash
-# Assume the built tool is located at ${CJASTHelper_SRC}/build/bin/cjah, the source code is at ${zzz}/main.cj, and the output directory is ${OUT_DIR}.
-${CJASTHelper_SRC}/build/bin/cjah --dump-source=desugared-sema --filter-decls=class,func ${zzz}/main.cj --output-dir ${OUT_DIR}
-```
-
-## Test Cases
-
-### Dependency Download
-
-[gtest Dependency Download](https://github.com/google/googletest/archive/tags/v1.17.0.zip)
-
-> Note:
->
-> After downloading, extract the source code to the `third_party/googletest-v1.17.0` directory in this project.
+- Cangjie SDK (compile headers + build artifacts). Build it from the
+  [Cangjie open-source repository](https://gitcode.com/Cangjie/cangjie_compiler)
+  following the [Cangjie SDK build guide](https://gitcode.com/Cangjie/cangjie_build);
+- nlohmann/json headers
+  ([v3.12.0](https://github.com/nlohmann/json/releases/download/v3.12.0/include.zip));
+- CMake, Ninja, clang (Linux/macOS); CMake, Ninja, llvm-mingw
+  (Windows: built from [mstorsjo/llvm-mingw 20220906](https://github.com/mstorsjo/llvm-mingw/archive/refs/tags/20220906.tar.gz)
+  with `--with-default-msvcrt=msvcrt`).
 
 ### Build
 
-```bash
-# Use the -g option to enable building tests that depend on Google Test
-bash build.sh -g -t Release -b
-```
-
-> Note:
->
-> After a successful build, the test executable `build/bin/cjah_test` will be generated.
-
-### Execution
+Linux / macOS:
 
 ```bash
-# Run all test cases
-./build/bin/cjah_test
-
-# Run CI test cases
-./build/bin/cjah_test --gtest_filter="*/CJAHTest.CI001/*"
+export CANGJIE_SRC_HOME=${xxx}/cangjie_compiler   # Cangjie source tree (provides include)
+export JSON_PATH=${third_party}/json              # nlohmann/json dir (optional, defaults to third_party/json)
+source ${yyy}/cangjie/envsetup.sh                 # sets CANGJIE_HOME, LD_LIBRARY_PATH
+bash build.sh -t Release -b
 ```
+
+Windows:
+
+```powershell
+# Machine-specific paths (SDK, llvm-mingw, ninja, etc.) are configured centrally in
+# scripts/win_env.ps1 and can be overridden via environment variables
+# Build options are aligned with build.sh (short options work on both platforms)
+build.bat -b -t Release
+# or: powershell -File build.ps1 -b -t Release
+```
+
+Build artifacts are placed under `build/bin/` (`cjah` / `cjah.exe`); use `-i` /
+`bash build.sh -t Release -i` to install into `output/`.
+See [Build Guide](./doc/build.md) and [Windows Build Guide](./doc/build-windows.md) for details.
+
+### Run
+
+```bash
+mkdir -p out
+# Print the source after semantic analysis and desugaring
+# (the sema/desugared-sema stages need the passthrough --output-type option)
+./build/bin/cjah --dump-source=desugared-sema --output-type=dylib main.cj --output-dir out
+# Artifact: out/main_source.cj
+
+# Syntax-only check (directory input, merged JSON diagnostics)
+./build/bin/cjah --check-syntax=true src/ --diagnostic-format=json
+```
+
+Unrecognized arguments are forwarded to the frontend (`-p <pkg-path>`, `--output-dir`,
+`-Woff`, ...). See the [Usage Reference](./doc/usage.md) for the full option list.
+
+## Documentation
+
+| Document | Content |
+|---|---|
+| [doc/build.md](./doc/build.md) | Linux / macOS build guide |
+| [doc/build-windows.md](./doc/build-windows.md) | Windows build guide (toolchain, path config, troubleshooting) |
+| [doc/usage.md](./doc/usage.md) | Usage reference (options, stages, output conventions, examples) |
+| [doc/design.md](./doc/design.md) | Architecture (module layout, library dependencies, stage pipeline) |
+| [doc/testing.md](./doc/testing.md) | Test suite build & run |
+
+## Testing
+
+Based on googletest v1.17.0 (`third_party/googletest-v1.17.0` or a prebuilt
+`GTEST_RELEASE_PATH`):
+
+```bash
+bash build.sh -g -t Release -b                          # Linux/macOS
+powershell -File build.ps1 -g -b       # Windows
+./build/bin/cjah_test --gtest_filter="*/CJAHTest.CI001/*"   # CI pipeline regression cases
+```
+
+See [Testing Guide](./doc/testing.md).
+
+## License
+
+[Apache License 2.0](./LICENSE)

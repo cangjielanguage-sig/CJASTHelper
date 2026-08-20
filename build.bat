@@ -5,7 +5,7 @@ REM Wrapper that calls the PowerShell build script
 setlocal enabledelayedexpansion
 
 if "%~1"=="" (
-    powershell -ExecutionPolicy Bypass -File "%~dp0build.ps1" -Help
+    powershell -ExecutionPolicy Bypass -File "%~dp0build.ps1" -h
     goto :EOF
 )
 

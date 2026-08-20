@@ -26,7 +26,12 @@ $NC = [ConsoleColor]::Gray
 . "$PSScriptRoot/scripts/win_env.ps1"
 
 # 仓库内相对路径（不依赖外部环境，仅依赖本仓库布局）
-$global:JSON_INC = "$PSScriptRoot/third_party/json/json"
+# 支持环境变量 JSON_PATH 覆盖（与 build.sh 一致），缺省使用仓库内 third_party/json/json
+if ($env:JSON_PATH) {
+    $global:JSON_INC = $env:JSON_PATH
+} else {
+    $global:JSON_INC = "$PSScriptRoot/third_party/json/json"
+}
 
 # Add MinGW to PATH for ninja
 # $env:PATH = "$global:MINGW_BIN;" + $env:PATH
@@ -85,23 +90,26 @@ function Show-Help {
     Write-Host "    powershell -File build.ps1 [options] -- [runargs]"
     Write-Host ""
     Write-Host -ForegroundColor $CYAN "Examples:"
-    Write-Host "    powershell -File build.ps1 -ShowCmd -BuildType Debug -BuildOnly"
-    Write-Host "    powershell -File build.ps1 -BuildType Release -BuildOnly"
-    Write-Host "    powershell -File build.ps1 -ShowCmd -Run -- test/main.cj"
+    Write-Host "    powershell -File build.ps1 -v -t Debug -b"
+    Write-Host "    powershell -File build.ps1 -t Release -b"
+    Write-Host "    powershell -File build.ps1 -v -r -- test/main.cj"
     Write-Host ""
     Write-Host -ForegroundColor $CYAN "Options:"
-    Write-Host -ForegroundColor $GREEN "    --help         Show this help message"
-    Write-Host -ForegroundColor $GREEN "    -ShowCmd       Dump build commands"
-    Write-Host -ForegroundColor $GREEN "    -EnableTest    Enable test with googletest"
-    Write-Host -ForegroundColor $GREEN "    -Standalone    Enable standalone version"
-    Write-Host -ForegroundColor $GREEN "    -BuildType     Config build type [Debug | Release] (default: Release)"
-    Write-Host -ForegroundColor $GREEN "    -Prefix        Config install prefix (default: output)"
-    Write-Host -ForegroundColor $GREEN "    -CangjieLib    Override Cangjie lib path"
-    Write-Host -ForegroundColor $GREEN "    -UpdateCache   Update cmake cache"
-    Write-Host -ForegroundColor $GREEN "    -BuildOnly     Build only"
-    Write-Host -ForegroundColor $GREEN "    -Install       Install binary"
-    Write-Host -ForegroundColor $GREEN "    -Clean         Clean build"
-    Write-Host -ForegroundColor $GREEN "    -Run           Run binary or test, optional with args '-- [runargs]'"
+    Write-Host -ForegroundColor $GREEN "    -h  Show this help message"
+    Write-Host -ForegroundColor $GREEN "    -v  Dump build commands"
+    Write-Host -ForegroundColor $GREEN "    -g  Enable test with googletest"
+    Write-Host -ForegroundColor $GREEN "    -a  Enable standalone version"
+    Write-Host -ForegroundColor $GREEN "    -t  Config build type [Debug | Release] (default: Debug)"
+    Write-Host -ForegroundColor $GREEN "    -p  Config install prefix (default: output)"
+    Write-Host -ForegroundColor $GREEN "    -d  Override Cangjie lib path"
+    Write-Host -ForegroundColor $GREEN "    -u  Update cmake cache"
+    Write-Host -ForegroundColor $GREEN "    -b  Build only"
+    Write-Host -ForegroundColor $GREEN "    -i  Install binary"
+    Write-Host -ForegroundColor $GREEN "    -c  Clean build"
+    Write-Host -ForegroundColor $GREEN "    -r  Run binary or test, optional with args '-- [runargs]'"
+    Write-Host ""
+    Write-Host -ForegroundColor $CYAN "Options match build.sh, so the same command works on both platforms:"
+    Write-Host "    bash build.sh -b -t Debug   <=>   build.bat -b -t Debug"
 }
 
 function Update-Cache {
@@ -250,7 +258,7 @@ $global:PRE = "$CWD/output"
 $global:ShowCmd = $false
 $global:EnableTest = $false
 $global:Standalone = $false
-$global:BuildType = "Release"
+$global:BuildType = "Debug"
 $global:Prefix = "output"
 $global:CangjieLib = ""
 $global:action = ""
@@ -277,35 +285,35 @@ while ($argIndex -lt $rawArgs.Count) {
     
     if ($global:parsingArgs) {
         switch -Regex ($arg) {
-            '^--?[Hh]elp$' { Show-Help; exit 0 }
-            '^-ShowCmd$' { $global:ShowCmd = $true; $global:VERBOSE_FLAG = "-v" }
-            '^-EnableTest$' { $global:EnableTest = $true; $global:TEST = "ON" }
-            '^-Standalone$' { $global:Standalone = $true; $global:ALONE = "ON" }
-            '^-BuildType$' { 
+            '^--?[Hh](elp)?$' { Show-Help; exit 0 }
+            '^-v$' { $global:ShowCmd = $true; $global:VERBOSE_FLAG = "-v" }
+            '^-g$' { $global:EnableTest = $true; $global:TEST = "ON" }
+            '^-a$' { $global:Standalone = $true; $global:ALONE = "ON" }
+            '^-t$' { 
                 if ($argIndex + 1 -lt $rawArgs.Count) {
                     $global:BuildType = $rawArgs[$argIndex + 1]
                     $argIndex++
                 }
             }
-            '^-Prefix$' { 
+            '^-p$' { 
                 if ($argIndex + 1 -lt $rawArgs.Count) {
                     $global:Prefix = $rawArgs[$argIndex + 1]
                     $global:PRE = "$CWD/$global:Prefix"
                     $argIndex++
                 }
             }
-            '^-CangjieLib$' { 
+            '^-d$' { 
                 if ($argIndex + 1 -lt $rawArgs.Count) {
                     $global:CangjieLib = $rawArgs[$argIndex + 1]
                     $global:CANGJIE_LIB_DIR = $global:CangjieLib
                     $argIndex++
                 }
             }
-            '^-UpdateCache$' { $global:action = "update" }
-            '^-BuildOnly$' { $global:action = "build" }
-            '^-Install$' { $global:action = "install" }
-            '^-Clean$' { $global:action = "clean" }
-            '^-Run$' { 
+            '^-u$' { $global:action = "update" }
+            '^-b$' { $global:action = "build" }
+            '^-i$' { $global:action = "install" }
+            '^-c$' { $global:action = "clean" }
+            '^-r$' { 
                 $global:action = if ($global:EnableTest) { "test" } else { "run" }
             }
             default { Write-Error "Unknown parameter: $arg"; exit 1 }
