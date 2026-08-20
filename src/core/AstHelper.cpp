@@ -15,18 +15,25 @@ AstHelper::AstHelper(Options&& options)
     RegisterStages();
 }
 
-void AstHelper::Run()
+bool AstHelper::Run()
 {
     DisplayOptions();
     if (!DoParse()) {
         LOGD("DoParse failed.");
-        return;
+        return false;
+    }
+    if (options.checkSyntax) {
+        // 语法检查模式: 检查完语法后提前结束, 不做 ast 输出/分析/转换
+        bool succeed = cjfeHelper.GetErrorCount() == 0;
+        LOGD("check-syntax mode: skip ast dump, analysis and conversion.");
+        return succeed;
     }
     DumpAst();
     if (!DoAnalysis()) {
         LOGD("DoAnalysis failed.");
-        return;
+        return false;
     }
+    return true;
 }
 
 void AstHelper::DisplayOptions()
@@ -136,7 +143,7 @@ UniquePtr<PassConfig> AstHelper::MakePassConfig()
     if (options.enableDesugar) {
         config->EnableDesugar();
     }
-    if (options.stage >= SourceStage::IMPORT) {
+    if (options.stage >= SourceStage::SEMA) {
         config->EnableSema();
     }
     config->Focus(options.filterDecls);
@@ -155,7 +162,7 @@ void AstHelper::RegisterStages()
 {
     stageMap.emplace(SourceStage::PARSE, [this]() {
         LOGD();
-        return cjfeHelper.Parse();
+        return cjfeHelper.Parse() && cjfeHelper.ConditionCompile();
     });
     stageMap.emplace(SourceStage::DESUGARED_PARSE, [this]() {
         LOGD();
@@ -165,11 +172,15 @@ void AstHelper::RegisterStages()
         LOGD();
         return cjfeHelper.ImportPackage();
     });
+    stageMap.emplace(SourceStage::MACRO_EXPAND, [this]() {
+        if (options.enableMacro) {
+            LOGD();
+            return cjfeHelper.MacroExpand();
+        }
+        return true;
+    });
     stageMap.emplace(SourceStage::SEMA, [this]() {
         LOGD();
-        if (options.enableMacro) {
-            cjfeHelper.MacroExpand();
-        }
         return cjfeHelper.Sema();
     });
     stageMap.emplace(SourceStage::DESUGARED_SEMA, [this]() {

@@ -26,6 +26,7 @@ public:
     virtual ~CangjieFrontendHelper() = default;
 
     bool Parse();
+    bool ConditionCompile();
     bool DesugaredParse();
     bool ImportPackage();
     bool MacroExpand();
@@ -33,6 +34,11 @@ public:
     bool DesugaredSema();
 
     Str GetOutDir() const;
+
+    /**
+     * Get the number of errors reported by the diagnostic engine.
+     */
+    uint64_t GetErrorCount();
 
     PkgPtrVec GetSourcePackages();
     PkgPtrVec GetImportedPackages();

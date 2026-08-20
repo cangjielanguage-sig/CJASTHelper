@@ -10,16 +10,30 @@
 #include "utils/Macro.h"
 #include "wrapper/AstNodeHelper.h"
 #include "wrapper/CangjieFrontendHelper.h"
+#include "wrapper/JsonDiagCollector.h"
 #include <fstream>
 
 CangjieFrontendHelper::CangjieFrontendHelper(ConStrVec& args, ConStrMap<Str>& env) : mci(ParseArgs(args, env), diag)
 {
     ci.globalOptions.executablePath = ci.frontendOptions.environment.cangjieHome.value_or(".") + "/bin/cjc";
+    if (ci.globalOptions.diagFormat == Cangjie::DiagFormat::JSON) {
+        // JSON 模式: 关闭默认打印, 使用收集器聚合多包诊断, 统一输出一份合并文档(见 JsonDiagCollector)
+        diag.SetIsEmitter(false);
+        diag.RegisterHandler(std::unique_ptr<Cangjie::DiagnosticHandler>(new JsonDiagCollector(diag)));
+    } else {
+        // 将解析出的诊断格式应用到诊断引擎 (--diagnostic-format=noColor 等)
+        diag.RegisterHandler(ci.globalOptions.diagFormat);
+    }
 }
 
 bool CangjieFrontendHelper::Parse()
 {
     return mci.PerformParse();
+}
+
+bool CangjieFrontendHelper::ConditionCompile()
+{
+    return mci.PerformConditionCompile();
 }
 
 bool CangjieFrontendHelper::DesugaredParse()
@@ -53,6 +67,11 @@ bool CangjieFrontendHelper::DesugaredSema()
 Str CangjieFrontendHelper::GetOutDir() const
 {
     return ci.globalOptions.outputDir.value_or(".");
+}
+
+uint64_t CangjieFrontendHelper::GetErrorCount()
+{
+    return diag.GetErrorCount();
 }
 
 PkgPtrVec CangjieFrontendHelper::GetSourcePackages()

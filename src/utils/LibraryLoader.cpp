@@ -15,19 +15,24 @@ LibraryLoader& LibraryLoader::GetInstance()
 
 Handle LibraryLoader::LoadLib(ConStr& lib)
 {
-    // TODO: 没有后缀 添加后缀
+    // passes.json 中的 lib 是目标名(不带平台前缀/后缀), 这里按平台拼出真实库文件名:
+    //   Windows: cjast_desugar_pass.dll (CMake 对共享库设置了 PREFIX "")
+    //   Linux:   libcjast_desugar_pass.so
+    //   macOS:   libcjast_desugar_pass.dylib
     Str libname = lib;
+#if defined(_WIN32)
+    libname += ".dll";
+#elif defined(__APPLE__)
+    libname = "lib" + libname + ".dylib";
+#elif defined(__linux__)
+    libname = "lib" + libname + ".so";
+#else
+#error "Unsupported platform"
+#endif
+    libname = FindPath(libname, searchPaths);
 #ifdef _WIN32
-    libname = libname + ".dll";
-    libname = SearchPath(libname, searchPaths);
     Handle handle = LoadLibrary(libname.c_str());
 #else
-#if defined(__linux__)
-    libname = libname + ".so";
-#else
-    libname = libname + ".dylib";
-#endif
-    libname = SearchPath(libname, searchPaths);
     Handle handle = dlopen(libname.c_str(), RTLD_LAZY);
 #endif
     return handle;

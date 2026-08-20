@@ -25,7 +25,8 @@ protected:
 
     // 递归展开需要重写的解糖节点
     EXPAND4(GEN_BEFORE_OVERRIDE, MainDecl, AssignExpr, UnaryExpr, BinaryExpr);
-    EXPAND3(GEN_BEFORE_OVERRIDE, RefExpr, SubscriptExpr, OptionType);
+    EXPAND4(GEN_BEFORE_OVERRIDE, CallExpr, RefExpr, SubscriptExpr, OptionType);
+    EXPAND1(GEN_BEFORE_OVERRIDE, MacroDecl);
 
     // 递归展开需要重写的节点
     EXPAND2(GEN_VISIT_OVERRIDE, Annotation, Modifier);
@@ -35,7 +36,8 @@ protected:
     EXPAND4(GEN_VISIT_OVERRIDE, VarDecl, VarWithPatternDecl, PropDecl, FuncParam);
     EXPAND4(GEN_VISIT_OVERRIDE, FuncParamList, FuncBody, FuncDecl, MainDecl);
     EXPAND4(GEN_VISIT_OVERRIDE, PrimaryCtorDecl, ClassDecl, InterfaceDecl, StructDecl);
-    EXPAND3(GEN_VISIT_OVERRIDE, EnumDecl, ExtendDecl, TypeAliasDecl);
+    EXPAND4(GEN_VISIT_OVERRIDE, EnumDecl, ExtendDecl, TypeAliasDecl, MacroDecl);
+    EXPAND2(GEN_VISIT_OVERRIDE, MacroExpandDecl, BuiltInDecl);
     // Type
     EXPAND4(GEN_VISIT_OVERRIDE, PrimitiveType, RefType, OptionType, TupleType);
     EXPAND4(GEN_VISIT_OVERRIDE, QualifiedType, ThisType, VArrayType, ParenType);
@@ -52,6 +54,10 @@ protected:
     EXPAND4(GEN_VISIT_OVERRIDE, SubscriptExpr, JumpExpr, RangeExpr, LetPatternDestructor);
     EXPAND4(GEN_VISIT_OVERRIDE, IfExpr, DoWhileExpr, WhileExpr, ForInExpr);
     EXPAND4(GEN_VISIT_OVERRIDE, TupleLit, TypeConvExpr, ParenExpr, TryExpr);
+    EXPAND3(GEN_VISIT_OVERRIDE, QuoteExpr, TokenPart, MacroExpandExpr);
+    EXPAND4(GEN_VISIT_OVERRIDE, WildcardExpr, ArrayExpr, PointerExpr, PrimitiveTypeExpr);
+    EXPAND3(GEN_VISIT_OVERRIDE, TrailingClosureExpr, SpawnExpr, SynchronizedExpr);
+    EXPAND2(GEN_VISIT_OVERRIDE, InterpolationExpr, StrInterpolationExpr);
     // Generic
     EXPAND3(GEN_VISIT_OVERRIDE, Generic, GenericParamDecl, GenericConstraint);
 
@@ -98,6 +104,10 @@ private:
      * @brief 辅助打印声明节点。
      */
     void PrintDecl(const Decl& node);
+    /**
+     * @brief 辅助打印MacroInvocation。
+     */
+    void PrintMacroInvocation(const MacroInvocation& node, const std::string& id);
     /**
      * @brief 辅助打印注解列表。
      */

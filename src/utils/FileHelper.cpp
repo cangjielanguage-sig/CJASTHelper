@@ -10,6 +10,7 @@
 #include <unistd.h>
 #endif
 
+#include <algorithm>
 #include <system_error>
 
 namespace fs = std::filesystem;
@@ -53,7 +54,11 @@ bool CheckExist(ConStr& file)
 
 Str FileName(ConStr& filePath)
 {
-    return fs::path(filePath).stem();
+    fs::path base = fs::path(filePath);
+    while (!base.extension().empty()) {
+        base = base.stem();
+    }
+    return base.string();
 }
 
 void CreateDirIfNotExists(ConStr& path)
@@ -67,12 +72,17 @@ void CreateDirIfNotExists(ConStr& path)
     }
 }
 
-Str SearchPath(ConStr& name, ConStrVec& paths)
+Str FindPath(ConStr& name, ConStrVec& paths)
 {
     // path is empty, find default path
-    auto pre = getExecutablePath().parent_path().string();
+    // 用 filesystem::path 拼接, 自动适配平台分隔符(Windows '\', POSIX '/')
+    auto exeDir = getExecutablePath().parent_path();
+    auto filePath = (exeDir / name).string();
+    if (CheckExist(filePath)) {
+        return filePath;
+    }
     for (auto& p : paths) {
-        auto filePath = pre + "/" + p + "/" + name;
+        filePath = (exeDir / p / name).string();
         if (CheckExist(filePath)) {
             return filePath;
         }
@@ -80,8 +90,37 @@ Str SearchPath(ConStr& name, ConStrVec& paths)
     throw std::invalid_argument("The file is not found: " + name);
 }
 
+std::map<Str, StrVec> GroupCjFilesByDir(ConStr& dir)
+{
+    std::map<Str, StrVec> groups;
+    std::error_code ec;
+    fs::recursive_directory_iterator iter(dir, fs::directory_options::skip_permission_denied, ec);
+    fs::recursive_directory_iterator end;
+    for (; iter != end; iter.increment(ec)) {
+        if (ec) {
+            // 遍历出错(权限/路径无效等)时中断, 返回已收集的部分
+            break;
+        }
+        const auto& entry = *iter;
+        if (entry.is_directory()) {
+            // 跳过隐藏目录(.git/.idea 等)
+            if (entry.path().filename().string().starts_with(".")) {
+                iter.disable_recursion_pending();
+            }
+            continue;
+        }
+        if (entry.path().extension() == ".cj") {
+            groups[entry.path().parent_path().string()].emplace_back(entry.path().string());
+        }
+    }
+    for (auto& [pkgDir, files] : groups) {
+        std::sort(files.begin(), files.end());
+    }
+    return groups;
+}
+
 // Json 配置文件解析
-ConfigParser::ConfigParser(ConStr& name) : path(SearchPath(name, searchPaths)), fs(path)
+ConfigParser::ConfigParser(ConStr& name) : path(FindPath(name, searchPaths)), fs(path)
 {
     if (!fs.is_open()) {
         throw std::logic_error("Try to open config file: " + name + " failed!");

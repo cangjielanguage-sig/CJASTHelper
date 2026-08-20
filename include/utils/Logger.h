@@ -10,7 +10,42 @@
 #else
 #include "utils/Printer.h"
 #include <fstream>
-#include <source_location> // C++20 起支持
+
+// source_location fallback for older toolchains (Clang < 16, GCC < 11)
+#if __has_include(<source_location>) && (__cplusplus >= 202002L)
+#include <source_location>
+namespace cjah {
+using std::source_location;
+}
+#else
+namespace cjah {
+struct source_location {
+    const char* file_name() const noexcept { return file_; }
+    const char* function_name() const noexcept { return func_; }
+    uint32_t line() const noexcept { return line_; }
+    uint32_t column() const noexcept { return col_; }
+
+    static constexpr source_location current(
+        const char* file = __builtin_FILE(),
+        const char* func = __builtin_FUNCTION(),
+        uint32_t line = __builtin_LINE(),
+        uint32_t col = 0) noexcept {
+        source_location loc;
+        loc.file_ = file;
+        loc.func_ = func;
+        loc.line_ = line;
+        loc.col_ = col;
+        return loc;
+    }
+
+private:
+    const char* file_ = "";
+    const char* func_ = "";
+    uint32_t line_ = 0;
+    uint32_t col_ = 0;
+};
+}
+#endif
 
 // 映射表（保持顺序一致！）
 constexpr int LEVEL_SIZE = 4;
@@ -47,7 +82,7 @@ public:
      * @param loc 日志位置。
      * @param args 要记录的日志内容。
      */
-    template <Level level = Level::DEBUG, typename... Args> void Log(const std::source_location& loc, Args&&... args)
+    template <Level level = Level::DEBUG, typename... Args> void Log(const cjah::source_location& loc, Args&&... args)
     {
 
         if (this->level > level) {
@@ -80,7 +115,8 @@ private:
     static UniquePtr<Logger> instance; // 日志实例集合
 };
 
-#define LOG(level, ...) Logger::Get().Log<Logger::Level::level>(std::source_location::current(), ##__VA_ARGS__)
+// MinGW/GCC compatible variadic macro - use C++20 __VA_OPT__ for zero-arg handling
+#define LOG(level, ...) Logger::Get().Log<Logger::Level::level>(cjah::source_location::current() __VA_OPT__(, ) __VA_ARGS__)
 #endif
 
 #define LOGD(...) LOG(DEBUG, ##__VA_ARGS__)

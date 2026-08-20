@@ -17,6 +17,7 @@ enum class SourceStage {
     PARSE,           /**< Source of parsed ast. */
     DESUGARED_PARSE, /**< Source of desugared parsed ast. */
     IMPORT,          /**< Import Depend Packages for dump imports. */
+    MACRO_EXPAND,    /**< Source of macro expand. */
     SEMA,            /**< Source of typechecked ast. */
     DESUGARED_SEMA,  /**< Source of desugared typechecked ast. */
 };
@@ -28,6 +29,7 @@ struct Options {
     SourceStage stage = SourceStage::DEFAULT; /**< 当前的源代码阶段 */
     bool enableDesugar = false;               /**< 是否启用语法糖打印 */
     bool enableMacro = true;                  /**< 是否启用宏展开 */
+    bool checkSyntax = false;                 /**< 是否仅做语法检查: 解析完成即结束, 不做分析/转换 */
     StrOpt astOutPath = std::nullopt;         /**< Ast 输出路径,  None 表示不输出 */
     StrSet filterDecls;                       /**< 过滤打印decl配置 */
     StrSet ignoreDecls;                       /**< 忽略打印decl配置 */
@@ -36,11 +38,19 @@ struct Options {
     StrVec passes;                            /**< 配置需要执行的 passes 列表 */
     StrVec args;                              /**< 需要传递给前端的参数列表 */
     static inline StrMap<Str> env;            /**< 环境变量 */
-    static inline int parallels = 1;          /**< 任务并发度 */
+    /**
+     * 任务并发度。以导出访问器形式提供(定义于 core DLL 单 TU):
+     * 避免 static inline 数据成员在 Windows 多 DLL 布局下每模块各持一份副本,
+     * 导致 --parallel-tasks 的设置在 core DLL 内写、却被 exe 侧的独立副本读到。
+     */
+    static int Parallels();
+    static void SetParallels(int value);
+    bool valid = true;                        /**< 参数解析是否成功 */
 
     Options& Stage(ConStr& stage);
     Options& EnableDesugar(ConStr& enable);
     Options& EnableMacro(ConStr& enable);
+    Options& CheckSyntax(ConStr& enable);
     Options& EnableAstOutPath(ConStr& path);
     Options& FilterDecls(ConStrVec& decl);
     Options& IgnoreDecls(ConStrVec& decl);

@@ -26,6 +26,8 @@ using Cangjie::AST::Ty;
 using Cangjie::AST::Type;
 using Cangjie::AST::TypeKind;
 using Cangjie::AST::VarDeclAbstract;
+using Cangjie::AST::MacroInvocation;
+using Cangjie::Token;
 
 // 宏自动生成 using Cangjie::AST::Package
 #define AST_INFO(KIND, STR, DEF) using Cangjie::AST::DEF;

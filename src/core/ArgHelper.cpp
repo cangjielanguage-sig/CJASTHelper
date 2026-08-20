@@ -10,6 +10,7 @@
 #include "utils/Logger.h"
 #include <charconv>
 #include <iomanip>
+#include <map>
 #include <stdexcept>
 
 /// Option 配置方法实现
@@ -18,7 +19,7 @@ namespace {
  * @brief 将字符串键映射到SourceStage值
  */
 ConStrMap<SourceStage> key2Stage{{"parse", SourceStage::PARSE}, {"desugared-parse", SourceStage::DESUGARED_PARSE},
-    {"sema", SourceStage::SEMA}, {"desugared-sema", SourceStage::DESUGARED_SEMA}};
+    {"macro", SourceStage::MACRO_EXPAND}, {"sema", SourceStage::SEMA}, {"desugared-sema", SourceStage::DESUGARED_SEMA}};
 } // namespace
 Options& Options::Stage(ConStr& stage)
 {
@@ -34,6 +35,12 @@ Options& Options::EnableDesugar(ConStr& enable)
 Options& Options::EnableMacro(ConStr& enable)
 {
     this->enableMacro = enable == "true";
+    return *this;
+}
+
+Options& Options::CheckSyntax(ConStr& enable)
+{
+    this->checkSyntax = enable == "true";
     return *this;
 }
 
@@ -114,6 +121,12 @@ template <> struct adl_serializer<Options> {
         j.at("passes").get_to(op.passes);
         j.at("args").get_to(op.args);
         op.args.insert(op.args.begin(), "cjah");
+        // 语法检查模式: 强制只跑 parse 阶段, 跳过分析与转换
+        op.checkSyntax = j.value("checkSyntax", false);
+        if (op.checkSyntax) {
+            op.stage = SourceStage::PARSE;
+            op.passes.clear();
+        }
     }
 };
 } // namespace nlohmann
@@ -238,14 +251,65 @@ void ConfigGlobalOptions(ArgumentParser& ap)
     auto parallels = ap.GetSingleValue("parallel-tasks", "1");
     auto [_, ec] = std::from_chars(parallels.data(), parallels.data() + parallels.size(), val);
     if (ec == std::errc()) {
-        Options::parallels = val;
+        Options::SetParallels(val);
     }
-    LOGD("paralles: ", Options::parallels);
+    LOGD("paralles: ", Options::Parallels());
 }
 
-void ConfigOptions(Options& options, ArgumentParser& ap)
+/**
+ * @brief 配置选项并生成检查任务
+ * check-syntax 模式下, 若输入是目录, 按包分组: 每个直接包含 .cj 文件的目录视为一个包,
+ * 返回 每个包一个 Options(各自独立一次前端调用), 避免把多个包的文件混在一次前端调用中
+ * 导致部分包的文件未被解析而漏报语法错误。其余模式返回单个 Options。
+ */
+Vec<Options> ConfigOptions(ArgumentParser& ap, Options options)
 {
     // config options
+    options.CheckSyntax(ap.GetSingleValue("check-syntax", "false"));
+    if (options.checkSyntax) {
+        // 语法检查模式: 只需要 parse 阶段, 无需 --dump-source, 不配置任何 pass
+        options.Stage("parse");
+        // 按包分组: 包目录(排序保证包序确定) -> 该目录下的 .cj 文件
+        std::map<Str, StrVec> pkgFiles;
+        StrVec commonArgs;
+        if (!options.args.empty()) {
+            commonArgs.push_back(options.args.front()); // argv0 保留在每个包的最前面
+        }
+        for (size_t i = 1; i < options.args.size(); ++i) {
+            auto& arg = options.args[i];
+            std::error_code ec;
+            if (std::filesystem::is_directory(arg, ec)) {
+                auto groups = GroupCjFilesByDir(arg);
+                if (groups.empty()) {
+                    std::cerr << "warning: no .cj file found in directory: " << arg << std::endl;
+                }
+                for (auto& [pkgDir, files] : groups) {
+                    auto& dst = pkgFiles[pkgDir];
+                    dst.insert(dst.end(), files.begin(), files.end());
+                }
+            } else if (std::filesystem::is_regular_file(arg, ec) && arg.ends_with(".cj")) {
+                // 显式指定的 .cj 文件: 按所在目录归入对应包
+                auto dir = std::filesystem::path(arg).parent_path().string();
+                pkgFiles[dir.empty() ? "." : dir].push_back(arg);
+            } else {
+                commonArgs.push_back(arg);
+            }
+        }
+        if (pkgFiles.empty()) {
+            // 没有可检查的输入(目录为空或仅透传参数): 保持原参数交给前端报错
+            return {std::move(options)};
+        }
+        Vec<Options> opts;
+        for (auto& [pkgDir, files] : pkgFiles) {
+            std::sort(files.begin(), files.end());
+            files.erase(std::unique(files.begin(), files.end()), files.end());
+            Options o = options;
+            o.args = commonArgs;
+            o.args.insert(o.args.end(), files.begin(), files.end());
+            opts.push_back(std::move(o));
+        }
+        return opts;
+    }
     options.Stage(ap.GetSingleValue("dump-source"));
     options.EnableAstOutPath(ap.GetSingleValue("dump-ast", ""));
     options.FilterDecls(ap.GetMultiValue("filter-decls"));
@@ -259,7 +323,7 @@ void ConfigOptions(Options& options, ArgumentParser& ap)
     auto passes = ap.GetMultiValue("enable-passes");
     if (!passes.empty()) {
         options.Passes(passes);
-        return;
+        return {std::move(options)};
     }
     // config passes
     if (options.stage > SourceStage::PARSE) {
@@ -273,8 +337,32 @@ void ConfigOptions(Options& options, ArgumentParser& ap)
     }
     // 添加 to-cangjie 作为最后一个 pass
     options.passes.push_back("to-cangjie");
+    return {std::move(options)};
 }
 } // namespace
+
+/**
+ * 任务并发度的唯一存储点(core DLL 单 TU 导出, exe 经导入解析访问,
+ * 避免 static inline 成员跨 DLL 各持副本)。
+ */
+namespace {
+int& ParallelCountStorage()
+{
+    static int parallels = 1;
+    return parallels;
+}
+} // namespace
+
+int Options::Parallels()
+{
+    return ParallelCountStorage();
+}
+
+void Options::SetParallels(int value)
+{
+    ParallelCountStorage() = value;
+}
+
 Vec<Options> ArgHelper::ParseArgs(int argc, const char* const* argv, const char* const* envp)
 {
     Options options;
@@ -290,6 +378,10 @@ Vec<Options> ArgHelper::ParseArgs(int argc, const char* const* argv, const char*
 
     StrVec toolArgs;
     SplitArgs(args, toolArgs, options.args, validOpts);
+    if (toolArgs.empty()) {
+        // 没有工具选项: 保持原有行为, 仅展示帮助信息
+        return {options};
+    }
     try {
         Options::env = ParseEnv(
             envp, {"CANGJIE_PATH", "CANGJIE_HOME", "LIBRARY_PATH", "LD_LIBRARY_PATH", "PATH", "SDKROOT", "cjHeapSize"});
@@ -305,11 +397,12 @@ Vec<Options> ArgHelper::ParseArgs(int argc, const char* const* argv, const char*
             ConfigParser parser(taskCfg);
             return parser.Parse<Vec<Options>>();
         }
-        ConfigOptions(options, ap);
+        return ConfigOptions(ap, options);
     } catch (std::invalid_argument& e) {
         std::cerr << "error: " << e.what() << std::endl;
         // Only do show help info.
         options.stage = SourceStage::DEFAULT;
+        options.valid = false;
     }
     return {options};
 }

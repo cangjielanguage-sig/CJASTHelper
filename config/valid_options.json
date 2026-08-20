@@ -1,139 +1,160 @@
 [
-    {
-        "key": "dump-source",
-        "values": [
-            "parse",
-            "desugared-parse",
-            "sema",
-            "desugared-sema"
-        ],
-        "mainDesc": "Dump source after <value> stage. Supported value: parse, desugared-parse, sema, desugared-sema.",
-        "subDesc": [],
-        "single": true,
-        "visible": true
-    },
-    {
-        "key": "dump-ast",
-        "values": [],
-        "mainDesc": "Dump ast into file path <value>.",
-        "subDesc": [],
-        "single": true,
-        "visible": true
-    },
-    {
-        "key": "pass-config",
-        "values": [],
-        "mainDesc": "Pass config file name, default: passes.json.",
-        "subDesc": [],
-        "single": true,
-        "visible": true
-    },
-    {
-        "key": "enable-macro",
-        "values": [
-            "true",
-            "false"
-        ],
-        "mainDesc": "Enable macro when <value> is true. Supported <value>: (default) true, false.",
-        "subDesc": [
-            {
-                "sub": "<value>=true",
-                "desc": "Do macro expansion, please ensure the runtime and macro libs are in CANGJIE_HOME."
-            },
-            {
-                "sub": "<value>=false",
-                "desc": "Skip macro expansions when no macro using."
-            }
-        ],
-        "single": true,
-        "visible": true
-    },
-    {
-        "key": "enable-desugar",
-        "values": [
-            "true",
-            "false"
-        ],
-        "mainDesc": "Dump desugared code when <value> is true. Supported <value>: (default) true, false.",
-        "subDesc": [
-            {
-                "sub": "<value>=true",
-                "desc": "Dump code after desugaring."
-            },
-            {
-                "sub": "<value>=false",
-                "desc": "Dump the code before desuging."
-            }
-        ],
-        "single": true,
-        "visible": false
-    },
-    {
-        "key": "filter-decls",
-        "values": [
-            "func",
-            "var",
-            "struct",
-            "enum",
-            "interface",
-            "class"
-        ],
-        "mainDesc": "Filter top-level decls of <value>. Supported <value>: func, var, struct, enum, interface, class",
-        "subDesc": [
-            {
-                "sub": "<value>=func",
-                "desc": "Dump functions."
-            },
-            {
-                "sub": "<value>=func,class",
-                "desc": "Dump functions and classes."
-            },
-            {
-                "sub": "...",
-                "desc": ""
-            }
-        ],
-        "single": false,
-        "visible": true
-    },
-    {
-        "key": "ignore-decls",
-        "values": [],
-        "mainDesc": "Ignore top-level decls whoes identifier is <value>.",
-        "subDesc": [],
-        "single": false,
-        "visible": false
-    },
-    {
-        "key": "ignore-annotations",
-        "values": [],
-        "mainDesc": "Ignore annotations whoes identifier is <value>.",
-        "subDesc": [],
-        "single": false,
-        "visible": false
-    },
-    {
-        "key": "task-config",
-        "values": [],
-        "mainDesc": "Pass the task config file name.",
-        "subDesc": [],
-        "single": true,
-        "visible": false
-    },
-    {
-        "key": "parallel-tasks",
-        "values": [],
-        "mainDesc": "Run tasks in parallel with <value> threads.",
-        "subDesc": [],
-        "single": true,
-        "visible": false
-    },
-    {
-        "key": "enable-passes",
-        "values": [],
-        "mainDesc": "Enable passes whoes names is <value>.",
-        "subDesc": [],
-        "single": false,
-        "visible": false
-    }
+  {
+    "key": "dump-source",
+    "values": [
+      "parse",
+      "desugared-parse",
+      "macro",
+      "sema",
+      "desugared-sema"
+    ],
+    "mainDesc": "Dump source after <value> stage. Supported value: parse, desugared-parse, macro, sema, desugared-sema.",
+    "subDesc": [],
+    "single": true,
+    "visible": true
+  },
+  {
+    "key": "dump-ast",
+    "values": [],
+    "mainDesc": "Dump ast into file path <value>.",
+    "subDesc": [],
+    "single": true,
+    "visible": true
+  },
+  {
+    "key": "pass-config",
+    "values": [],
+    "mainDesc": "Pass config file name, default: passes.json.",
+    "subDesc": [],
+    "single": true,
+    "visible": true
+  },
+  {
+    "key": "enable-macro",
+    "values": [
+      "true",
+      "false"
+    ],
+    "mainDesc": "Enable macro when <value> is true. Supported <value>: (default) true, false.",
+    "subDesc": [
+      {
+        "sub": "<value>=true",
+        "desc": "Do macro expansion, please ensure the runtime and macro libs are in CANGJIE_HOME."
+      },
+      {
+        "sub": "<value>=false",
+        "desc": "Skip macro expansions when no macro using."
+      }
+    ],
+    "single": true,
+    "visible": true
+  },
+  {
+    "key": "enable-desugar",
+    "values": [
+      "true",
+      "false"
+    ],
+    "mainDesc": "Dump desugared code when <value> is true. Supported <value>: (default) true, false.",
+    "subDesc": [
+      {
+        "sub": "<value>=true",
+        "desc": "Dump code after desugaring."
+      },
+      {
+        "sub": "<value>=false",
+        "desc": "Dump the code before desuging."
+      }
+    ],
+    "single": true,
+    "visible": false
+  },
+  {
+    "key": "check-syntax",
+    "values": [
+      "true",
+      "false"
+    ],
+    "mainDesc": "Only check syntax errors of input when <value> is true, skip analysis and conversion. Input can be a .cj file or a directory. For a directory, each sub-directory that directly contains .cj files is treated as one package and checked per package (avoids missed errors when multi-package files are mixed in one frontend invocation). Supported <value>: (default) false, true.",
+    "subDesc": [
+      {
+        "sub": "<value>=true",
+        "desc": "Parse the input file(s) and report syntax errors, then exit early (no ast dump / analysis / conversion). A directory input is walked recursively and grouped per package (each directory directly containing .cj files), each package checked in its own frontend invocation. No need to pass --dump-source."
+      },
+      {
+        "sub": "<value>=false",
+        "desc": "Run the full pipeline as normal."
+      }
+    ],
+    "single": true,
+    "visible": true
+  },
+  {
+    "key": "filter-decls",
+    "values": [
+      "func",
+      "var",
+      "struct",
+      "enum",
+      "interface",
+      "class"
+    ],
+    "mainDesc": "Filter top-level decls of <value>. Supported <value>: func, var, struct, enum, interface, class",
+    "subDesc": [
+      {
+        "sub": "<value>=func",
+        "desc": "Dump functions."
+      },
+      {
+        "sub": "<value>=func,class",
+        "desc": "Dump functions and classes."
+      },
+      {
+        "sub": "...",
+        "desc": ""
+      }
+    ],
+    "single": false,
+    "visible": true
+  },
+  {
+    "key": "ignore-decls",
+    "values": [],
+    "mainDesc": "Ignore top-level decls whoes identifier is <value>.",
+    "subDesc": [],
+    "single": false,
+    "visible": false
+  },
+  {
+    "key": "ignore-annotations",
+    "values": [],
+    "mainDesc": "Ignore annotations whoes identifier is <value>.",
+    "subDesc": [],
+    "single": false,
+    "visible": false
+  },
+  {
+    "key": "task-config",
+    "values": [],
+    "mainDesc": "Pass the task config file name.",
+    "subDesc": [],
+    "single": true,
+    "visible": false
+  },
+  {
+    "key": "parallel-tasks",
+    "values": [],
+    "mainDesc": "Run tasks in parallel with <value> threads.",
+    "subDesc": [],
+    "single": true,
+    "visible": false
+  },
+  {
+    "key": "enable-passes",
+    "values": [],
+    "mainDesc": "Enable passes whoes names is <value>.",
+    "subDesc": [],
+    "single": false,
+    "visible": false
+  }
 ]
