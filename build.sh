@@ -12,7 +12,7 @@ NC='\033[0m' # No Color
 CWD=$(dirname $(realpath "$0"))
 CJ_INC=$CANGJIE_SRC_HOME/include
 # Use local third_party/json if JSON_PATH not set
-JSON_INC=${JSON_PATH:-"$CWD/third_party/json/json"}
+JSON_INC=${JSON_PATH:-"$CWD/third_party/json"}
 BTYPE=Debug
 BUILD_DIR=$CWD/build
 SOURCE_DIR=$CWD

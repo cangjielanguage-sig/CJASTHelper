@@ -75,13 +75,14 @@ void CreateDirIfNotExists(ConStr& path)
 Str FindPath(ConStr& name, ConStrVec& paths)
 {
     // path is empty, find default path
-    auto pre = getExecutablePath().parent_path().string();
-    auto filePath = pre + "/" + name;
+    // 用 filesystem::path 拼接, 自动适配平台分隔符(Windows '\', POSIX '/')
+    auto exeDir = getExecutablePath().parent_path();
+    auto filePath = (exeDir / name).string();
     if (CheckExist(filePath)) {
         return filePath;
     }
     for (auto& p : paths) {
-        filePath = pre + "/" + p + "/" + name;
+        filePath = (exeDir / p / name).string();
         if (CheckExist(filePath)) {
             return filePath;
         }
