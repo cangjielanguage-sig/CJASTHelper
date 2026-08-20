@@ -26,6 +26,8 @@
 
 # ------------------------------------------------------------------------------
 # MinGW / LLVM 工具链（CMakeLists.txt 中 -DMINGW_BIN 与编译器路径引用）
+# 来源：https://github.com/mstorsjo/llvm-mingw 20220906 tag 源码构建，
+# configure 时 --with-default-msvcrt=msvcrt（默认 C 运行时为 msvcrt 后端）
 # ------------------------------------------------------------------------------
 if ($env:MINGW_BIN) {
     $global:MINGW_BIN = $env:MINGW_BIN
