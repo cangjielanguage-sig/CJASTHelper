@@ -161,7 +161,9 @@ function Build-Project {
     }
     $originalDir = Get-Location
     Set-Location $global:BUILD_DIR
-    $exitCode = Run-ExternalCommand $global:NINJA_BIN @($global:VERBOSE_FLAG)
+    $ninjaArgs = @()
+    if ($global:ShowCmd) { $ninjaArgs += "-v" }
+    $exitCode = Run-ExternalCommand $global:NINJA_BIN $ninjaArgs
     Set-Location $originalDir
     
     if ($exitCode -eq 0) {
@@ -190,13 +192,14 @@ function Install-Project {
     
     $originalDir = Get-Location
     Set-Location $global:BUILD_DIR
-    $exitCode = Run-ExternalCommand $global:NINJA_BIN @($global:VERBOSE_FLAG, "install")
+    $ninjaArgs = @("install")
+    if ($global:ShowCmd) { $ninjaArgs = @("-v") + $ninjaArgs }
+    $exitCode = Run-ExternalCommand $global:NINJA_BIN $ninjaArgs
     Set-Location $originalDir
     
     if ($exitCode -eq 0) {
         Write-Success "Installation completed successfully"
         Copy-SdkRuntimeDeps -TargetDir "$global:PRE/bin"
-        Deploy-Config -TargetDir "$global:PRE/bin"
     } else {
         Write-Error "Installation failed"
     }
@@ -265,7 +268,6 @@ $global:action = ""
 $global:runArgs = @()
 $global:parsingArgs = $true
 
-$global:VERBOSE_FLAG = if ($global:ShowCmd) { "-v" } else { "" }
 $global:TEST = if ($global:EnableTest) { "ON" } else { "OFF" }
 $global:ALONE = if ($global:Standalone) { "ON" } else { "OFF" }
 
@@ -286,7 +288,7 @@ while ($argIndex -lt $rawArgs.Count) {
     if ($global:parsingArgs) {
         switch -Regex ($arg) {
             '^--?[Hh](elp)?$' { Show-Help; exit 0 }
-            '^-v$' { $global:ShowCmd = $true; $global:VERBOSE_FLAG = "-v" }
+            '^-v$' { $global:ShowCmd = $true }
             '^-g$' { $global:EnableTest = $true; $global:TEST = "ON" }
             '^-a$' { $global:Standalone = $true; $global:ALONE = "ON" }
             '^-t$' { 
@@ -350,24 +352,15 @@ $global:CANGJIE_CJNATIVE_LIB_DIR = "$env:CANGJIE_HOME/lib/windows_x86_64_cjnativ
 # Runtime deployment helpers
 # ==============================================================================
 
-# 将 SDK 运行时依赖 DLL 复制到目标 bin 目录（exe 所在目录 DLL 搜索优先级最高，
-# 不依赖 PATH 中其它 SDK 的干扰）
+# 仅复制工具链运行时 libssp-0.dll（-fstack-protector-all 链接依赖）到目标 bin 目录
 function Copy-SdkRuntimeDeps {
     param([string]$TargetDir)
-    $sdkBin = Join-Path $env:CANGJIE_HOME "tools/bin"
-    if (-not (Test-Path $sdkBin)) {
-        Write-Warning "SDK bin dir not found: $sdkBin"
-        return
-    }
-    $deps = @("libcangjie-lsp.dll", "libc++.dll", "libunwind.dll", "libwinpthread-1.dll")
-    foreach ($d in $deps) {
-        $src = Join-Path $sdkBin $d
-        if (Test-Path $src) {
-            Copy-Item -Force $src $TargetDir
-            Write-Info "Deployed $d -> $TargetDir"
-        } else {
-            Write-Warning "SDK dep not found: $src"
-        }
+    $sspDll = Join-Path $global:MINGW_BIN "../x86_64-w64-mingw32/bin/libssp-0.dll"
+    if (Test-Path $sspDll) {
+        Copy-Item -Force $sspDll $TargetDir
+        Write-Info "Deployed libssp-0.dll -> $TargetDir"
+    } else {
+        Write-Warning "libssp-0.dll not found: $sspDll"
     }
 }
 
