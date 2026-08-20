@@ -43,6 +43,9 @@ if ($env:CANGJIE_HOME) {
     $env:CANGJIE_HOME = "D:/sdks/cangjie"
 }
 
+# Cangjie 配套源码路径
+$env:CANGJIE_SRC_HOME = "D:/sdks/cangjie_compiler-v1.1.3"
+
 # ------------------------------------------------------------------------------
 # Scoop shims 目录（ninja 由 Scoop 安装，追加到 PATH）
 # ------------------------------------------------------------------------------

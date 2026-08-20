@@ -26,11 +26,11 @@ $NC = [ConsoleColor]::Gray
 . "$PSScriptRoot/scripts/win_env.ps1"
 
 # 仓库内相对路径（不依赖外部环境，仅依赖本仓库布局）
-# 支持环境变量 JSON_PATH 覆盖（与 build.sh 一致），缺省使用仓库内 third_party/json/json
+# 支持环境变量 JSON_PATH 覆盖（与 build.sh 一致），缺省使用仓库内 third_party/json
 if ($env:JSON_PATH) {
     $global:JSON_INC = $env:JSON_PATH
 } else {
-    $global:JSON_INC = "$PSScriptRoot/third_party/json/json"
+    $global:JSON_INC = "$PSScriptRoot/third_party/json"
 }
 
 # Add MinGW to PATH for ninja
@@ -338,7 +338,11 @@ if ($global:CangjieLib) {
     $env:CANGJIE_HOME = $global:CangjieLib
 }
 Write-Info "CANGJIE_HOME (unified): $env:CANGJIE_HOME"
-$global:CANGJIE_INCLUDE_DIR     = "$env:CANGJIE_HOME/include"
+if ($env:CANGJIE_SRC_HOME) {
+    $global:CANGJIE_INCLUDE_DIR = "$env:CANGJIE_SRC_HOME/include"
+} else {
+    $global:CANGJIE_INCLUDE_DIR = "$env:CANGJIE_HOME/include"
+}
 $global:CANGJIE_LIB_DIR         = "$env:CANGJIE_HOME/tools/lib"
 $global:CANGJIE_CJNATIVE_LIB_DIR = "$env:CANGJIE_HOME/lib/windows_x86_64_cjnative"
 
