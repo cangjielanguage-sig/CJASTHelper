@@ -10,24 +10,18 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Cangjie SDK paths. Prefer $CANGJIE_HOME (set by scripts/mac_env.sh / linux_env.sh /
-# win_env.ps1); fall back to the legacy Windows SDK root used by build.ps1.
-if(DEFINED ENV{CANGJIE_HOME})
-    set(CANGJIE_ROOT $ENV{CANGJIE_HOME})
-else()
-    set(CANGJIE_ROOT "D:/sdks/cangjie")
+# Cangjie SDK paths (from $CANGJIE_HOME set by scripts/mac_env.sh / linux_env.sh / win_env.ps1)
+set(CANGJIE_HOME $ENV{CANGJIE_HOME})
+if(NOT CANGJIE_HOME)
+    message(FATAL_ERROR "Please set CANGJIE_HOME to the Cangjie SDK root")
 endif()
-set(CANGJIE_LIB_DIR "${CANGJIE_ROOT}/tools/lib")
+set(CANGJIE_LIB_DIR "${CANGJIE_HOME}/tools/lib")
 if(WIN32)
-    set(CANGJIE_CJNATIVE_LIB_DIR "${CANGJIE_ROOT}/lib/windows_x86_64_cjnative")
+    set(CANGJIE_CJNATIVE_LIB_DIR "${CANGJIE_HOME}/lib/windows_x86_64_cjnative")
 elseif(APPLE)
-    set(CANGJIE_CJNATIVE_LIB_DIR "${CANGJIE_ROOT}/lib/darwin_aarch64_cjnative")
+    set(CANGJIE_CJNATIVE_LIB_DIR "${CANGJIE_HOME}/lib/darwin_aarch64_cjnative")
 else()
-    set(CANGJIE_CJNATIVE_LIB_DIR "${CANGJIE_ROOT}/lib/linux_x86_64_cjnative")
-endif()
-
-if(DEFINED ENV{CANGJIE_HOME})
-    set(CANGJIE_HOME $ENV{CANGJIE_HOME})
+    set(CANGJIE_CJNATIVE_LIB_DIR "${CANGJIE_HOME}/lib/linux_x86_64_cjnative")
 endif()
 
 # For gcc tool chain
