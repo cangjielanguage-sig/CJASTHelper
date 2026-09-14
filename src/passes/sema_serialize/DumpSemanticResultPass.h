@@ -96,14 +96,15 @@ private:
 };
 
 /**
- * @brief 符号行（S<id>@<fileIdx>: <kind>#<name>#ty:T<id>）
+ * @brief 符号行（S<id>@<fileIdx>: <kind>#<name>#ty:T<id>[#params:[[T…]]]）
  */
 struct SymRow {
     int id;
     int fileIdx;
     Str kind;
     Str name;
-    int tyId; /**< -1 = 无类型（`-`） */
+    int tyId;          /**< -1 = 无类型（`-`） */
+    StrVec paramTyIds; /**< 每个参数的 T<id> 文本（func/member 签名可比性，CJAH-4b）；空 = 无 */
 };
 
 /**
@@ -158,6 +159,7 @@ private:
     // 符号收集：文件遍历序分配 S-id
     void CollectFileSymbols(const File& file, int fileIdx);
     void CollectDeclSymbol(const Decl& decl, int fileIdx);
+    void CollectBodySymbols(const Decl& decl, int fileIdx);
 
     static Str SymKindOf(const Decl& decl);
     static Str IdentityOf(const AstNode& node);

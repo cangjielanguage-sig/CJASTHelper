@@ -164,6 +164,25 @@ int SemanticTyPool::DoEnsure(const Cangjie::AST::Ty* ty)
     return id;
 }
 
+/**
+ * @brief 逗号列表格式化（`[a,b]`；R120 列表字段共用）
+ */
+static Str FmtList(const StrVec& items)
+{
+    if (items.empty()) {
+        return "[]";
+    }
+    Str out = "[";
+    for (Size i = 0; i < items.size(); i++) {
+        if (i) {
+            out += ",";
+        }
+        out += items[i];
+    }
+    out += "]";
+    return out;
+}
+
 Str SemanticTyPool::FmtList(const StrVec& items)
 {
     if (items.empty()) {
@@ -339,6 +358,44 @@ void DumpSemanticResultPass::CollectFileSymbols(const File& file, int fileIdx)
 {
     for (auto& decl : file.decls) {
         CollectDeclSymbol(*decl, fileIdx);
+        // CJAH-4c: main() 函数体局部声明（VarDecl）→ symbol 行（对齐 TC LocalSymbol）
+        CollectBodySymbols(*decl, fileIdx);
+    }
+}
+
+/**
+ * @brief 函数体局部声明收集（CJAH-4c）：递归 FuncBody.block 一级 VarDecl/VarPattern
+ *        （对齐 TC LocalSymbol 收集面——TC 收函数体直系 let/var，不递归嵌套 lambda 内部）
+ *        main() 经 B120RC3 desugar → desugarDecl(FuncDecl) 优先取
+ */
+void DumpSemanticResultPass::CollectBodySymbols(const Decl& decl, int fileIdx)
+{
+    const FuncBody* body = nullptr;
+    if (auto* main = dynamic_cast<const MainDecl*>(&decl)) {
+        body = main->desugarDecl && main->desugarDecl->funcBody ? main->desugarDecl->funcBody.get()
+                                                                : main->funcBody.get();
+    } else if (auto* func = dynamic_cast<const FuncDecl*>(&decl)) {
+        body = func->funcBody.get();
+    }
+    if (!body || !body->body) {
+        return;
+    }
+    for (auto& stmt : body->body->body) {
+        if (!stmt) {
+            continue;
+        }
+        if (stmt->astKind != AstKind::VAR_DECL) {
+            continue;
+        }
+        if (auto* var = Cast<VarDecl*>(stmt.get())) {
+            SymRow row;
+            row.id = static_cast<int>(symRows.size());
+            row.fileIdx = fileIdx;
+            row.kind = "var";
+            row.name = var->identifier.Val();
+            row.tyId = pool.Ensure(var->GetTy());
+            symRows.push_back(row);
+        }
     }
 }
 
@@ -352,6 +409,15 @@ void DumpSemanticResultPass::CollectDeclSymbol(const Decl& decl, int fileIdx)
         row.kind = kind;
         row.name = decl.identifier.Val();
         row.tyId = pool.Ensure(decl.GetTy());
+        // CJAH-4b: func/member 声明携带参数类型表（params:[[T…]]，对齐 TC 签名可比格式）
+        if (auto* func = dynamic_cast<const FuncDecl*>(&decl); func && func->funcBody) {
+            for (auto& paramList : func->funcBody->paramLists) {
+                for (auto& param : paramList->params) {
+                    auto tid = pool.Ensure(param->GetTy());
+                    row.paramTyIds.push_back("T" + std::to_string(tid));
+                }
+            }
+        }
         symRows.push_back(row);
     }
     // 成员声明递归（class/interface/struct/enum/extend body）
@@ -369,6 +435,10 @@ void DumpSemanticResultPass::WriteSymbols()
             prt.PVals("T", row.tyId);
         } else {
             prt.PVal("-");
+        }
+        // CJAH-4b: 参数类型表 `#params:[[T…]]`（对齐 TC 符号行签名可比字段）
+        if (!row.paramTyIds.empty()) {
+            prt.PVal("#params:[[" + FmtList(row.paramTyIds) + "]]");
         }
         prt.PNL();
     }
