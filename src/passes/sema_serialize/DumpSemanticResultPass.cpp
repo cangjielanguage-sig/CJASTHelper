@@ -287,6 +287,12 @@ void DumpSemanticResultPass::Run(AstNode& node)
     }
     LOGI("Dump semantic result to: ", path);
 
+    // 绑定口径配置：CJAH_SER_BIND_SCOPE=expr → 仅表达式节点（对齐 typechecker typeBindings）
+    if (const char* scopeEnv = std::getenv("CJAH_SER_BIND_SCOPE"); scopeEnv && Str(scopeEnv) == "expr") {
+        bindScope = BindScope::EXPR;
+        LOGI("bind scope: expr-only");
+    }
+
     DumpPackage(pkg);
     ofs.flush();
     ofs.close();
@@ -401,20 +407,129 @@ protected:
                 Str identity = AstKind2Str(node.astKind);
                 // AstKind2Str 可能含空格（如 " func_body"），净化为 R120 安全 identity
                 identity.erase(0, identity.find_first_not_of(" \t"));
-                if (auto* decl = dynamic_cast<const Decl*>(&node)) {
-                    auto name = decl->identifier.Val();
-                    if (!name.empty()) {
-                        identity += ":" + name;
-                    }
+                // identity 增补：Decl 或表达式类别点带语义 identifier（对齐 typechecker NodeKey =
+                // line:col:kind:name；RefExpr→引用名, MemberAccess→成员名, CallExpr→被调名）
+                Str name = NameSuffixOf(node);
+                if (!name.empty()) {
+                    identity += ":" + name;
+                }
+                // scope 过滤：EXPR 口径只收表达式节点（对齐 typechecker typeBindings 收集面）
+                if (scope == BindScope::EXPR && !IsExprKind(node.astKind)) {
+                    return;
                 }
                 rowsRef.push_back(BindRow{node.begin.line, node.begin.column, identity, poolRef.Ensure(ty)});
             }
         }
     }
 
+    /**
+     * @brief 节点语义名：Decl 取 identifier；RefExpr 取引用名；MemberAccess 取成员名；
+     *        CallExpr 取被调可见名（调用目标 identifier）
+     */
+    static Str NameSuffixOf(const AstNode& node)
+    {
+        if (auto* decl = dynamic_cast<const Decl*>(&node)) {
+            return decl->identifier.Val();
+        }
+        switch (node.astKind) {
+            case AstKind::REF_EXPR: {
+                auto* ref = dynamic_cast<const RefExpr*>(&node);
+                if (ref && ref->ref.identifier.Val() != "") {
+                    return ref->ref.identifier.Val();
+                }
+                break;
+            }
+            case AstKind::MEMBER_ACCESS: {
+                auto* ma = dynamic_cast<const MemberAccess*>(&node);
+                if (ma && ma->field.Val() != "") {
+                    return ma->field.Val();
+                }
+                break;
+            }
+            case AstKind::CALL_EXPR: {
+                auto* call = dynamic_cast<const CallExpr*>(&node);
+                if (!call) {
+                    break;
+                }
+                // 被调可见名：baseFunc 为 RefExpr → 引用名；MemberAccess → 成员名（对齐 TC target name）
+                if (call->baseFunc) {
+                    const Expr* base = call->baseFunc.get();
+                    if (base->astKind == AstKind::REF_EXPR) {
+                        if (auto* ref = dynamic_cast<const RefExpr*>(base); ref && ref->ref.identifier.Val() != "") {
+                            return ref->ref.identifier.Val();
+                        }
+                    } else if (base->astKind == AstKind::MEMBER_ACCESS) {
+                        if (auto* ma = dynamic_cast<const MemberAccess*>(base); ma && ma->field.Val() != "") {
+                            return ma->field.Val();
+                        }
+                    }
+                }
+                // 兜底：Sema 后经 resolvedFunction 取已解析目标名
+                if (call->resolvedFunction && call->resolvedFunction->identifier.Val() != "") {
+                    return call->resolvedFunction->identifier.Val();
+                }
+                break;
+            }
+            default:
+                break;
+        }
+        return Str("");
+    }
+
+    /**
+     * @brief 表达式族节点判定（typechecker typeBindings 收集口径同名集）
+     */
+    static bool IsExprKind(AstKind kind)
+    {
+        switch (kind) {
+            case AstKind::REF_EXPR:
+            case AstKind::MEMBER_ACCESS:
+            case AstKind::CALL_EXPR:
+            case AstKind::BINARY_EXPR:
+            case AstKind::UNARY_EXPR:
+            case AstKind::ASSIGN_EXPR:
+            case AstKind::LIT_CONST_EXPR:
+            case AstKind::RETURN_EXPR:
+            case AstKind::SUBSCRIPT_EXPR:
+            case AstKind::TUPLE_LIT:
+            case AstKind::ARRAY_LIT:
+            case AstKind::ARRAY_EXPR:
+            case AstKind::LAMBDA_EXPR:
+            case AstKind::RANGE_EXPR:
+            case AstKind::TRAIL_CLOSURE_EXPR:
+            case AstKind::AS_EXPR:
+            case AstKind::IS_EXPR:
+            case AstKind::OPTIONAL_CHAIN_EXPR:
+            case AstKind::INC_OR_DEC_EXPR:
+            case AstKind::STR_INTERPOLATION_EXPR:
+            case AstKind::INTERPOLATION_EXPR:
+            case AstKind::TYPE_CONV_EXPR:
+            case AstKind::JUMP_EXPR:
+            case AstKind::THROW_EXPR:
+            case AstKind::MATCH_EXPR:
+            case AstKind::IF_EXPR:
+            case AstKind::SPAWN_EXPR:
+            case AstKind::SYNCHRONIZED_EXPR:
+            case AstKind::PAREN_EXPR:
+            case AstKind::OPTIONAL_EXPR:
+            case AstKind::POINTER_EXPR:
+            case AstKind::WILDCARD_EXPR:
+                return true;
+            default:
+                return false;
+        }
+    }
+
 private:
     SemanticTyPool& poolRef;
     Vec<BindRow>& rowsRef;
+    BindScope scope{BindScope::ALL};
+
+public:
+    void SetScope(BindScope s)
+    {
+        scope = s;
+    }
 };
 
 void DumpSemanticResultPass::CollectBindings(const Package& pkg)
@@ -425,8 +540,9 @@ void DumpSemanticResultPass::CollectBindings(const Package& pkg)
         bindFiles.emplace_back(file.fileName, Vec<BindRow>{});
         auto& rows = bindFiles.back().second;
         BindCollector collector(pool, rows);
+        collector.SetScope(bindScope);
         for (auto& decl : file.decls) {
-            Traverse(*decl, collector);
+            (void)Traverse(*decl, collector);
         }
         // 确定性排序：line/col/identity 升序（HashMap/遍历序漂移免疫）
         std::sort(rows.begin(), rows.end(), [](const BindRow& a, const BindRow& b) {

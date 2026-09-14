@@ -117,6 +117,15 @@ struct BindRow {
 };
 
 /**
+ * @brief 绑定收集口径
+ */
+enum class BindScope {
+    ALL,   /**< 全部有语义类型的节点（声明/表达式/块） */
+    EXPR   /**< 仅表达式节点（对齐 typechecker typeBindings 口径：RefExpr/MemberAccess/CallExpr/
+                BinaryExpr/LitConstExpr/AssignExpr/ReturnExpr/SubscriptExpr 等） */
+};
+
+/**
  * @brief R120 v1 全量语义结果序列化 Pass
  *
  * 依赖 SEMA stage 已完成（node.GetTy() 可用）。
@@ -156,6 +165,7 @@ private:
     std::ofstream ofs;
     Printer prt;
     SemanticTyPool pool;
+    BindScope bindScope{BindScope::ALL}; /**< 绑定收集口径（--ser-bind-scope=expr 切换） */
 
     // 符号图：S<id>@<fileIdx>（SymRow 文件级 struct 定义见上）
     Vec<SymRow> symRows;

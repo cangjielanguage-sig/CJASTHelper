@@ -675,7 +675,12 @@ void AstNodeHelper::RegCollectHandlers()
         .Reg<CollectFunc>(AstKind::MAIN_DECL, [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
             auto& decl = Cast<const MainDecl&>(node);
             CollectChildren(decl, children);
-            CollectChildren(decl.funcBody, children);
+            // B120RC3 实证: sema 后 main()语法糖被解糖 — funcBody 移入 desugarDecl(FuncDecl), funcBody 为 null
+            if (decl.desugarDecl) {
+                CollectChildren(decl.desugarDecl, children);
+            } else {
+                CollectChildren(decl.funcBody, children);
+            }
         });
 }
 
