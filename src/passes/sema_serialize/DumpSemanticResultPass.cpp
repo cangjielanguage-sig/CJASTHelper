@@ -311,6 +311,13 @@ void DumpSemanticResultPass::Run(AstNode& node)
         bindScope = BindScope::EXPR;
         LOGI("bind scope: expr-only");
     }
+    // CJAH-4d: 文件段名口径——CJAH_SER_FILE_KEY=virtual → 输出 TC 虚拟名 `file<i>.cj <pkg>`
+    // （默认 real：保留真实文件名；对拍按 file 序位置对齐两种口径）
+    virtualFileKey = false;
+    if (const char* keyEnv = std::getenv("CJAH_SER_FILE_KEY"); keyEnv && Str(keyEnv) == "virtual") {
+        virtualFileKey = true;
+        LOGI("file key: virtual (file<i>.cj)");
+    }
 
     DumpPackage(pkg);
     ofs.flush();
@@ -342,7 +349,12 @@ void DumpSemanticResultPass::WriteHeader(const Package& pkg)
     prt.PVals("package ", pkg.fullPackageName).PNL();
     prt.PVals("files: ", pkg.files.size()).PNL();
     for (Size i = 0; i < pkg.files.size(); i++) {
-        prt.PVals("file: ", i, " ", pkg.files[i]->fileName).PNL();
+        if (virtualFileKey) {
+            // CJAH-4d: TC 虚拟名口径 `file<i>.cj <pkg>`（对拍按位置对齐）
+            prt.PVals("file: ", i, " file", i, ".cj ", pkg.fullPackageName).PNL();
+        } else {
+            prt.PVals("file: ", i, " ", pkg.files[i]->fileName).PNL();
+        }
     }
 }
 
@@ -448,7 +460,17 @@ void DumpSemanticResultPass::WriteBindings()
 {
     prt.PValNL("bindings:");
     for (auto& [fname, rows] : bindFiles) {
-        prt.PVals("  ", fname, ":").PNL();
+        Str key = fname;
+        if (virtualFileKey) {
+            // CJAH-4d: bindings 文件键与 file 段口径一致（TC 虚拟名 file<i>.cj）
+            for (Size i = 0; i < bindFiles.size(); i++) {
+                if (bindFiles[i].first == fname) {
+                    key = "file" + std::to_string(i) + ".cj";
+                    break;
+                }
+            }
+        }
+        prt.PVals("  ", key, ":").PNL();
         for (auto& r : rows) {
             prt.PVals("    ", r.line, ":", r.col, ":", r.identity, " -> T", r.tyId).PNL();
         }

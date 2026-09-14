@@ -168,6 +168,7 @@ private:
     Printer prt;
     SemanticTyPool pool;
     BindScope bindScope{BindScope::ALL}; /**< 绑定收集口径（--ser-bind-scope=expr 切换） */
+    bool virtualFileKey{false};          /**< CJAH-4d: file 段虚拟名口径（CJAH_SER_FILE_KEY=virtual） */
 
     // 符号图：S<id>@<fileIdx>（SymRow 文件级 struct 定义见上）
     Vec<SymRow> symRows;
