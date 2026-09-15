@@ -611,6 +611,19 @@ void DumpSemanticResultPass::CollectDeclSymbol(const Decl& decl, int fileIdx, bo
     for (auto& member : decl.GetMemberDecls()) {
         CollectDeclSymbol(*member, fileIdx, membersInExtend, membersInTypeLike);
     }
+    // CJAH-6e (N-5)：枚举构造器收集——EnumDecl.constructors 独立于 GetMemberDecls()（members
+    // 只含枚举体内显式函数），无关联值 case 是 VarLikeDecl、带关联值 case 是 FuncDecl（Node.h:1213
+    // 注释实证）。对齐 TC 口径：collectEnumMembers（source_collector.cj:717）以 EnumConstructorSymbol
+    // 挂 ns.addMember → serde 以 member 输出。inTypeLike（本调用已含 ENUM_DECL）→ 记号 member。
+    if (decl.astKind == AstKind::ENUM_DECL) {
+        if (auto* ed = dynamic_cast<const EnumDecl*>(&decl)) {
+            for (auto& ctor : ed->constructors) {
+                if (ctor) {
+                    CollectDeclSymbol(*ctor, fileIdx, membersInExtend, membersInTypeLike);
+                }
+            }
+        }
+    }
 }
 
 void DumpSemanticResultPass::WriteSymbols()
