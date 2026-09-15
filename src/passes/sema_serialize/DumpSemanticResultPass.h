@@ -158,7 +158,7 @@ private:
 
     // 符号收集：文件遍历序分配 S-id
     void CollectFileSymbols(const File& file, int fileIdx);
-    void CollectDeclSymbol(const Decl& decl, int fileIdx);
+    void CollectDeclSymbol(const Decl& decl, int fileIdx, bool inExtend = false);
     void CollectBodySymbols(const Decl& decl, int fileIdx);
 
     static Str SymKindOf(const Decl& decl);

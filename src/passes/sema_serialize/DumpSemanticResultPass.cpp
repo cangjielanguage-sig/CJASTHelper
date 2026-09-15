@@ -426,15 +426,33 @@ void DumpSemanticResultPass::CollectBodySymbols(const Decl& decl, int fileIdx)
     }
 }
 
-void DumpSemanticResultPass::CollectDeclSymbol(const Decl& decl, int fileIdx)
+void DumpSemanticResultPass::CollectDeclSymbol(const Decl& decl, int fileIdx, bool inExtend)
 {
     const Str kind = SymKindOf(decl);
     if (!kind.empty()) {
         SymRow row;
         row.id = static_cast<int>(symRows.size());
         row.fileIdx = fileIdx;
-        row.kind = kind;
-        row.name = decl.identifier.Val();
+        // CJAH-5b (G-2): extend body 成员用 emember 记号（对齐 TC restore 词表——
+        // result_restore.cj:116 emember 分支挂 curExtend 桶；extend 行本身 = extend#<被扩展类型名>）
+        row.kind = inExtend ? "emember" : kind;
+        if (auto* extend = dynamic_cast<const ExtendDecl*>(&decl)) {
+            // extend 行名 = 被扩展类型名（extendedType Sema 后取 Ty 名；Nominal 优先 decl identifier）
+            Str extName;
+            const Cangjie::AST::Ty* ty = extend->extendedType ? extend->extendedType->GetTy() : nullptr;
+            if (ty) {
+                extName = ty->name;
+                if (extName.empty()) {
+                    using namespace Cangjie::AST;
+                    if (auto* nt = dynamic_cast<const ClassLikeTy*>(ty)) {
+                        extName = nt->commonDecl ? nt->commonDecl->identifier.Val() : Str("");
+                    }
+                }
+            }
+            row.name = extName.empty() ? decl.identifier.Val() : extName;
+        } else {
+            row.name = decl.identifier.Val();
+        }
         row.tyId = pool.Ensure(decl.GetTy());
         // CJAH-4b: func/member 声明携带参数类型表（params:[[T…]]，对齐 TC 签名可比格式）
         if (auto* func = dynamic_cast<const FuncDecl*>(&decl); func && func->funcBody) {
@@ -447,9 +465,10 @@ void DumpSemanticResultPass::CollectDeclSymbol(const Decl& decl, int fileIdx)
         }
         symRows.push_back(row);
     }
-    // 成员声明递归（class/interface/struct/enum/extend body）
+    // 成员声明递归（class/interface/struct/enum/extend body）；extend body 内标记 inExtend
+    const bool membersInExtend = inExtend || decl.astKind == AstKind::EXTEND_DECL;
     for (auto& member : decl.GetMemberDecls()) {
-        CollectDeclSymbol(*member, fileIdx);
+        CollectDeclSymbol(*member, fileIdx, membersInExtend);
     }
 }
 
