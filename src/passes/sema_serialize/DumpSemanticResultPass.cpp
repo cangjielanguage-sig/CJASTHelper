@@ -320,9 +320,27 @@ Str SemanticTyPool::Encode(const Cangjie::AST::Ty* ty)
                     }
                 }
             }
-            // 上界：Nominal 的 tp 段按 typechecker 约定输出名字[上界] 形式；
-            // 编译器泛型上界在 GenericsTy.upperBounds，声明级此处取 generic 约束不可达 → 输出空上界
+            // CJAH-6d (N-3)：Nominal tp 段——类型参数名[上界]，对齐 TC encodeNominal
+            // （result_ser.cj:761-767 `${identifier}[${ub}]`）。声明位 Generic 经 Decl::GetGeneric()
+            // 可达（func 侧 6c 同路径）；上界从 GenericConstraint 取——genericConstraints 每项含
+            // bound type（UpperBounded 接口列表），GetTy() SEMA 后绑定。
             StrVec tp;
+            if (auto* gen = decl->GetGeneric().get()) {
+                // 逐参数找其约束（GenericConstraint.type = 被约束参数节点）
+                for (auto& gparam : gen->typeParameters) {
+                    StrVec ubs;
+                    for (auto& gc : gen->genericConstraints) {
+                        if (gc->type && gc->type->GetTy() == gparam->GetTy()) {
+                            for (auto& bound : gc->upperBounds) {
+                                if (bound && bound->GetTy()) {
+                                    ubs.push_back(ensure(bound->GetTy()));
+                                }
+                            }
+                        }
+                    }
+                    tp.push_back(gparam->identifier.Val() + FmtList(ubs));
+                }
+            }
             return kindStr + "#" + decl->fullPackageName + "#" + decl->identifier.Val() + "#ta:" + FmtList(ta)
                 + "#sup:" + FmtList(sup) + "#tp:" + FmtList(tp);
         }
