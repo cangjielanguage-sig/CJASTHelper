@@ -361,6 +361,21 @@ void DumpSemanticResultPass::Run(AstNode& node)
     DumpPackage(pkg);
     ofs.flush();
     ofs.close();
+
+    // CJAH-5e (G-5): .stats 统计文件（D-3 拍板 A——校验辅助，对齐 TC SerStats 风格计数）
+    std::ofstream statsOfs(outDir + "/" + pkg.fullPackageName + ".stats", std::ios::out | std::ios::trunc);
+    if (statsOfs.is_open()) {
+        Size bindCount = 0;
+        for (auto& [fname, rows] : bindFiles) {
+            bindCount += rows.size();
+        }
+        statsOfs << "types: " << pool.Count() << "\n";
+        statsOfs << "syms: " << symRows.size() << "\n";
+        statsOfs << "binds: " << bindCount << "\n";
+        statsOfs << "files: " << pkg.files.size() << "\n";
+        statsOfs.flush();
+        statsOfs.close();
+    }
 }
 
 void DumpSemanticResultPass::DumpPackage(const Package& pkg)
@@ -736,14 +751,4 @@ Str DumpSemanticResultPass::SymKindOf(const Decl& decl)
     return SymKind2Str(decl.astKind);
 }
 
-Str DumpSemanticResultPass::IdentityOf(const AstNode& node)
-{
-    Str id = AstKind2Str(node.astKind);
-    if (auto* decl = dynamic_cast<const Decl*>(&node)) {
-        auto name = decl->identifier.Val();
-        if (!name.empty()) {
-            id += ":" + name;
-        }
-    }
-    return id;
-}
+

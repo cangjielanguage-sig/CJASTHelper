@@ -180,7 +180,6 @@ private:
     void CollectBodySymbols(const Decl& decl, int fileIdx);
 
     static Str SymKindOf(const Decl& decl);
-    static Str IdentityOf(const AstNode& node);
 
     std::ofstream ofs;
     Printer prt;
