@@ -450,7 +450,7 @@ void DumpSemanticResultPass::CollectBodySymbols(const Decl& decl, int fileIdx)
     }
 }
 
-void DumpSemanticResultPass::CollectDeclSymbol(const Decl& decl, int fileIdx, bool inExtend)
+void DumpSemanticResultPass::CollectDeclSymbol(const Decl& decl, int fileIdx, bool inExtend, bool inTypeLike)
 {
     const Str kind = SymKindOf(decl);
     if (!kind.empty()) {
@@ -476,7 +476,10 @@ void DumpSemanticResultPass::CollectDeclSymbol(const Decl& decl, int fileIdx, bo
         row.fileIdx = fileIdx;
         // CJAH-5b (G-2): extend body 成员用 emember 记号（对齐 TC restore 词表——
         // result_restore.cj:116 emember 分支挂 curExtend 桶；extend 行本身 = extend#<被扩展类型名>）
-        row.kind = inExtend ? "emember" : kind;
+        // CJAH-5d (G-4，方案 a)：类型 body 内 func/var 记号归一 member（对齐 TC 词表——
+        // restore 的 member 分支挂 curType 桶；TC 自家产物类成员恒 member。restore 侧
+        // 「curType 上下文归一」实证不可行：TC 顶层 func 行序可落在 class 之后，误挂类型桶）
+        row.kind = inExtend ? "emember" : (inTypeLike && (kind == "func" || kind == "var") ? "member" : kind);
         if (auto* extend = dynamic_cast<const ExtendDecl*>(&decl)) {
             // extend 行名 = 被扩展类型名（extendedType Sema 后取 Ty 名；Nominal 优先 decl identifier）
             Str extName;
@@ -506,10 +509,14 @@ void DumpSemanticResultPass::CollectDeclSymbol(const Decl& decl, int fileIdx, bo
         }
         symRows.push_back(row);
     }
-    // 成员声明递归（class/interface/struct/enum/extend body）；extend body 内标记 inExtend
+    // 成员声明递归（class/interface/struct/enum/extend body）；extend body 内标记 inExtend，
+    // 类型 body 内标记 inTypeLike
     const bool membersInExtend = inExtend || decl.astKind == AstKind::EXTEND_DECL;
+    const bool membersInTypeLike = inTypeLike || decl.astKind == AstKind::CLASS_DECL
+        || decl.astKind == AstKind::INTERFACE_DECL || decl.astKind == AstKind::STRUCT_DECL
+        || decl.astKind == AstKind::ENUM_DECL;
     for (auto& member : decl.GetMemberDecls()) {
-        CollectDeclSymbol(*member, fileIdx, membersInExtend);
+        CollectDeclSymbol(*member, fileIdx, membersInExtend, membersInTypeLike);
     }
 }
 
