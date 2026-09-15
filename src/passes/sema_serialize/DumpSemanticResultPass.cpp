@@ -114,8 +114,11 @@ Str SymKind2Str(AstKind kind)
 
 bool SemanticTyPool::IsNominalKind(Cangjie::AST::TypeKind kind)
 {
+    // CJAH-6a: TYPE（TypeAliasTy）同 Nominal 族走文本 key——编译器 == 含 declPtr 指针比较，
+    // 跨实例去重需按内容（alias#pkg#name）。
     return kind == Cangjie::AST::TypeKind::TYPE_CLASS || kind == Cangjie::AST::TypeKind::TYPE_INTERFACE
-        || kind == Cangjie::AST::TypeKind::TYPE_STRUCT || kind == Cangjie::AST::TypeKind::TYPE_ENUM;
+        || kind == Cangjie::AST::TypeKind::TYPE_STRUCT || kind == Cangjie::AST::TypeKind::TYPE_ENUM
+        || kind == Cangjie::AST::TypeKind::TYPE;
 }
 
 Str SemanticTyPool::NominalTextKey(const Cangjie::AST::Ty& ty)
@@ -134,6 +137,12 @@ Str SemanticTyPool::NominalTextKey(const Cangjie::AST::Ty& ty)
         decl = st->decl;
     } else if (auto* et = dynamic_cast<const EnumTy*>(&ty)) {
         decl = et->decl;
+    } else if (auto* at = dynamic_cast<const TypeAliasTy*>(&ty)) {
+        // CJAH-6a: alias 文本 key 前缀区分 Nominal（alias#pkg#name）
+        if (at->declPtr) {
+            return Str("alias#") + at->declPtr->fullPackageName + "#" + at->declPtr->identifier.Val();
+        }
+        return Str("alias#") + ty.name;
     }
     if (decl) {
         pkgName = decl->fullPackageName;
@@ -312,6 +321,26 @@ Str SemanticTyPool::Encode(const Cangjie::AST::Ty* ty)
             return kindStr + "#" + decl->fullPackageName + "#" + decl->identifier.Val() + "#ta:" + FmtList(ta)
                 + "#sup:" + FmtList(sup) + "#tp:" + FmtList(tp);
         }
+        case TypeKind::TYPE: {
+            // CJAH-6a (N-1): type alias 类型编码——TypeAliasTy（Types.h:940 declPtr+typeArgs）。
+            // 行格式 alias#<declName>#ta:[…]（对齐 R120 Nominal 风格）；TC 侧现走 toString（无 alias
+            // 分支），形状差异在对拍归一层吸收（kanban 远期登记）。跨实例去重走文本 key（对齐 Nominal
+            // D-1 修订：alias#pkg#name，IsNominalKind 已覆盖 TYPE）。
+            auto* at = static_cast<const TypeAliasTy*>(ty);
+            const Str name = at->declPtr ? Str(at->declPtr->identifier.Val()) : Str(at->name);
+            // 实参来源：TypeAliasTy.typeArgs 是构造期快照（解析位 RHS 无实参语境，实测恒空）；
+            // 声明位 RHS（TypeAliasDecl.type→GetTy()）SEMA 后携带真实目标 Ty，其 typeArgs 即 alias 实参。
+            std::vector<Ptr<Ty>> aliasArgs = ty->typeArgs;
+            if (aliasArgs.empty() && at->declPtr && at->declPtr->type && at->declPtr->type->GetTy()
+                && at->declPtr->type->GetTy() != ty) {
+                aliasArgs = at->declPtr->type->GetTy()->typeArgs;
+            }
+            StrVec ta;
+            for (auto& a : aliasArgs) {
+                ta.push_back(ensure(a));
+            }
+            return "alias#" + name + "#ta:" + FmtList(ta);
+        }
         case TypeKind::TYPE_GENERICS: {
             auto& gt = *static_cast<const GenericsTy*>(ty);
             StrVec ubs;
@@ -320,9 +349,20 @@ Str SemanticTyPool::Encode(const Cangjie::AST::Ty* ty)
             }
             return "generic#" + gt.name + "#" + FmtList(ubs);
         }
-        default:
+        default: {
             // 单例族：Unit/Int8..Float64/Rune/Bool/CString/Nothing 等
-            return Kind2Str(ty->kind);
+            const Str prim = Kind2Str(ty->kind);
+            if (!prim.empty()) {
+                return prim;
+            }
+            // CJAH-6a (N-1/N-6) 防空行兜底：任何未覆盖 kind（UNION/INTERSECTION/QUEST/ANY/…）
+            // 不得产出空类型行破坏 R120 行格式——fail-visible 输出 unknown#<KindName>。
+            // 用 ty->name 兜底（PrimitiveTy/用户命名类型有 name；匿名检查期临时类型可能为空 → 再补 kind 序数）。
+            if (!ty->name.empty()) {
+                return "unknown#" + ty->name;
+            }
+            return "unknown#kind" + std::to_string(static_cast<int>(ty->kind));
+        }
     }
 }
 
