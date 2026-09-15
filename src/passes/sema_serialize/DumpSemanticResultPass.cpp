@@ -150,6 +150,18 @@ int SemanticTyPool::Ensure(const Cangjie::AST::Ty* ty)
     return DoEnsure(ty);
 }
 
+int SemanticTyPool::EnsureWithMeta(const Cangjie::AST::Ty* ty, const FuncDeclMeta* meta)
+{
+    if (!ty) {
+        return -1;
+    }
+    const int id = DoEnsure(ty);
+    if (meta && funcMetas.find(ty) == funcMetas.end()) {
+        funcMetas.emplace(ty, *meta);
+    }
+    return id;
+}
+
 int SemanticTyPool::DoEnsure(const Cangjie::AST::Ty* ty)
 {
     const bool nominal = IsNominalKind(ty->kind);
@@ -219,8 +231,20 @@ Str SemanticTyPool::Encode(const Cangjie::AST::Ty* ty)
                 params.push_back(ensure(ft.typeArgs[i]));
             }
             auto ret = ensure(ft.retTy);
-            return "func#(" + FmtList(params) + ")->" + ret + "#tp:[]#opt:0#var:"
-                + (ft.hasVariableLenArg ? "true" : "false") + "#names:[]";
+            // CJAH-5c (G-3): names/opt 从 decl 上下文补齐（FuncTy 本体无此信息）——
+            // names 形状 [[n1,n2]] 对齐 TC fmtList(ArrayList.toString) 双层括号；opt = 默认参数个数
+            StrVec names;
+            int optCount = 0;
+            if (auto it = funcMetas.find(ty); it != funcMetas.end()) {
+                for (auto& n : it->second.paramNames) {
+                    names.push_back(n);
+                }
+                optCount = it->second.optionalParamCount;
+            }
+            // names 形状对齐 TC：无参 = names:[]（fmtList(空)）；有参 = names:[[a,b]]（fmtList(ArrayList.toString) 双层）
+            const Str namesSeg = names.empty() ? Str("names:[]") : Str("names:[" + FmtList(names) + "]");
+            return "func#(" + FmtList(params) + ")->" + ret + "#tp:[]#opt:" + std::to_string(optCount)
+                + "#var:" + (ft.hasVariableLenArg ? "true" : "false") + "#" + namesSeg;
         }
         case TypeKind::TYPE_ARRAY: {
             auto& at = *static_cast<const ArrayTy*>(ty);
@@ -430,6 +454,23 @@ void DumpSemanticResultPass::CollectDeclSymbol(const Decl& decl, int fileIdx, bo
 {
     const Str kind = SymKindOf(decl);
     if (!kind.empty()) {
+        // CJAH-5c: func 声明先经 EnsureWithMeta 登记上下文（参数名/默认参数数）——
+        // 绑定/符号收集引用同结构 FuncTy 时 Encode 可取 names/opt
+        UniquePtr<FuncDeclMeta> metaHolder;
+        const FuncDeclMeta* metaPtr = nullptr;
+        if (auto* func = dynamic_cast<const FuncDecl*>(&decl); func && func->funcBody) {
+            metaHolder.reset(new FuncDeclMeta());
+            for (auto& paramList : func->funcBody->paramLists) {
+                for (auto& param : paramList->params) {
+                    metaHolder->paramNames.push_back(param->identifier.Val());
+                    if (param->assignment) {
+                        metaHolder->optionalParamCount++;
+                    }
+                }
+            }
+            metaPtr = metaHolder.get();
+            (void)pool.EnsureWithMeta(decl.GetTy(), metaPtr);
+        }
         SymRow row;
         row.id = static_cast<int>(symRows.size());
         row.fileIdx = fileIdx;
