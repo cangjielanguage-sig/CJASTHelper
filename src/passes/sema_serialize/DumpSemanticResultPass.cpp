@@ -534,7 +534,10 @@ void DumpSemanticResultPass::CollectDeclSymbol(const Decl& decl, int fileIdx, bo
         // CJAH-5d (G-4，方案 a)：类型 body 内 func/var 记号归一 member（对齐 TC 词表——
         // restore 的 member 分支挂 curType 桶；TC 自家产物类成员恒 member。restore 侧
         // 「curType 上下文归一」实证不可行：TC 顶层 func 行序可落在 class 之后，误挂类型桶）
-        row.kind = inExtend ? "emember" : (inTypeLike && (kind == "func" || kind == "var") ? "member" : kind);
+        // CJAH-6b (N-4)：prop 同归一——TC restore 词表无 prop 分支，独立记号会被恢复侧
+        // 静默丢弃（v2 报告 probe2 S5 实证）；PropertySymbol 在 TC 侧以 member 输出
+        row.kind = inExtend ? "emember"
+                            : (inTypeLike && (kind == "func" || kind == "var" || kind == "prop") ? "member" : kind);
         if (auto* extend = dynamic_cast<const ExtendDecl*>(&decl)) {
             // extend 行名 = 被扩展类型名（extendedType Sema 后取 Ty 名；Nominal 优先 decl identifier）
             Str extName;
@@ -546,6 +549,12 @@ void DumpSemanticResultPass::CollectDeclSymbol(const Decl& decl, int fileIdx, bo
                     if (auto* nt = dynamic_cast<const ClassLikeTy*>(ty)) {
                         extName = nt->commonDecl ? nt->commonDecl->identifier.Val() : Str("");
                     }
+                }
+                // CJAH-6b (G-2 残留)：基本类型扩展（extend Int64 等）PrimitiveTy::name 声明位为空
+                // （由 ImportManager 填充，ClassLikeTy fallback 不覆盖）——fallback Kind2Str
+                // （Int64/Rune 等 PrimitiveTy 全集，v2 报告 probe3 S6 extend## 实证）
+                if (extName.empty()) {
+                    extName = Kind2Str(ty->kind);
                 }
             }
             row.name = extName.empty() ? decl.identifier.Val() : extName;
