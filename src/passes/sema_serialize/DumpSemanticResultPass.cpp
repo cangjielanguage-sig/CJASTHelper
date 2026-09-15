@@ -244,16 +244,21 @@ Str SemanticTyPool::Encode(const Cangjie::AST::Ty* ty)
             // names 形状 [[n1,n2]] 对齐 TC fmtList(ArrayList.toString) 双层括号；opt = 默认参数个数
             StrVec names;
             int optCount = 0;
+            StrVec tps;
             if (auto it = funcMetas.find(ty); it != funcMetas.end()) {
                 for (auto& n : it->second.paramNames) {
                     names.push_back(n);
                 }
                 optCount = it->second.optionalParamCount;
+                // CJAH-6c (N-2)：泛型函数类型参数名（TC result_ser.cj:717 func#…#tp:[G] 同形）
+                for (auto& g : it->second.typeParamNames) {
+                    tps.push_back(g);
+                }
             }
             // names 形状对齐 TC：无参 = names:[]（fmtList(空)）；有参 = names:[[a,b]]（fmtList(ArrayList.toString) 双层）
             const Str namesSeg = names.empty() ? Str("names:[]") : Str("names:[" + FmtList(names) + "]");
-            return "func#(" + FmtList(params) + ")->" + ret + "#tp:[]#opt:" + std::to_string(optCount)
-                + "#var:" + (ft.hasVariableLenArg ? "true" : "false") + "#" + namesSeg;
+            return "func#(" + FmtList(params) + ")->" + ret + "#tp:" + FmtList(tps) + "#opt:"
+                + std::to_string(optCount) + "#var:" + (ft.hasVariableLenArg ? "true" : "false") + "#" + namesSeg;
         }
         case TypeKind::TYPE_ARRAY: {
             auto& at = *static_cast<const ArrayTy*>(ty);
@@ -521,6 +526,12 @@ void DumpSemanticResultPass::CollectDeclSymbol(const Decl& decl, int fileIdx, bo
                     if (param->assignment) {
                         metaHolder->optionalParamCount++;
                     }
+                }
+            }
+            // CJAH-6c (N-2)：泛型参数名（func<T> 声明位），补 func 类型行 tp:[...] 段
+            if (func->GetGeneric()) {
+                for (auto& tp : func->GetGeneric()->typeParameters) {
+                    metaHolder->typeParamNames.push_back(tp->identifier.Val());
                 }
             }
             metaPtr = metaHolder.get();

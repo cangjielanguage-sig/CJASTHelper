@@ -111,6 +111,8 @@ private:
 struct FuncDeclMeta {
     StrVec paramNames;
     int optionalParamCount{0};
+    /** CJAH-6c (N-2)：泛型参数名（FuncDecl.generic→typeParams），补 func 类型行 tp:[...] 段 */
+    StrVec typeParamNames;
 };
 
 /**
