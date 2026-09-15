@@ -267,11 +267,26 @@ Str SemanticTyPool::Encode(const Cangjie::AST::Ty* ty)
             for (auto& a : ty->typeArgs) {
                 ta.push_back(ensure(a));
             }
+            // CJAH-5a (G-1): sup 段收声明位直接父类型（对齐 TC 口径 = AST Decl.superTypes 源码级列表）。
+            // 口径注记：编译器 Sema 给无显式父类的 class 注入隐式 Object 节点（inheritedTypes 实证），
+            // CJAH sup 会含该 Object 行（TC 侧无——std.ast parse 无编译器补节点）；恢复侧 Object 可闭合，
+            // 差异属「CJAH 信息超集」，对拍按显式声明位子集归一。全链接口展开（Comparable→Equatable…）
+            // 是 std.core 源码声明位本就多继承，非 CJAH 展开。
+            StrVec sup;
+            const Decl* declRaw = decl;
+            if (auto* inh = dynamic_cast<const InheritableDecl*>(declRaw)) {
+                for (auto& st : inh->inheritedTypes) {
+                    if (st && st->GetTy() && st->GetTy()->kind != Cangjie::AST::TypeKind::TYPE_INVALID
+                        && st->GetTy()->kind != Cangjie::AST::TypeKind::TYPE_INITIAL) {
+                        sup.push_back(ensure(st->GetTy()));
+                    }
+                }
+            }
             // 上界：Nominal 的 tp 段按 typechecker 约定输出名字[上界] 形式；
             // 编译器泛型上界在 GenericsTy.upperBounds，声明级此处取 generic 约束不可达 → 输出空上界
             StrVec tp;
             return kindStr + "#" + decl->fullPackageName + "#" + decl->identifier.Val() + "#ta:" + FmtList(ta)
-                + "#sup:[]#tp:" + FmtList(tp);
+                + "#sup:" + FmtList(sup) + "#tp:" + FmtList(tp);
         }
         case TypeKind::TYPE_GENERICS: {
             auto& gt = *static_cast<const GenericsTy*>(ty);
