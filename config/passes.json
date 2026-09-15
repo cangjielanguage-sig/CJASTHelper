@@ -23,5 +23,15 @@
         "dependencies": [
             "desugar"
         ]
+    },
+    {
+        "group": "sema-serialize",
+        "names": [
+            "dump-semantic-result"
+        ],
+        "description": "Dump semantic result (types/symbols/bindings) in R120 text format v1 for typechecker golden",
+        "version": "0.0.1",
+        "lib": "cjast_sema_pass",
+        "dependencies": []
     }
 ]

@@ -1,2 +1,3 @@
 add_subdirectory(desugar)
 add_subdirectory(to_source)
+add_subdirectory(sema_serialize)
