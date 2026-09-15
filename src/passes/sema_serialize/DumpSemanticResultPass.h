@@ -9,6 +9,7 @@
 #pragma once
 
 #include "core/pass/Pass.h"
+#include "cangjie/AST/Node.h"
 #include "core/visitor/ConstAstVisitor.h"
 #include "utils/Cast.h"
 #include "utils/FileHelper.h"
@@ -28,6 +29,13 @@ public:
      * @brief 确保类型已登记，返回 T-id（未登记则递归先登记子类型，再分配新 id）
      */
     int Ensure(const Cangjie::AST::Ty* ty);
+
+    /**
+     * @brief CJAH-5c: 带 decl 上下文的登记（func 类型行补 names:[..]/opt:N——
+     *        编译器 FuncTy 无参数名/默认参数数字段，从 FuncDecl.funcBody.paramLists 补齐，
+     *        R120 参照 §50 约定）。同 TyKey 已登记时复用首个 meta（TC 侧同结构共享 names，可接受）。
+     */
+    int EnsureWithMeta(const Cangjie::AST::Ty* ty, const class FuncDeclMeta* meta);
 
     /**
      * @brief 按 id 序统一编码类型行（首次调用时执行；子类型引用此时已被分配更大 id，
@@ -90,9 +98,21 @@ private:
     static Str FmtList(const StrVec& items);
 
     std::unordered_map<TyKey, int, TyKeyHash, TyKeyEqual> t2id;
+    std::unordered_map<const Cangjie::AST::Ty*, FuncDeclMeta> funcMetas; /**< Ty 指针 → decl 上下文值拷贝（仅 func 族；池内持有无悬空） */
     Vec<const Cangjie::AST::Ty*> order; /**< id 顺序的类型指针（行序） */
     StrVec lines;                       /**< T<id>: 行文本 */
     bool resolved{false};               /**< 类型行是否已统一编码 */
+};
+
+/**
+ * @brief func 类型的 decl 上下文元数据（CJAH-5c：编译器 FuncTy 无参数名/默认参数数——
+ *        编码 func 类型行时从声明位补齐，对齐 TC names/opt 字段）
+ */
+struct FuncDeclMeta {
+    StrVec paramNames;
+    int optionalParamCount{0};
+    /** CJAH-6c (N-2)：泛型参数名（FuncDecl.generic→typeParams），补 func 类型行 tp:[...] 段 */
+    StrVec typeParamNames;
 };
 
 /**
@@ -158,11 +178,10 @@ private:
 
     // 符号收集：文件遍历序分配 S-id
     void CollectFileSymbols(const File& file, int fileIdx);
-    void CollectDeclSymbol(const Decl& decl, int fileIdx);
+    void CollectDeclSymbol(const Decl& decl, int fileIdx, bool inExtend = false, bool inTypeLike = false);
     void CollectBodySymbols(const Decl& decl, int fileIdx);
 
     static Str SymKindOf(const Decl& decl);
-    static Str IdentityOf(const AstNode& node);
 
     std::ofstream ofs;
     Printer prt;

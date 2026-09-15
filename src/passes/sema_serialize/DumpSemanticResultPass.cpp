@@ -114,8 +114,11 @@ Str SymKind2Str(AstKind kind)
 
 bool SemanticTyPool::IsNominalKind(Cangjie::AST::TypeKind kind)
 {
+    // CJAH-6a: TYPE（TypeAliasTy）同 Nominal 族走文本 key——编译器 == 含 declPtr 指针比较，
+    // 跨实例去重需按内容（alias#pkg#name）。
     return kind == Cangjie::AST::TypeKind::TYPE_CLASS || kind == Cangjie::AST::TypeKind::TYPE_INTERFACE
-        || kind == Cangjie::AST::TypeKind::TYPE_STRUCT || kind == Cangjie::AST::TypeKind::TYPE_ENUM;
+        || kind == Cangjie::AST::TypeKind::TYPE_STRUCT || kind == Cangjie::AST::TypeKind::TYPE_ENUM
+        || kind == Cangjie::AST::TypeKind::TYPE;
 }
 
 Str SemanticTyPool::NominalTextKey(const Cangjie::AST::Ty& ty)
@@ -134,6 +137,12 @@ Str SemanticTyPool::NominalTextKey(const Cangjie::AST::Ty& ty)
         decl = st->decl;
     } else if (auto* et = dynamic_cast<const EnumTy*>(&ty)) {
         decl = et->decl;
+    } else if (auto* at = dynamic_cast<const TypeAliasTy*>(&ty)) {
+        // CJAH-6a: alias 文本 key 前缀区分 Nominal（alias#pkg#name）
+        if (at->declPtr) {
+            return Str("alias#") + at->declPtr->fullPackageName + "#" + at->declPtr->identifier.Val();
+        }
+        return Str("alias#") + ty.name;
     }
     if (decl) {
         pkgName = decl->fullPackageName;
@@ -148,6 +157,18 @@ int SemanticTyPool::Ensure(const Cangjie::AST::Ty* ty)
         return -1;
     }
     return DoEnsure(ty);
+}
+
+int SemanticTyPool::EnsureWithMeta(const Cangjie::AST::Ty* ty, const FuncDeclMeta* meta)
+{
+    if (!ty) {
+        return -1;
+    }
+    const int id = DoEnsure(ty);
+    if (meta && funcMetas.find(ty) == funcMetas.end()) {
+        funcMetas.emplace(ty, *meta);
+    }
+    return id;
 }
 
 int SemanticTyPool::DoEnsure(const Cangjie::AST::Ty* ty)
@@ -219,8 +240,25 @@ Str SemanticTyPool::Encode(const Cangjie::AST::Ty* ty)
                 params.push_back(ensure(ft.typeArgs[i]));
             }
             auto ret = ensure(ft.retTy);
-            return "func#(" + FmtList(params) + ")->" + ret + "#tp:[]#opt:0#var:"
-                + (ft.hasVariableLenArg ? "true" : "false") + "#names:[]";
+            // CJAH-5c (G-3): names/opt 从 decl 上下文补齐（FuncTy 本体无此信息）——
+            // names 形状 [[n1,n2]] 对齐 TC fmtList(ArrayList.toString) 双层括号；opt = 默认参数个数
+            StrVec names;
+            int optCount = 0;
+            StrVec tps;
+            if (auto it = funcMetas.find(ty); it != funcMetas.end()) {
+                for (auto& n : it->second.paramNames) {
+                    names.push_back(n);
+                }
+                optCount = it->second.optionalParamCount;
+                // CJAH-6c (N-2)：泛型函数类型参数名（TC result_ser.cj:717 func#…#tp:[G] 同形）
+                for (auto& g : it->second.typeParamNames) {
+                    tps.push_back(g);
+                }
+            }
+            // names 形状对齐 TC：无参 = names:[]（fmtList(空)）；有参 = names:[[a,b]]（fmtList(ArrayList.toString) 双层）
+            const Str namesSeg = names.empty() ? Str("names:[]") : Str("names:[" + FmtList(names) + "]");
+            return "func#(" + FmtList(params) + ")->" + ret + "#tp:" + FmtList(tps) + "#opt:"
+                + std::to_string(optCount) + "#var:" + (ft.hasVariableLenArg ? "true" : "false") + "#" + namesSeg;
         }
         case TypeKind::TYPE_ARRAY: {
             auto& at = *static_cast<const ArrayTy*>(ty);
@@ -267,11 +305,64 @@ Str SemanticTyPool::Encode(const Cangjie::AST::Ty* ty)
             for (auto& a : ty->typeArgs) {
                 ta.push_back(ensure(a));
             }
-            // 上界：Nominal 的 tp 段按 typechecker 约定输出名字[上界] 形式；
-            // 编译器泛型上界在 GenericsTy.upperBounds，声明级此处取 generic 约束不可达 → 输出空上界
+            // CJAH-5a (G-1): sup 段收声明位直接父类型（对齐 TC 口径 = AST Decl.superTypes 源码级列表）。
+            // 口径注记：编译器 Sema 给无显式父类的 class 注入隐式 Object 节点（inheritedTypes 实证），
+            // CJAH sup 会含该 Object 行（TC 侧无——std.ast parse 无编译器补节点）；恢复侧 Object 可闭合，
+            // 差异属「CJAH 信息超集」，对拍按显式声明位子集归一。全链接口展开（Comparable→Equatable…）
+            // 是 std.core 源码声明位本就多继承，非 CJAH 展开。
+            StrVec sup;
+            const Decl* declRaw = decl;
+            if (auto* inh = dynamic_cast<const InheritableDecl*>(declRaw)) {
+                for (auto& st : inh->inheritedTypes) {
+                    if (st && st->GetTy() && st->GetTy()->kind != Cangjie::AST::TypeKind::TYPE_INVALID
+                        && st->GetTy()->kind != Cangjie::AST::TypeKind::TYPE_INITIAL) {
+                        sup.push_back(ensure(st->GetTy()));
+                    }
+                }
+            }
+            // CJAH-6d (N-3)：Nominal tp 段——类型参数名[上界]，对齐 TC encodeNominal
+            // （result_ser.cj:761-767 `${identifier}[${ub}]`）。声明位 Generic 经 Decl::GetGeneric()
+            // 可达（func 侧 6c 同路径）；上界从 GenericConstraint 取——genericConstraints 每项含
+            // bound type（UpperBounded 接口列表），GetTy() SEMA 后绑定。
             StrVec tp;
+            if (auto* gen = decl->GetGeneric().get()) {
+                // 逐参数找其约束（GenericConstraint.type = 被约束参数节点）
+                for (auto& gparam : gen->typeParameters) {
+                    StrVec ubs;
+                    for (auto& gc : gen->genericConstraints) {
+                        if (gc->type && gc->type->GetTy() == gparam->GetTy()) {
+                            for (auto& bound : gc->upperBounds) {
+                                if (bound && bound->GetTy()) {
+                                    ubs.push_back(ensure(bound->GetTy()));
+                                }
+                            }
+                        }
+                    }
+                    tp.push_back(gparam->identifier.Val() + FmtList(ubs));
+                }
+            }
             return kindStr + "#" + decl->fullPackageName + "#" + decl->identifier.Val() + "#ta:" + FmtList(ta)
-                + "#sup:[]#tp:" + FmtList(tp);
+                + "#sup:" + FmtList(sup) + "#tp:" + FmtList(tp);
+        }
+        case TypeKind::TYPE: {
+            // CJAH-6a (N-1): type alias 类型编码——TypeAliasTy（Types.h:940 declPtr+typeArgs）。
+            // 行格式 alias#<declName>#ta:[…]（对齐 R120 Nominal 风格）；TC 侧现走 toString（无 alias
+            // 分支），形状差异在对拍归一层吸收（kanban 远期登记）。跨实例去重走文本 key（对齐 Nominal
+            // D-1 修订：alias#pkg#name，IsNominalKind 已覆盖 TYPE）。
+            auto* at = static_cast<const TypeAliasTy*>(ty);
+            const Str name = at->declPtr ? Str(at->declPtr->identifier.Val()) : Str(at->name);
+            // 实参来源：TypeAliasTy.typeArgs 是构造期快照（解析位 RHS 无实参语境，实测恒空）；
+            // 声明位 RHS（TypeAliasDecl.type→GetTy()）SEMA 后携带真实目标 Ty，其 typeArgs 即 alias 实参。
+            std::vector<Ptr<Ty>> aliasArgs = ty->typeArgs;
+            if (aliasArgs.empty() && at->declPtr && at->declPtr->type && at->declPtr->type->GetTy()
+                && at->declPtr->type->GetTy() != ty) {
+                aliasArgs = at->declPtr->type->GetTy()->typeArgs;
+            }
+            StrVec ta;
+            for (auto& a : aliasArgs) {
+                ta.push_back(ensure(a));
+            }
+            return "alias#" + name + "#ta:" + FmtList(ta);
         }
         case TypeKind::TYPE_GENERICS: {
             auto& gt = *static_cast<const GenericsTy*>(ty);
@@ -281,9 +372,20 @@ Str SemanticTyPool::Encode(const Cangjie::AST::Ty* ty)
             }
             return "generic#" + gt.name + "#" + FmtList(ubs);
         }
-        default:
+        default: {
             // 单例族：Unit/Int8..Float64/Rune/Bool/CString/Nothing 等
-            return Kind2Str(ty->kind);
+            const Str prim = Kind2Str(ty->kind);
+            if (!prim.empty()) {
+                return prim;
+            }
+            // CJAH-6a (N-1/N-6) 防空行兜底：任何未覆盖 kind（UNION/INTERSECTION/QUEST/ANY/…）
+            // 不得产出空类型行破坏 R120 行格式——fail-visible 输出 unknown#<KindName>。
+            // 用 ty->name 兜底（PrimitiveTy/用户命名类型有 name；匿名检查期临时类型可能为空 → 再补 kind 序数）。
+            if (!ty->name.empty()) {
+                return "unknown#" + ty->name;
+            }
+            return "unknown#kind" + std::to_string(static_cast<int>(ty->kind));
+        }
     }
 }
 
@@ -322,6 +424,21 @@ void DumpSemanticResultPass::Run(AstNode& node)
     DumpPackage(pkg);
     ofs.flush();
     ofs.close();
+
+    // CJAH-5e (G-5): .stats 统计文件（D-3 拍板 A——校验辅助，对齐 TC SerStats 风格计数）
+    std::ofstream statsOfs(outDir + "/" + pkg.fullPackageName + ".stats", std::ios::out | std::ios::trunc);
+    if (statsOfs.is_open()) {
+        Size bindCount = 0;
+        for (auto& [fname, rows] : bindFiles) {
+            bindCount += rows.size();
+        }
+        statsOfs << "types: " << pool.Count() << "\n";
+        statsOfs << "syms: " << symRows.size() << "\n";
+        statsOfs << "binds: " << bindCount << "\n";
+        statsOfs << "files: " << pkg.files.size() << "\n";
+        statsOfs.flush();
+        statsOfs.close();
+    }
 }
 
 void DumpSemanticResultPass::DumpPackage(const Package& pkg)
@@ -411,15 +528,68 @@ void DumpSemanticResultPass::CollectBodySymbols(const Decl& decl, int fileIdx)
     }
 }
 
-void DumpSemanticResultPass::CollectDeclSymbol(const Decl& decl, int fileIdx)
+void DumpSemanticResultPass::CollectDeclSymbol(const Decl& decl, int fileIdx, bool inExtend, bool inTypeLike)
 {
     const Str kind = SymKindOf(decl);
     if (!kind.empty()) {
+        // CJAH-5c: func 声明先经 EnsureWithMeta 登记上下文（参数名/默认参数数）——
+        // 绑定/符号收集引用同结构 FuncTy 时 Encode 可取 names/opt
+        UniquePtr<FuncDeclMeta> metaHolder;
+        const FuncDeclMeta* metaPtr = nullptr;
+        if (auto* func = dynamic_cast<const FuncDecl*>(&decl); func && func->funcBody) {
+            metaHolder.reset(new FuncDeclMeta());
+            for (auto& paramList : func->funcBody->paramLists) {
+                for (auto& param : paramList->params) {
+                    metaHolder->paramNames.push_back(param->identifier.Val());
+                    if (param->assignment) {
+                        metaHolder->optionalParamCount++;
+                    }
+                }
+            }
+            // CJAH-6c (N-2)：泛型参数名（func<T> 声明位），补 func 类型行 tp:[...] 段
+            if (func->GetGeneric()) {
+                for (auto& tp : func->GetGeneric()->typeParameters) {
+                    metaHolder->typeParamNames.push_back(tp->identifier.Val());
+                }
+            }
+            metaPtr = metaHolder.get();
+            (void)pool.EnsureWithMeta(decl.GetTy(), metaPtr);
+        }
         SymRow row;
         row.id = static_cast<int>(symRows.size());
         row.fileIdx = fileIdx;
-        row.kind = kind;
-        row.name = decl.identifier.Val();
+        // CJAH-5b (G-2): extend body 成员用 emember 记号（对齐 TC restore 词表——
+        // result_restore.cj:116 emember 分支挂 curExtend 桶；extend 行本身 = extend#<被扩展类型名>）
+        // CJAH-5d (G-4，方案 a)：类型 body 内 func/var 记号归一 member（对齐 TC 词表——
+        // restore 的 member 分支挂 curType 桶；TC 自家产物类成员恒 member。restore 侧
+        // 「curType 上下文归一」实证不可行：TC 顶层 func 行序可落在 class 之后，误挂类型桶）
+        // CJAH-6b (N-4)：prop 同归一——TC restore 词表无 prop 分支，独立记号会被恢复侧
+        // 静默丢弃（v2 报告 probe2 S5 实证）；PropertySymbol 在 TC 侧以 member 输出
+        row.kind = inExtend ? "emember"
+                            : (inTypeLike && (kind == "func" || kind == "var" || kind == "prop") ? "member" : kind);
+        if (auto* extend = dynamic_cast<const ExtendDecl*>(&decl)) {
+            // extend 行名 = 被扩展类型名（extendedType Sema 后取 Ty 名；Nominal 优先 decl identifier）
+            Str extName;
+            const Cangjie::AST::Ty* ty = extend->extendedType ? extend->extendedType->GetTy() : nullptr;
+            if (ty) {
+                extName = ty->name;
+                if (extName.empty()) {
+                    using namespace Cangjie::AST;
+                    if (auto* nt = dynamic_cast<const ClassLikeTy*>(ty)) {
+                        extName = nt->commonDecl ? nt->commonDecl->identifier.Val() : Str("");
+                    }
+                }
+                // CJAH-6b (G-2 残留)：基本类型扩展（extend Int64 等）PrimitiveTy::name 声明位为空
+                // （由 ImportManager 填充，ClassLikeTy fallback 不覆盖）——fallback Kind2Str
+                // （Int64/Rune 等 PrimitiveTy 全集，v2 报告 probe3 S6 extend## 实证）
+                if (extName.empty()) {
+                    extName = Kind2Str(ty->kind);
+                }
+            }
+            row.name = extName.empty() ? decl.identifier.Val() : extName;
+        } else {
+            row.name = decl.identifier.Val();
+        }
         row.tyId = pool.Ensure(decl.GetTy());
         // CJAH-4b: func/member 声明携带参数类型表（params:[[T…]]，对齐 TC 签名可比格式）
         if (auto* func = dynamic_cast<const FuncDecl*>(&decl); func && func->funcBody) {
@@ -432,9 +602,27 @@ void DumpSemanticResultPass::CollectDeclSymbol(const Decl& decl, int fileIdx)
         }
         symRows.push_back(row);
     }
-    // 成员声明递归（class/interface/struct/enum/extend body）
+    // 成员声明递归（class/interface/struct/enum/extend body）；extend body 内标记 inExtend，
+    // 类型 body 内标记 inTypeLike
+    const bool membersInExtend = inExtend || decl.astKind == AstKind::EXTEND_DECL;
+    const bool membersInTypeLike = inTypeLike || decl.astKind == AstKind::CLASS_DECL
+        || decl.astKind == AstKind::INTERFACE_DECL || decl.astKind == AstKind::STRUCT_DECL
+        || decl.astKind == AstKind::ENUM_DECL;
     for (auto& member : decl.GetMemberDecls()) {
-        CollectDeclSymbol(*member, fileIdx);
+        CollectDeclSymbol(*member, fileIdx, membersInExtend, membersInTypeLike);
+    }
+    // CJAH-6e (N-5)：枚举构造器收集——EnumDecl.constructors 独立于 GetMemberDecls()（members
+    // 只含枚举体内显式函数），无关联值 case 是 VarLikeDecl、带关联值 case 是 FuncDecl（Node.h:1213
+    // 注释实证）。对齐 TC 口径：collectEnumMembers（source_collector.cj:717）以 EnumConstructorSymbol
+    // 挂 ns.addMember → serde 以 member 输出。inTypeLike（本调用已含 ENUM_DECL）→ 记号 member。
+    if (decl.astKind == AstKind::ENUM_DECL) {
+        if (auto* ed = dynamic_cast<const EnumDecl*>(&decl)) {
+            for (auto& ctor : ed->constructors) {
+                if (ctor) {
+                    CollectDeclSymbol(*ctor, fileIdx, membersInExtend, membersInTypeLike);
+                }
+            }
+        }
     }
 }
 
@@ -654,14 +842,4 @@ Str DumpSemanticResultPass::SymKindOf(const Decl& decl)
     return SymKind2Str(decl.astKind);
 }
 
-Str DumpSemanticResultPass::IdentityOf(const AstNode& node)
-{
-    Str id = AstKind2Str(node.astKind);
-    if (auto* decl = dynamic_cast<const Decl*>(&node)) {
-        auto name = decl->identifier.Val();
-        if (!name.empty()) {
-            id += ":" + name;
-        }
-    }
-    return id;
-}
+
