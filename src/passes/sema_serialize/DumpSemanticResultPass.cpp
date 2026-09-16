@@ -493,8 +493,9 @@ void DumpSemanticResultPass::CollectFileSymbols(const File& file, int fileIdx)
 }
 
 /**
- * @brief 函数体局部声明收集（CJAH-4c）：递归 FuncBody.block 一级 VarDecl/VarPattern
- *        （对齐 TC LocalSymbol 收集面——TC 收函数体直系 let/var，不递归嵌套 lambda 内部）
+ * @brief 函数体局部声明收集（CJAH-4c 一级 + CJAH-7a 递归）：FuncBody.block 内 VarDecl
+ *        → symbol 行（if/for/while/match/try/lambda 嵌套块内声明同样收集——对齐 bind 段
+ *        var_decl 全集；v2 报告 N-6：此前只收一级，嵌套探针 inner1~4 缺席）
  *        main() 经 B120RC3 desugar → desugarDecl(FuncDecl) 优先取
  */
 void DumpSemanticResultPass::CollectBodySymbols(const Decl& decl, int fileIdx)
@@ -509,22 +510,115 @@ void DumpSemanticResultPass::CollectBodySymbols(const Decl& decl, int fileIdx)
     if (!body || !body->body) {
         return;
     }
-    for (auto& stmt : body->body->body) {
+    CollectBlockLocals(*body->body, fileIdx);
+}
+
+/**
+ * @brief 块内局部 VarDecl 递归收集（CJAH-7a）：本层 VAR_DECL 收行后，递归进入
+ *        各嵌套块容器（IfExpr/ForInExpr/WhileExpr/DoWhileExpr/MatchExpr/TryExpr/
+ *        LambdaExpr/SynchronizedExpr）。平铺不加深（对齐 TC restore var 词表）；
+ *        空名过滤（元组解构 let (a,b) identifier 空防脏行）
+ */
+void DumpSemanticResultPass::CollectBlockLocals(const Block& block, int fileIdx)
+{
+    for (auto& stmt : block.body) {
         if (!stmt) {
             continue;
         }
-        if (stmt->astKind != AstKind::VAR_DECL) {
-            continue;
+        if (stmt->astKind == AstKind::VAR_DECL) {
+            if (auto* var = Cast<VarDecl*>(stmt.get())) {
+                const Str name = var->identifier.Val();
+                if (!name.empty()) {
+                    SymRow row;
+                    row.id = static_cast<int>(symRows.size());
+                    row.fileIdx = fileIdx;
+                    row.kind = "var";
+                    row.name = name;
+                    row.tyId = pool.Ensure(var->GetTy());
+                    symRows.push_back(row);
+                }
+            }
         }
-        if (auto* var = Cast<VarDecl*>(stmt.get())) {
-            SymRow row;
-            row.id = static_cast<int>(symRows.size());
-            row.fileIdx = fileIdx;
-            row.kind = "var";
-            row.name = var->identifier.Val();
-            row.tyId = pool.Ensure(var->GetTy());
-            symRows.push_back(row);
+        CollectNestedBlockLocals(*stmt, fileIdx);
+    }
+}
+
+/**
+ * @brief 语句的嵌套块容器下钻（CJAH-7a）：按语句类型进入其 body 块递归；
+ *        elseBody 是 Expr（可能为 Block 或 if-else 链）——dynamic_cast 双分支
+ */
+void DumpSemanticResultPass::CollectNestedBlockLocals(const AstNode& stmt, int fileIdx)
+{
+    auto collectBlock = [&](const Block* b) {
+        if (b) {
+            CollectBlockLocals(*b, fileIdx);
         }
+    };
+    switch (stmt.astKind) {
+        case AstKind::IF_EXPR: {
+            auto* ifExpr = dynamic_cast<const IfExpr*>(&stmt);
+                if (ifExpr) {
+                    collectBlock(ifExpr->thenBody.get());
+                    if (ifExpr->elseBody) {
+                        // OwnedPtr::get()→Ptr<Expr>，Ptr::get()→Expr*（SafePointer 双层）——
+                        // else if 链时 elseBody 是嵌套 IfExpr（非 Block），cast 落空即跳过
+                        if (auto* elseBlock = dynamic_cast<const Block*>(ifExpr->elseBody.get().get())) {
+                            collectBlock(elseBlock);
+                        }
+                    }
+                }
+            break;
+        }
+        case AstKind::FOR_IN_EXPR: {
+            auto* forIn = dynamic_cast<const ForInExpr*>(&stmt);
+            collectBlock(forIn ? forIn->body.get() : nullptr);
+            break;
+        }
+        case AstKind::WHILE_EXPR: {
+            auto* whileExpr = dynamic_cast<const WhileExpr*>(&stmt);
+            collectBlock(whileExpr ? whileExpr->body.get() : nullptr);
+            break;
+        }
+        case AstKind::DO_WHILE_EXPR: {
+            auto* doWhile = dynamic_cast<const DoWhileExpr*>(&stmt);
+            collectBlock(doWhile ? doWhile->body.get() : nullptr);
+            break;
+        }
+        case AstKind::MATCH_EXPR: {
+            auto* match = dynamic_cast<const MatchExpr*>(&stmt);
+            if (match) {
+                for (auto& mc : match->matchCases) {
+                    collectBlock(mc ? mc->exprOrDecls.get() : nullptr);
+                }
+                for (auto& mco : match->matchCaseOthers) {
+                    collectBlock(mco ? mco->exprOrDecls.get() : nullptr);
+                }
+            }
+            break;
+        }
+        case AstKind::TRY_EXPR: {
+            auto* tryExpr = dynamic_cast<const TryExpr*>(&stmt);
+            if (tryExpr) {
+                collectBlock(tryExpr->tryBlock.get());
+                for (auto& cb : tryExpr->catchBlocks) {
+                    collectBlock(cb.get());
+                }
+                collectBlock(tryExpr->finallyBlock.get());
+            }
+            break;
+        }
+        case AstKind::LAMBDA_EXPR: {
+            auto* lambda = dynamic_cast<const LambdaExpr*>(&stmt);
+            collectBlock(lambda && lambda->funcBody ? lambda->funcBody->body.get() : nullptr);
+            break;
+        }
+        case AstKind::SYNCHRONIZED_EXPR: {
+            auto* sync = dynamic_cast<const SynchronizedExpr*>(&stmt);
+            collectBlock(sync ? sync->body.get() : nullptr);
+            break;
+        }
+        default:
+            break;
     }
 }
 

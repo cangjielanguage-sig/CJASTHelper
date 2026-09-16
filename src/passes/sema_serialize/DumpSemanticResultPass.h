@@ -180,6 +180,8 @@ private:
     void CollectFileSymbols(const File& file, int fileIdx);
     void CollectDeclSymbol(const Decl& decl, int fileIdx, bool inExtend = false, bool inTypeLike = false);
     void CollectBodySymbols(const Decl& decl, int fileIdx);
+    void CollectBlockLocals(const Block& block, int fileIdx);
+    void CollectNestedBlockLocals(const AstNode& stmt, int fileIdx);
 
     static Str SymKindOf(const Decl& decl);
 
