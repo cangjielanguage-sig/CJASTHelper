@@ -864,6 +864,7 @@ protected:
             case AstKind::ASSIGN_EXPR:
             case AstKind::LIT_CONST_EXPR:
             case AstKind::RETURN_EXPR:
+            case AstKind::FUNC_ARG: // TC-4（N-7 收口）：TC 侧 FuncArg 容器已入 typeBindings（bindNodeType）——EXPR 口径对齐收录
             case AstKind::SUBSCRIPT_EXPR:
             case AstKind::TUPLE_LIT:
             case AstKind::ARRAY_LIT:
