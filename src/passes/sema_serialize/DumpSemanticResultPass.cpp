@@ -186,6 +186,37 @@ int SemanticTyPool::DoEnsure(const Cangjie::AST::Ty* ty)
 }
 
 /**
+ * @brief bind 行 identity snake→PascalCase（TC-6b C2 统一，对齐 std.ast 公开类名）
+ *
+ * 特判表：snake 词与 std.ast/typechecker nodeKind 词形不同构的项（非机械 CamelCase）——
+ *   func_arg→Argument（std.ast 公开类；cjc 内部名 FuncArg 不采用）、
+ *   member_access_expr→MemberAccess、tuple_lit_expr→TupleLiteral、array_lit_expr→ArrayLiteral；
+ * 其余按 '_' 分词逐词首字母大写机械转换（ref_expr→RefExpr、var_decl→VarDecl…）。
+ * 名称后缀（:name）在转换前已由调用方剥离——本函数只见 kind 词。
+ */
+static Str PascalIdentity(const Str& snake)
+{
+    static const UnorderedMap<Str, Str> kSpecial{
+        {"func_arg", "Argument"}, {"member_access_expr", "MemberAccess"},
+        {"tuple_lit_expr", "TupleLiteral"}, {"array_lit_expr", "ArrayLiteral"},
+    };
+    if (auto it = kSpecial.find(snake); it != kSpecial.end()) {
+        return it->second;
+    }
+    Str out;
+    bool cap = true;
+    for (char c : snake) {
+        if (c == '_') {
+            cap = true;
+            continue;
+        }
+        out += cap ? static_cast<char>(std::toupper(static_cast<unsigned char>(c))) : c;
+        cap = false;
+    }
+    return out;
+}
+
+/**
  * @brief 逗号列表格式化（`[a,b]`；R120 列表字段共用）
  */
 static Str FmtList(const StrVec& items)
@@ -779,8 +810,11 @@ protected:
             // 跳过编译器初始占位类型（未过 Sema 节点）
             if (ty->kind != Cangjie::AST::TypeKind::TYPE_INITIAL && ty->kind != Cangjie::AST::TypeKind::TYPE_INVALID) {
                 Str identity = AstKind2Str(node.astKind);
-                // AstKind2Str 可能含空格（如 " func_body"），净化为 R120 安全 identity
+                // AstKind2Str 可能含空格（如 " func_body"），净化为安全 identity
                 identity.erase(0, identity.find_first_not_of(" \t"));
+                // TC-6b（D-2 翻案定稿）：bind 行 identity 统一 PascalCase（对齐 std.ast 公开类名/
+                // typechecker nodeKind 词表）——snake 词形退役，sema_norm IDENTITY_MAP 随 TC-6d 删除
+                identity = PascalIdentity(identity);
                 // identity 增补：Decl 或表达式类别点带语义 identifier（对齐 typechecker NodeKey =
                 // line:col:kind:name；RefExpr→引用名, MemberAccess→成员名, CallExpr→被调名）
                 Str name = NameSuffixOf(node);
