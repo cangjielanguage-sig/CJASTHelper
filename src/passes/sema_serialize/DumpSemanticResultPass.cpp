@@ -783,9 +783,10 @@ void DumpSemanticResultPass::WriteBindings()
                 }
             }
         }
-        prt.PVals("  ", key, ":").PNL();
+        prt.PVals(" ", key, ":").PNL();
         for (auto& r : rows) {
-            prt.PVals("    ", r.line, ":", r.col, ":", r.identity, " -> T", r.tyId).PNL();
+            // TC-12a：bind 行微压缩（两仓同步）——去缩进 + ` -> T` → `>T`
+            prt.PVals(r.line, ":", r.col, ":", r.identity, ">T", r.tyId).PNL();
         }
     }
 }
