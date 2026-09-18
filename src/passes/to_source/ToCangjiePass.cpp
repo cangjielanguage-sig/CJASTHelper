@@ -778,6 +778,10 @@ void ToCangjiePass::Visit(const TryExpr& node, VisitResult&)
 void ToCangjiePass::Visit(const QuoteExpr& node, VisitResult&)
 {
     LOGD("For QuoteExpr");
+    if (Config().Desugar() && node.desugarExpr) {
+        Traverse(*node.desugarExpr, visitor);
+        return;
+    }
     PRT().PVal("quote");
     PRT().PVec<Expr>(node.exprs,
         [this](const Expr& expr) { 
@@ -1263,9 +1267,10 @@ void ToCangjiePass::PrintMacroInvocation(const MacroInvocation& node, const std:
     auto tag = node.isCompileTimeVisible ? "@!" : "@";
     PRT().PVals(tag, id);
     if (node.hasAttr) {
-        PRT().PVec<Token>(node.attrs, [this](const Token& tk) { PRT().PVal(tk.Value()); }, " ", "[", "]").PNL();
+        PRT().PVec<Token>(node.attrs, [this](const Token& tk) { PRT().PVal(tk.Value()); }, " ", "[", "]");
     }
     if (node.decl) {
+        PRT().PNL();
         // MacroExpandDecl
         Traverse(*node.decl, visitor);
     } else {
