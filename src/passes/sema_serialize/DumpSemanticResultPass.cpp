@@ -501,7 +501,8 @@ void DumpSemanticResultPass::WriteHeader(const Package& pkg)
             // CJAH-4d: TC 虚拟名口径 `file<i>.cj <pkg>`（对拍按位置对齐）
             prt.PVals("file: ", i, " file", i, ".cj ", pkg.fullPackageName).PNL();
         } else {
-            prt.PVals("file: ", i, " ", pkg.files[i]->fileName).PNL();
+            // TC-12c：补包名列（对齐 TC SerDoc.toText 格式 `file: <idx> <name> <pkg>`）
+            prt.PVals("file: ", i, " ", pkg.files[i]->fileName, " ", pkg.fullPackageName).PNL();
         }
     }
 }
@@ -757,13 +758,19 @@ void DumpSemanticResultPass::WriteSymbols()
     for (auto& row : symRows) {
         prt.PVals("S", row.id, "@", row.fileIdx, ": ", row.kind, "#", row.name, "#ty:");
         if (row.tyId >= 0) {
-            prt.PVals("T", row.tyId);
+            // TC-12b：类型池去重后 T-id 重映射
+            prt.PVals("T", pool.RemapId(row.tyId));
         } else {
             prt.PVal("-");
         }
         // CJAH-4b: 参数类型表 `#params:[[T…]]`（对齐 TC 符号行签名可比字段）
         if (!row.paramTyIds.empty()) {
-            prt.PVal("#params:[[" + FmtList(row.paramTyIds) + "]]");
+            // TC-12b：参数类型引用重映射
+            StrVec remapped;
+            for (auto& p : row.paramTyIds) {
+                remapped.push_back(pool.RemapTRef(p));
+            }
+            prt.PVal("#params:[[" + FmtList(remapped) + "]]");
         }
         prt.PNL();
     }
@@ -786,7 +793,8 @@ void DumpSemanticResultPass::WriteBindings()
         prt.PVals(" ", key, ":").PNL();
         for (auto& r : rows) {
             // TC-12a：bind 行微压缩（两仓同步）——去缩进 + ` -> T` → `>T`
-            prt.PVals(r.line, ":", r.col, ":", r.identity, ">T", r.tyId).PNL();
+            // TC-12b：类型池去重后 T-id 重映射
+            prt.PVals(r.line, ":", r.col, ":", r.identity, ">T", pool.RemapId(r.tyId)).PNL();
         }
     }
 }

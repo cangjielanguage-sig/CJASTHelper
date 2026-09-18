@@ -47,8 +47,31 @@ public:
             return lines;
         }
         resolved = true;
+        // TC-12b：去重——按行文本检测重复（编译器 Ty 虚 Hash/== 对部分
+        // 结构等价类型不收敛，文本 key 是唯一可靠判据），重复类型映射到首个 id，
+        // 输出按新 id 顺序重排（跳过重复 → 行头 id 连续）。
+        // 注意：Encode 内部调用 Ensure 可能注册新类型（order 动态增长），
+        // 故循环条件用 order.size() 动态上界 + oldToNew 向量按需扩容。
+        std::unordered_map<Str, int> textToFirstId;
+        Vec<int> oldToNew;
+        oldToNew.reserve(order.size());
+        int seqId = 0;
         for (Size i = 0; i < order.size(); i++) {
-            lines.push_back("T" + std::to_string(i) + ": " + Encode(order[i]));
+            if (i >= oldToNew.size()) {
+                oldToNew.resize(i + 1, -1);
+            }
+            Str encoded = Encode(order[i]);
+            auto it = textToFirstId.find(encoded);
+            if (it != textToFirstId.end()) {
+                // 重复：映射到首个 id 的 new id（其 oldToNew 已定）
+                oldToNew[i] = oldToNew[it->second];
+                dupRemap_[static_cast<int>(i)] = oldToNew[i];
+            } else {
+                oldToNew[i] = seqId;
+                lines.push_back("T" + std::to_string(seqId) + ": " + encoded);
+                textToFirstId.emplace(std::move(encoded), static_cast<int>(i));
+                seqId++;
+            }
         }
         return lines;
     }
@@ -56,6 +79,24 @@ public:
     Size Count() const
     {
         return t2id.size();
+    }
+
+    /** TC-12b: old_id → new_output_id（去重后映射；未去重时返回原 id） */
+    int RemapId(int oldId) const
+    {
+        auto it = dupRemap_.find(oldId);
+        return it != dupRemap_.end() ? it->second : oldId;
+    }
+
+    /** TC-12b: 引用串 "T<id>" → 去重后 "T<newId>"（paramTyIds 文本引用 remap） */
+    Str RemapTRef(const Str& ref) const
+    {
+        if (ref.size() >= 2 && ref[0] == 'T') {
+            int id = std::stoi(ref.substr(1));
+            int nid = RemapId(id);
+            return nid != id ? Str("T") + std::to_string(nid) : ref;
+        }
+        return ref;
     }
 
 private:
@@ -102,6 +143,9 @@ private:
     Vec<const Cangjie::AST::Ty*> order; /**< id 顺序的类型指针（行序） */
     StrVec lines;                       /**< T<id>: 行文本 */
     bool resolved{false};               /**< 类型行是否已统一编码 */
+
+    /** TC-12b：去重后 old_id → new_output_id（ResolvedLines 首次调用时构建） */
+    std::unordered_map<int, int> dupRemap_;
 };
 
 /**
