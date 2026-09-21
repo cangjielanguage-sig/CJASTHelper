@@ -815,6 +815,11 @@ protected:
         if (node.begin.line == 0) {
             return;
         }
+        // TC-13x 校准：无意义容器节点不输出（TC 侧 std.ast 无公开类型，纯结构性占位）——
+        // FuncBody（函数体块包装）、FuncParamList（参数列表集合）；FuncParam 保留（有参数类型语义）
+        if (node.astKind == AstKind::FUNC_BODY || node.astKind == AstKind::FUNC_PARAM_LIST) {
+            return;
+        }
         if (auto ty = node.GetTy()) {
             // 跳过编译器初始占位类型（未过 Sema 节点）
             if (ty->kind != Cangjie::AST::TypeKind::TYPE_INITIAL && ty->kind != Cangjie::AST::TypeKind::TYPE_INVALID) {
@@ -829,6 +834,15 @@ protected:
                 Str name = NameSuffixOf(node);
                 if (!name.empty()) {
                     identity += ":" + name;
+                }
+                // TC-13x 校准：desugar 产物标注（保留输出，加后缀区分）——
+                //   sourceExpr 非空 = desugar 产物（a+b→a.+(b) 的 CallExpr/MemberAccess 等）→ @desugar
+                //   COMPILER_ADD = 编译器新增节点（InsertUnitForFuncBody 补的 return () 等）→ @compiler
+                const auto* nodeExpr = dynamic_cast<const Expr*>(&node);
+                if (nodeExpr && nodeExpr->sourceExpr) {
+                    identity += "@desugar";
+                } else if (node.TestAttr(Attribute::COMPILER_ADD)) {
+                    identity += "@compiler";
                 }
                 // scope 过滤：EXPR 口径只收表达式节点（对齐 typechecker typeBindings 收集面）
                 if (scope == BindScope::EXPR && !IsExprKind(node.astKind)) {
