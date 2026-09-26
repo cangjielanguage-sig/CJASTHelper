@@ -23,6 +23,7 @@
 #include "DumpSemanticResultPass.h"
 #include "cangjie/AST/Types.h"
 #include "utils/Logger.h"
+#include <algorithm>
 
 REG_PASS("dump-semantic-result",
     ([](const PassConfig& config) { return UniquePtr<Pass>(new DumpSemanticResultPass{Cast<const ToSourcePassConfig&>(config)}); }));
@@ -397,8 +398,16 @@ Str SemanticTyPool::Encode(const Cangjie::AST::Ty* ty)
         }
         case TypeKind::TYPE_GENERICS: {
             auto& gt = *static_cast<const GenericsTy*>(ty);
+            // 确定性：GenericsTy::upperBounds 是**按指针地址**排序的集合 ⇒ 遍历序随 ASLR 变化，
+            // 直接 ensure 会产出顺序不稳定的 golden（实测同输入两次运行 T801 行实参顺序不同）。
+            // 先按语义键（kind, name）排序再 ensure ⇒ golden 逐字节可复现。
+            std::vector<Ptr<Ty>> ubsRaw(gt.upperBounds.begin(), gt.upperBounds.end());
+            std::sort(ubsRaw.begin(), ubsRaw.end(), [](const Ptr<Ty>& a, const Ptr<Ty>& b) {
+                if (a->kind != b->kind) { return a->kind < b->kind; }
+                return a->name < b->name;
+            });
             StrVec ubs;
-            for (auto& ub : gt.upperBounds) {
+            for (auto& ub : ubsRaw) {
                 ubs.push_back(ensure(ub));
             }
             return "generic#" + gt.name + "#" + FmtList(ubs);
