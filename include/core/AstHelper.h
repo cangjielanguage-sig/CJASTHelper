@@ -50,6 +50,10 @@ protected:
     void DumpAst();
 
     /**
+     * @brief 按 golden 结构打印 AST 树（缩进步长可配，默认 4）
+     */
+
+    /**
      * @brief 执行分析阶段 调用注册的分析pass
      * @return 分析阶段执行成功返回true，否则返回false
      */

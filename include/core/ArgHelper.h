@@ -29,7 +29,9 @@ struct Options {
     SourceStage stage = SourceStage::DEFAULT; /**< 当前的源代码阶段 */
     bool enableDesugar = false;               /**< 是否启用语法糖打印 */
     bool enableMacro = true;                  /**< 是否启用宏展开 */
-    bool checkSyntax = false;                 /**< 是否仅做语法检查: 解析完成即结束, 不做分析/转换 */
+    bool checkSyntax = false;                /**< 是否仅做语法检查: 解析完成即结束, 不做分析/转换 */
+    std::optional<Str> astTreeOutPath;      /**< golden 结构 AST 树打印输出目录（未设 ⇒ 不打印） */
+    /**< 是否仅做语法检查: 解析完成即结束, 不做分析/转换 */
     StrOpt astOutPath = std::nullopt;         /**< Ast 输出路径,  None 表示不输出 */
     StrSet filterDecls;                       /**< 过滤打印decl配置 */
     StrSet ignoreDecls;                       /**< 忽略打印decl配置 */
@@ -52,6 +54,7 @@ struct Options {
     Options& EnableMacro(ConStr& enable);
     Options& CheckSyntax(ConStr& enable);
     Options& EnableAstOutPath(ConStr& path);
+    Options& EnableAstTreePrint(ConStr& path);
     Options& FilterDecls(ConStrVec& decl);
     Options& IgnoreDecls(ConStrVec& decl);
     Options& IgnoreAnnotations(ConStrVec& annotations);

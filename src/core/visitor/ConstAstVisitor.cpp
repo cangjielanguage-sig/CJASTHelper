@@ -10,15 +10,19 @@ VisitResult ConstAstVisitor::BeforeVisit(const AstNode& node)
 {
     if (auto fn = handlers.TryGet<BeforeFunc>(node.astKind)) {
         return fn->get()(node);
-    } else {
-        return DefaultBefore(node);
     }
+    if (defaultBefore) {   // 注册的默认优先于虚函数默认
+        return defaultBefore(node);
+    }
+    return DefaultBefore(node);
 }
 
 void ConstAstVisitor::Visit(const AstNode& node, VisitResult& res)
 {
     if (auto fn = handlers.TryGet<VisitFunc>(node.astKind)) {
         fn->get()(node, res);
+    } else if (defaultVisit) {   // 注册的默认优先于虚函数默认
+        defaultVisit(node, res);
     } else {
         DefaultVisit(node, res);
     }
@@ -28,6 +32,8 @@ void ConstAstVisitor::AfterVisit(const AstNode& node, const VisitResult& res)
 {
     if (auto fn = handlers.TryGet<AfterFunc>(node.astKind)) {
         fn->get()(node, res);
+    } else if (defaultAfter) {   // 注册的默认优先于虚函数默认
+        defaultAfter(node, res);
     } else {
         DefaultAfter(node, res);
     }
@@ -61,4 +67,17 @@ void ConstAstVisitor::RegVisit(AstKind kind, VisitFunc&& visit)
 void ConstAstVisitor::RegAfter(AstKind kind, AfterFunc&& after)
 {
     handlers.Reg<AfterFunc>(kind, std::forward<AfterFunc>(after));
+}
+
+void ConstAstVisitor::RegDefaultBefore(BeforeFunc&& before)
+{
+    defaultBefore = std::move(before);
+}
+void ConstAstVisitor::RegDefaultVisit(VisitFunc&& visit)
+{
+    defaultVisit = std::move(visit);
+}
+void ConstAstVisitor::RegDefaultAfter(AfterFunc&& after)
+{
+    defaultAfter = std::move(after);
 }

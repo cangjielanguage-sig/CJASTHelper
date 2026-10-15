@@ -52,6 +52,15 @@ Options& Options::EnableAstOutPath(ConStr& path)
     return *this;
 }
 
+Options& Options::EnableAstTreePrint(ConStr& path)
+{
+    if (!path.empty()) {
+        this->astTreeOutPath = path;
+        this->passes.push_back("ast-tree-print");   // --print-ast 走 pass（实现已迁入 AstTreePrintPass）
+    }
+    return *this;
+}
+
 Options& Options::FilterDecls(ConStrVec& decl)
 {
     this->filterDecls = StrSet{decl.begin(), decl.end()};
@@ -312,6 +321,7 @@ Vec<Options> ConfigOptions(ArgumentParser& ap, Options options)
     }
     options.Stage(ap.GetSingleValue("dump-source"));
     options.EnableAstOutPath(ap.GetSingleValue("dump-ast", ""));
+    options.EnableAstTreePrint(ap.GetSingleValue("print-ast", ""));
     options.FilterDecls(ap.GetMultiValue("filter-decls"));
     // TODO: update default false
     options.EnableDesugar(ap.GetSingleValue("enable-desugar", "true"));
