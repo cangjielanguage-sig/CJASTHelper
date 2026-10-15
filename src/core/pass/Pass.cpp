@@ -46,6 +46,12 @@ ToSourcePassConfig& ToSourcePassConfig::Output(ConStr& out)
     return *this;
 }
 
+ToSourcePassConfig& ToSourcePassConfig::SourceOrder(ConStrVec& order)
+{
+    this->sourceOrder = order;
+    return *this;
+}
+
 ToSourcePassConfig& ToSourcePassConfig::Suffix(ConStr& suffix)
 {
     this->suffix = suffix;

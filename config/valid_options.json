@@ -22,6 +22,19 @@
     "visible": true
   },
   {
+    "key": "print-ast",
+    "values": [],
+    "mainDesc": "Dump AST tree in golden structure into <value> (one <fullPackageName>.tree per package).",
+    "subDesc": [
+      {
+        "sub": "<dir>",
+        "desc": "Existing output directory; omitted when unset."
+      }
+    ],
+    "single": true,
+    "visible": true
+  },
+  {
     "key": "pass-config",
     "values": [],
     "mainDesc": "Pass config file name, default: passes.json.",

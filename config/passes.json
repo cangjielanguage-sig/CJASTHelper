@@ -33,5 +33,15 @@
         "version": "0.0.1",
         "lib": "cjast_sema_pass",
         "dependencies": []
+    },
+    {
+        "group": "ast-tree-print",
+        "names": [
+            "ast-tree-print"
+        ],
+        "description": "Print AST tree in golden structure",
+        "version": "0.0.1",
+        "lib": "cjast_ast_tree_print_pass",
+        "dependencies": []
     }
 ]

@@ -83,9 +83,29 @@ public:
     void RegVisit(AstKind kind, VisitFunc&& visit);
     void RegAfter(AstKind kind, AfterFunc&& after);
 
+    /**
+     * @brief 注册"默认 Before"回调：未按种类注册 Before 的节点走此回调（优先于 DefaultBefore 虚函数）。
+     * @param before 默认回调。
+     */
+    void RegDefaultBefore(BeforeFunc&& before);
+    /**
+     * @brief 注册"默认 Visit"回调：未按种类注册 Visit 的节点走此回调（优先于 DefaultVisit 虚函数）。
+     * @param visit 默认回调。
+     */
+    void RegDefaultVisit(VisitFunc&& visit);
+    /**
+     * @brief 注册"默认 After"回调：未按种类注册 After 的节点走此回调（优先于 DefaultAfter 虚函数）。
+     * @param after 默认回调。
+     */
+    void RegDefaultAfter(AfterFunc&& after);
+
 protected:
     /**
      * @brief 存储每个 AST 节点种类对应的处理程序。
      */
     CallbackManager<AstKind, std::tuple<BeforeFunc, VisitFunc, AfterFunc>> handlers;
+    /** @brief 注册的默认回调；为空则回落至 DefaultBefore/DefaultVisit/DefaultAfter 虚函数。 */
+    BeforeFunc defaultBefore;
+    VisitFunc defaultVisit;
+    AfterFunc defaultAfter;
 };

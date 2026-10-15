@@ -3,6 +3,8 @@
  *
  * This file implements the AstHelper.
  */
+#include <fstream>
+
 #include "core/AstHelper.h"
 #include "core/pass/Pass.h"
 #include "utils/Logger.h"
@@ -151,7 +153,18 @@ UniquePtr<PassConfig> AstHelper::MakePassConfig()
     config->FocusModifierAttrs({"public", "protected", "internal", "private", "static", "override"}, {"func", "var"});
     config->IgnoreDecls(options.ignoreDecls);
     config->IgnoreAnnotations(options.ignoreAnnotations);
-    config->Output(cjfeHelper.GetOutDir());
+    // --print-ast 指定了目录 ⇒ 打印 pass 写该目录；否则沿用工具输出目录
+    config->Output(options.astTreeOutPath.has_value() ? options.astTreeOutPath.value() : cjfeHelper.GetOutDir());
+    // 源文件序（命令行序）：供打印类 pass 按命令行给定顺序输出同包多文件（AST 的 pkg->files 为字母序）
+    StrVec srcOrder;
+    for (size_t i = 1; i < options.args.size(); ++i) {
+        const ConStr& arg = options.args[i];
+        if (arg.size() > 3 && arg.compare(arg.size() - 3, 3, ".cj") == 0) {
+            size_t slash = arg.find_last_of("/\\");
+            srcOrder.push_back(slash == ConStr::npos ? arg : arg.substr(slash + 1));
+        }
+    }
+    config->SourceOrder(srcOrder);
     return config;
 }
 

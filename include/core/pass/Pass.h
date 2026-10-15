@@ -114,10 +114,18 @@ public:
      * @param kinds 关注的修饰符属性所在的声明类型名称列表（白名单）。
      */
     ToSourcePassConfig& FocusModifierAttrs(ConStrVec& attrs, ConStrVec& kinds);
+    /**
+     * @brief 设置源文件序（命令行给定顺序）。
+     * @param order 源文件基名列表（按命令行序）。
+     * @return 返回当前构建器实例的引用，支持链式调用。
+     */
+    ToSourcePassConfig& SourceOrder(ConStrVec& order);
 
     int indent; /**< 输出缩进大小 */
     Str out;    /**< 输出文件路径 */
+
     Str suffix; /**< 输出文件后缀 */
+    StrVec sourceOrder;    /**< 源文件基名序（命令行序；空则沿用 AST 序）。注：ConStrVec 是 const 别名，成员须用 StrVec */
     // 可配置属性: Attribute::C, Attribute::INTRINSIC, ...
     StrSet focusAnnotationAttrs; /**< 关注的注解对应的属性列表 */
     // 可配置属性: Attribute::PUBLIC, ...
