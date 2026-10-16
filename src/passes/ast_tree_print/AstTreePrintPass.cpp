@@ -117,6 +117,18 @@ bool IsTransparent(AstKind kind)
     }
 }
 
+/** @brief **整棵跳过**节点：不出行、不进层、**也不下探**（注解 ⇒ 口径改由声明行属性位承载 ✓）。
+ *
+ * ★ 与 `IsTransparent` 的区别：透明节点仍**透传子级** ✗；本类**连子级一起跳过** ✓。
+ * ★ 缩进账必须**对称**：`AfterNode` 对同一判据必须**不减层** ✗
+ *   —— 初版只加了 `BeforeNode` 的 Skip ⇒ 注解的 AfterNode 仍执行 Unindent ⇒
+ *   其后所有行**整体退一层** ✗（实测基线里返回类型从 ind 1 退到 ind 0 ✗）。
+ */
+bool IsSkippedKind(AstKind kind)
+{
+    return kind == AstKind::ANNOTATION;
+}
+
 /** @brief 「行头」节点：出行但不进层（其子级与它同级）——FILE 根与 GenericParam 行。 */
 bool IsRowOnlyKind(AstKind kind)
 {
@@ -203,6 +215,20 @@ Str ModText(const AstNode& node)
     std::vector<std::pair<Cangjie::Position, Str>> items;
     for (auto& m : decl.modifiers) {
         items.emplace_back(m.begin, Tk2Str(m.modifier));
+    }
+    // ★ 注解并入**同一条属性行**（用户口径 ✓：注解放属性行、不单独下钻 ✗）
+    //   文本取 `@` +（编译期可见 ⇒ `!` ✓）+ 标识符；与修饰符一起按**源位次**排序 ✓
+    //   （`@When[cond]` / `@Attribute[...]` 的括号内文本暂不出 ⇒ 记为残留项 ✓）
+    for (auto& an : decl.annotations) {
+        if (an == nullptr) {
+            continue;
+        }
+        Str at = "@";
+        if (an->isCompileTimeVisible) {
+            at += "!";
+        }
+        at += an->identifier.Val();
+        items.emplace_back(an->begin, at);
     }
     std::stable_sort(items.begin(), items.end(), [](const auto& x, const auto& y) {
         if (x.first.line != y.first.line) {
@@ -334,6 +360,10 @@ bool AstTreePrintPass::IsTransparentKind(const AstNode& node) const
 
 VisitResult AstTreePrintPass::BeforeNode(const AstNode& node)
 {
+    // ★ 整棵跳过（注解 ✓ 不出行、不进层、不下探 ⇒ 口径改由声明行属性位承载 ✓ 见 `ModText`）
+    if (IsSkippedKind(node.astKind)) {
+        return VisitResult::Skip;
+    }
     if (!IsTransparentKind(node)) {
         PRT().PVal(WordOf(node)).PVal(Detail(node, AtTop(node))).PNL();
         if (!IsRowOnlyKind(node.astKind)) {
@@ -345,6 +375,10 @@ VisitResult AstTreePrintPass::BeforeNode(const AstNode& node)
 
 void AstTreePrintPass::AfterNode(const AstNode& node)
 {
+    // ★ 整棵跳过节点不进层 ⇒ **亦不减层** ✓（缩进账与 BeforeNode 对称 ✗ 初版漏此 ⇒ 其后整段退一层 ✗）
+    if (IsSkippedKind(node.astKind)) {
+        return;
+    }
     // 透明节点未进层 ⇒ 亦不减层；行头节点（根/泛参行）不进层 ⇒ 亦不减层
     if (!IsTransparentKind(node) && !IsRowOnlyKind(node.astKind)) {
         PRT().Unindent();
