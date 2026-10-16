@@ -225,7 +225,18 @@ Str NameText(const AstNode& node)
     switch (node.astKind) {
         case AstKind::PACKAGE_SPEC: {
             auto& spec = Cast<const PackageSpec&>(node);
-            return spec.packageName.Empty() ? "default" : spec.packageName.Val();
+            if (spec.packageName.Empty()) {
+                return "default";
+            }
+            // ★ 修缺陷（用户裁定 ✓）：原实现只取 `packageName`（**末段** ✗）⇒ `package std.core` 打成 `core` ✗（丢前缀 ✗）
+            //   正解：按节点自带的 `prefixPaths`（前缀段 ✓）拼**全名** ⇒ `std.core` ✓
+            std::string full;
+            for (auto& seg : spec.prefixPaths) {
+                full += seg;
+                full += ".";
+            }
+            full += spec.packageName.Val();
+            return full;
         }
         case AstKind::PRIMITIVE_TYPE:
             return Cast<const PrimitiveType&>(node).str;
