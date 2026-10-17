@@ -212,13 +212,20 @@ Str ModText(const AstNode& node)
         return out;
     }
     auto& decl = Cast<const Decl&>(node);
-    std::vector<std::pair<Cangjie::Position, Str>> items;
+    // ★★ 属性行**归一字段序**（用户口径 ✓ 两侧一致 ✓）：`位置 ⇒ Modifier ⇒ Annotation ⇒ 其它`
+    //   —— **不看源码语序** ✗：修饰符整组在前、注解整组在后 ✓（各组内部仍按源位次 ✓）
+    //   例：源码 `@Frozen public const func` ⇒ 归一后 `[public const @Frozen]` ✓
+    auto byPos = [](const std::pair<Cangjie::Position, Str>& x, const std::pair<Cangjie::Position, Str>& y) {
+        if (x.first.line != y.first.line) {
+            return x.first.line < y.first.line;
+        }
+        return x.first.column < y.first.column;
+    };
+    std::vector<std::pair<Cangjie::Position, Str>> items; // ① Modifier
     for (auto& m : decl.modifiers) {
         items.emplace_back(m.begin, Tk2Str(m.modifier));
     }
-    // ★ 注解并入**同一条属性行**（用户口径 ✓：注解放属性行、不单独下钻 ✗）
-    //   文本取 `@` +（编译期可见 ⇒ `!` ✓）+ 标识符；与修饰符一起按**源位次**排序 ✓
-    //   （`@When[cond]` / `@Attribute[...]` 的括号内文本暂不出 ⇒ 记为残留项 ✓）
+    std::vector<std::pair<Cangjie::Position, Str>> annos; // ② Annotation（同一属性行 ✓ 不单独下钻 ✗）
     for (auto& an : decl.annotations) {
         if (an == nullptr) {
             continue;
@@ -228,14 +235,11 @@ Str ModText(const AstNode& node)
             at += "!";
         }
         at += an->identifier.Val();
-        items.emplace_back(an->begin, at);
+        annos.emplace_back(an->begin, at);
     }
-    std::stable_sort(items.begin(), items.end(), [](const auto& x, const auto& y) {
-        if (x.first.line != y.first.line) {
-            return x.first.line < y.first.line;
-        }
-        return x.first.column < y.first.column;
-    });
+    std::stable_sort(items.begin(), items.end(), byPos);
+    std::stable_sort(annos.begin(), annos.end(), byPos);
+    items.insert(items.end(), annos.begin(), annos.end());
     for (auto& it : items) {
         if (!out.empty()) {
             out += " ";
