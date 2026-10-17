@@ -175,6 +175,16 @@ void AstHelper::RegisterStages()
 {
     stageMap.emplace(SourceStage::PARSE, [this]() {
         LOGD();
+        // ★★ `parse` 阶段 = **纯语法解析**，**不走条件编译** ✗（用户口径 ✓）
+        //   为何：`ConditionCompile()` 会**消费语法注解** ✗ —— 实测 `@When[env != "ohos"]` 的
+        //   `Annotation`（`ParseAnnotations.cpp:69` 建于解析期 ✓ 带 `condExpr` ✓）在此步之后
+        //   **从 `decl.annotations` 消失** ✗（探针实测：decl=f annos=0 ／ 同文件 decl=g annos=1 ✓）
+        //   ⇒ 打印阶段已无从取得 ✗ ⇒ 任意阶段切换（parse/desugared-parse/macro 三阶段 `When` 皆 0 ✗）都救不回 ✓
+        //   影响面：仅 stage == PARSE ⇒ 更后阶段（macro/sema ✓）**仍执行**条件编译 ✓（它们依赖其结果 ✓）
+        //   收益：parse 阶段的树变为**与目标平台无关**的纯语法树 ✓（与 LLT 侧读 SDK `std.ast` 同性质 ✓）
+        if (options.stage == SourceStage::PARSE) {
+            return cjfeHelper.Parse();
+        }
         return cjfeHelper.Parse() && cjfeHelper.ConditionCompile();
     });
     stageMap.emplace(SourceStage::DESUGARED_PARSE, [this]() {

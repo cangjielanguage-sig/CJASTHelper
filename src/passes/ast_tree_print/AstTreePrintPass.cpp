@@ -205,6 +205,40 @@ Str LocText(const AstNode& node)
 }
 
 /** @brief 修饰符尾（按源码位次输出，如 `public static`）。 */
+/** @brief 注解**条件文本**（仅 `@When[cond]` 形态；`condExpr` 由解析器生成 ✓ 不走条件编译后才留存 ✓）
+ *
+ * 覆盖解析器允许的四类（`ParseAnnotations.cpp` 的 when 校验：unary / binary / ref ✓ ＋字面量 ✓）；
+ * 其余形态返回占位 `?` —— **不猜** ✗（宁可显式留疑，也不伪造源码事实 ✗）
+ */
+Str CondText(const Expr& e)
+{
+    switch (e.astKind) {
+        case AstKind::REF_EXPR: {
+            auto& r = Cast<const RefExpr&>(e);
+            return r.ref.identifier.Val();
+        }
+        case AstKind::LIT_CONST_EXPR: {
+            auto& l = Cast<const LitConstExpr&>(e);
+            if (l.kind == Cangjie::AST::LitConstKind::STRING) {
+                return "\"" + l.stringValue + "\"";
+            }
+            return l.stringValue;
+        }
+        case AstKind::UNARY_EXPR: {
+            auto& u = Cast<const UnaryExpr&>(e);
+            return Tk2Str(u.op) + (u.expr != nullptr ? CondText(*u.expr) : Str("?"));
+        }
+        case AstKind::BINARY_EXPR: {
+            auto& b = Cast<const BinaryExpr&>(e);
+            Str ls = b.leftExpr != nullptr ? CondText(*b.leftExpr) : Str("?");
+            Str rs = b.rightExpr != nullptr ? CondText(*b.rightExpr) : Str("?");
+            return ls + " " + Tk2Str(b.op) + " " + rs;
+        }
+        default:
+            return "?";
+    }
+}
+
 Str ModText(const AstNode& node)
 {
     Str out;
@@ -235,6 +269,30 @@ Str ModText(const AstNode& node)
             at += "!";
         }
         at += an->identifier.Val();
+        // 括号内文本（与 LLT 侧 `toTokens` 同形 ✓）：
+        //   ① `@When[cond]` ⇒ `condExpr` ✓（解析期生成 ✓）② `@Deprecated[msg: "..."]` ⇒ `args` ✓
+        Str inner;
+        if (an->condExpr != nullptr) {
+            inner = CondText(*an->condExpr);
+        } else {
+            for (auto& a : an->args) {
+                if (a == nullptr) {
+                    continue;
+                }
+                Str piece;
+                Str nm = a->name.Val(); // `SrcIdentifier` 是**值**类型 ✗ 非指针 ✓
+                if (!nm.empty()) {      // 具名实参 `message: "..."` ✓
+                    piece = nm + ": ";
+                }
+                if (a->expr != nullptr) {
+                    piece += CondText(*a->expr);
+                }
+                inner += (inner.empty() ? "" : ", ") + piece;
+            }
+        }
+        if (!inner.empty()) {
+            at += "[" + inner + "]";
+        }
         annos.emplace_back(an->begin, at);
     }
     std::stable_sort(items.begin(), items.end(), byPos);
