@@ -55,8 +55,8 @@ const char* KindWord(AstKind kind)
             return "LetPatternExpr"; // golden 词面
         case AstKind::ARRAY_LIT:
             return "ArrayLiteral";   // golden 词面
-        case AstKind::GENERIC:
-            return "GenericParam";   // golden 词面
+        case AstKind::GENERIC_PARAM_DECL:
+            return "GenericParam";   // golden 词面（★ 一参一行 ⇒ 词挂**参数节点** ✓ 用户口径 ✓）
         default:
             break;
     }
@@ -105,12 +105,12 @@ bool IsTransparent(AstKind kind)
         case AstKind::FUNC_BODY:
         case AstKind::FUNC_PARAM_LIST:
         case AstKind::CLASS_BODY:
-        case AstKind::GENERIC_PARAM_DECL:
         case AstKind::OPTIONAL_CHAIN_EXPR:
         case AstKind::INTERFACE_BODY:
         case AstKind::STRUCT_BODY:
         case AstKind::MODIFIER:
         case AstKind::CONSTANT_TYPE:
+        case AstKind::GENERIC: // ★ 形参列表层 ⇒ **透明**（只透传参数子级 ✓ 一参一行 ✓）
             return true;
         default:
             return false;
@@ -132,7 +132,7 @@ bool IsSkippedKind(AstKind kind)
 /** @brief 「行头」节点：出行但不进层（其子级与它同级）——FILE 根与 GenericParam 行。 */
 bool IsRowOnlyKind(AstKind kind)
 {
-    return kind == AstKind::FILE || kind == AstKind::GENERIC;
+    return kind == AstKind::FILE; // 泛型层已并入透明表（一参一行 ✓ 用户口径 ✓）
 }
 
 /** @brief 是否为「花括号导入」规格（content.kind == IMPORT_MULTI）。 */
@@ -450,22 +450,8 @@ void AstTreePrintPass::AfterNode(const AstNode& node)
 
 Str AstTreePrintPass::Detail(const AstNode& node, bool topLevel)
 {
-    if (node.astKind == AstKind::GENERIC) {
-        // golden：一行 `GenericParam T U // <Generic 自身位>`（名拼接；参数行不出）
-        Str names;
-        for (auto& gp : Cast<const Generic&>(node).typeParameters) {
-            if (gp == nullptr) {
-                continue;
-            }
-            if (!names.empty()) {
-                names += " ";
-            }
-            names += gp->identifier.Val();
-        }
-        Str o = " " + names + " ";
-        o += "// " + LocText(node);
-        return o;
-    }
+    // ★ 泛型形参：**一参一行**（用户口径 ✓）—— 原在此拼接为单行 ✗，现由参数节点各自出行 ✓
+    //   缩进：参数是其宿主的**子节点** ⇒ 比宿主深一级 ✓（用户口径「子节点要有缩进」✓）
     if (node.astKind == AstKind::VAR_WITH_PATTERN_DECL) {
         return " // " + LocText(node);   // golden：VarDecl 行不报名（名在模式侧）
     }
