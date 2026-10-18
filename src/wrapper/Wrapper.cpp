@@ -586,6 +586,15 @@ void AstNodeHelper::RegCollectHandlers()
         .Reg<CollectFunc>(AstKind::FUNC_PARAM,
             [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& decl = Cast<const FuncParam&>(node);
+                // ★ 源码序 ✓（修复基线打印 ✗ 用户裁定 2026-10-18）：形参的类型须排在**默认值之前** ✓
+                //   旧行为 ✗：`CollectChildren(decl, …)` 对 `FuncParam` **取不到类型** ⇒ 类型只能由
+                //   打印期的 `AppendTypeAnnotation` **补在最后** ⇒ 默认值反排到类型前 ✗
+                //   （实证 `*_varray.cj`-类现场 `init(res: Int64 = 0)` ⇒ 基线印 `LitConstExpr 0` 先于
+                //   `PrimitiveType Int64` ✗）。此处把类型显式前置 ✓（打印期的 `AppendTypeAnnotation`
+                //   有**去重** ✓ ⇒ 不会重复出 ✓）。
+                if (decl.type != nullptr) {
+                    children.push_back(decl.type.get());
+                }
                 CollectChildren(decl, children);
                 CollectChildren(decl.assignment, children);
             })

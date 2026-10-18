@@ -640,6 +640,11 @@ void AstTreePrintPass::RegisterHandlers()
     });
 
     // ⑮ GenericConstraint：golden 只出上界（左端类型不出 ⇒ `T <: Base` ⇒ 仅 `RefType Base`）
+    // ★ `TryExpr`：按**源码序**成对下探 ✓（未注册则不会被分派 ⇒ 走了默认的槽位序 ✗ —— 首版即踩此坑 ✓）
+    visitor.RegVisit(AstKind::TRY_EXPR, [this](const AstNode& n, VisitResult& res) {
+        Visit(Cast<const TryExpr&>(n), res);
+    });
+
     visitor.RegVisit(AstKind::GENERIC_CONSTRAINT, [this](const AstNode& n, VisitResult& res) {
         Visit(Cast<const GenericConstraint&>(n), res);
     });
@@ -780,6 +785,46 @@ void AstTreePrintPass::Visit(const GenericConstraint& node, VisitResult& res)
         if (c != nullptr) {
             Traverse(*c, visitor);
         }
+    }
+    res = VisitResult::Cont();
+}
+
+/**
+ * @brief `TryExpr`：按**源码序**下探 ✓（修复基线打印 ✗ 用户裁定 2026-10-18 ✓）
+ *
+ * 旧行为 ✗：沿用 `GetChildren` 的**槽位序**（AST 里 `catchPatterns[]` 与 `catchBlocks[]` 是
+ * **两个数组** ⇒ 先收全部模式、再收全部体 ✓）⇒ 打印出来 `catch` 的模式与其**体分离** ✗：
+ * ```
+ *   ExceptTypePattern 67:30 / ExceptTypePattern 69:30 / Block 67:44 / Block 69:40   ← 模式全前 ✗
+ * ```
+ * 而源码是逐对书写的 ✓（实证 `atexit.cj:65-70`）⇒ 现按 `catchPatterns[i] → catchBlocks[i]`
+ * **成对**下探 ✓，与其余节点（`if`/`while`/`for`/`match`）的源码序口径**一致** ✓。
+ */
+void AstTreePrintPass::Visit(const TryExpr& node, VisitResult& res)
+{
+    for (auto& r : node.resourceSpec) { // `resourceSpec` 为**向量**（`try (…resources…)` ✓）
+        if (r != nullptr) {
+            Traverse(*r, visitor);
+        }
+    }
+    if (node.tryBlock != nullptr) {
+        Traverse(*node.tryBlock, visitor);
+    }
+    const size_t np = node.catchPatterns.size();
+    const size_t nb = node.catchBlocks.size();
+    const size_t n = np < nb ? np : nb;
+    for (size_t i = 0; i < n; ++i) {
+        Traverse(*node.catchPatterns[i], visitor);
+        Traverse(*node.catchBlocks[i], visitor);
+    }
+    for (size_t i = n; i < np; ++i) { // 数量不齐的异常情形 ⇒ 不丢 ✓
+        Traverse(*node.catchPatterns[i], visitor);
+    }
+    for (size_t i = n; i < nb; ++i) {
+        Traverse(*node.catchBlocks[i], visitor);
+    }
+    if (node.finallyBlock != nullptr) {
+        Traverse(*node.finallyBlock, visitor);
     }
     res = VisitResult::Cont();
 }

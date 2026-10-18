@@ -124,6 +124,7 @@ protected:
     void Visit(const EnumDecl& node, VisitResult& res);
     /** @brief GenericConstraint：只出上界（左端类型不出）。 */
     void Visit(const GenericConstraint& node, VisitResult& res);
+    void Visit(const TryExpr& node, VisitResult& res);
     /** @brief VarDecl：类型标注排在子级之后。 */
     void Visit(const VarDecl& node, VisitResult& res);
     /** @brief FuncParam：类型标注排在子级之后。 */
