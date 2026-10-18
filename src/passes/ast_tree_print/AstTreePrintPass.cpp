@@ -92,10 +92,17 @@ Str TypeKindName(TypeKind k)
     return it == table.end() ? "" : it->second;
 }
 
-/** @brief golden 词面例外：枚举体的直接成员在 AST 里是 VarDecl/FuncDecl，golden 记为 Constructor。 */
-bool IsEnumCtorLike(AstKind kind)
+/**
+ * @brief 枚举体直接成员**不再**一律记 `Constructor` ✓（修复基线打印 ✗ 用户裁定 2026-10-18 ✓）
+ *
+ * 旧行为（已删 ✗）：把 `EnumDecl` 体内的 `VarDecl`/`FuncDecl` 统统当构造器词面 ⇒ 函数被印成
+ * `Constructor` ✗、prop 的 `get()` 体与函数体语句也被误当构造器 ✗（实证 `option.cj:19:5`、
+ * `endian.cj:22:9`/`23:13`、`option.cj:69:9` ✓）。现改为**按真实种类出词面** ✓
+ * （枚举项本身即 `Constructor` 节点 ⇒ 自然仍是 `Constructor` ✓）。
+ */
+bool IsEnumCtorLike(AstKind)
 {
-    return kind == AstKind::VAR_DECL || kind == AstKind::FUNC_DECL;
+    return false;   // 词面不再打折 ✓（保留真实 Kind 与函数名形参 ✓）
 }
 
 /** @brief 透明节点：不出行、不进层，仅透传子级（golden 不呈现这些包装层）。 */
@@ -317,8 +324,9 @@ bool AstTreePrintPass::IsCtorContext(const AstNode& node) const
 
 bool AstTreePrintPass::IsTransparentKind(const AstNode& node) const
 {
-    return IsTransparent(node.astKind) ||
-           (node.astKind == AstKind::FUNC_PARAM && inEnumBody_);   // golden：ctor 形参不出行
+    // 修复基线打印 ✗（用户裁定 2026-10-18 ✓）：旧版在枚举体内把 `FUNC_PARAM` 视作透明 ⇒
+    //   丢形参名 ✗（`option.cj:30:28 exception` 等 6 处 ✓）；现**与其它上下文一致**出 `FuncParam <名>` 行 ✓。
+    return IsTransparent(node.astKind);
 }
 
 VisitResult AstTreePrintPass::BeforeNode(const AstNode& node)
@@ -672,15 +680,13 @@ void AstTreePrintPass::EmitEmptyBodyBlock()
 
 void AstTreePrintPass::Visit(const GenericConstraint& node, VisitResult& res)
 {
-    // 约束的子级为「左端类型 ＋ 上界」；golden 只出上界（见 `GenericConstraint` 下仅 `RefType Base`）
-    const AstNode* bound = nullptr;
+    // 约束的子级为「左端类型 ＋ 上界」⇒ **全量下探** ✓（修复基线打印 ✗ 用户裁定 2026-10-18 ✓：
+    //   旧实现只取**末子级** ⇒ `where T <: A & B & C` 只出 `C` ✗ ⇒ 丢约束信息 ✗；
+    //   现要求「多上界都打印」✓ —— 左端 `T` 与每个上界各出一行 ✓。）
     for (auto& c : AstNodeHelper::GetChildren(node)) {
         if (c != nullptr) {
-            bound = &*c;   // 取末子级
+            Traverse(*c, visitor);
         }
-    }
-    if (bound != nullptr) {
-        Traverse(*bound, visitor);
     }
     res = VisitResult::Cont();
 }
