@@ -689,9 +689,30 @@ void AstTreePrintPass::Visit(const LetPatternDestructor& node, VisitResult& res)
 {
     TraversePatternExprChildren(node, res);
 }
+/**
+ * @brief `ForInExpr`：子级按**源码序** ✓（TC-V3-49，2026-10-18）
+ *
+ * 源码形 `for (p in <range> where <guard>) { … }` ⇒ **range 在前、where 在后** ✓。
+ * 旧行为沿 `FOR_IN_EXPR` 收集器序（`patternGuard` 先于 `inExpression` ✗）⇒ 打出
+ * `BinaryExpr <`（where）**先于** `RangeExpr` ✗。实证 `argopt/arg_opt.cj:323`：
+ * `for (j in 0..long where j + i < size)` ⇒ 我方按源码序、基线反序 ✓ ⇒ 判定
+ * **我方更准确** ⇒ 改基线 ✓（同 `TryExpr` 一例 ✓）。模式子级仍不出行 ✓（golden 口径 ✓）。
+ */
 void AstTreePrintPass::Visit(const ForInExpr& node, VisitResult& res)
 {
-    TraversePatternExprChildren(node, res);
+    bool saved = parentIsFile_;
+    parentIsFile_ = false;
+    if (node.inExpression != nullptr) {
+        Traverse(*node.inExpression, visitor); // ① range（`0..long` ✓）
+    }
+    if (node.patternGuard != nullptr) {
+        Traverse(*node.patternGuard, visitor); // ② where 守卫（`j + i < size` ✓）
+    }
+    if (node.body != nullptr) {
+        Traverse(*node.body, visitor);         // ③ body
+    }
+    parentIsFile_ = saved;
+    res = VisitResult::Cont();
 }
 void AstTreePrintPass::Visit(const VarDecl& node, VisitResult& res)
 {
