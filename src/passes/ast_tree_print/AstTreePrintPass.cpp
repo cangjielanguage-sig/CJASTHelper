@@ -55,8 +55,8 @@ const char* KindWord(AstKind kind)
             return "LetPatternExpr"; // golden 词面
         case AstKind::ARRAY_LIT:
             return "ArrayLiteral";   // golden 词面
-        case AstKind::GENERIC:
-            return "GenericParam";   // golden 词面
+        case AstKind::GENERIC_PARAM_DECL:
+            return "GenericParam";   // golden 词面（★ 一参一行 ⇒ 词挂**参数节点** ✓ 用户口径 ✓）
         default:
             break;
     }
@@ -112,22 +112,34 @@ bool IsTransparent(AstKind kind)
         case AstKind::FUNC_BODY:
         case AstKind::FUNC_PARAM_LIST:
         case AstKind::CLASS_BODY:
-        case AstKind::GENERIC_PARAM_DECL:
         case AstKind::OPTIONAL_CHAIN_EXPR:
         case AstKind::INTERFACE_BODY:
         case AstKind::STRUCT_BODY:
         case AstKind::MODIFIER:
         case AstKind::CONSTANT_TYPE:
+        case AstKind::GENERIC: // ★ 形参列表层 ⇒ **透明**（只透传参数子级 ✓ 一参一行 ✓）
             return true;
         default:
             return false;
     }
 }
 
+/** @brief **整棵跳过**节点：不出行、不进层、**也不下探**（注解 ⇒ 口径改由声明行属性位承载 ✓）。
+ *
+ * ★ 与 `IsTransparent` 的区别：透明节点仍**透传子级** ✗；本类**连子级一起跳过** ✓。
+ * ★ 缩进账必须**对称**：`AfterNode` 对同一判据必须**不减层** ✗
+ *   —— 初版只加了 `BeforeNode` 的 Skip ⇒ 注解的 AfterNode 仍执行 Unindent ⇒
+ *   其后所有行**整体退一层** ✗（实测基线里返回类型从 ind 1 退到 ind 0 ✗）。
+ */
+bool IsSkippedKind(AstKind kind)
+{
+    return kind == AstKind::ANNOTATION;
+}
+
 /** @brief 「行头」节点：出行但不进层（其子级与它同级）——FILE 根与 GenericParam 行。 */
 bool IsRowOnlyKind(AstKind kind)
 {
-    return kind == AstKind::FILE || kind == AstKind::GENERIC;
+    return kind == AstKind::FILE; // 泛型层已并入透明表（一参一行 ✓ 用户口径 ✓）
 }
 
 /** @brief 是否为「花括号导入」规格（content.kind == IMPORT_MULTI）。 */
@@ -200,6 +212,40 @@ Str LocText(const AstNode& node)
 }
 
 /** @brief 修饰符尾（按源码位次输出，如 `public static`）。 */
+/** @brief 注解**条件文本**（仅 `@When[cond]` 形态；`condExpr` 由解析器生成 ✓ 不走条件编译后才留存 ✓）
+ *
+ * 覆盖解析器允许的四类（`ParseAnnotations.cpp` 的 when 校验：unary / binary / ref ✓ ＋字面量 ✓）；
+ * 其余形态返回占位 `?` —— **不猜** ✗（宁可显式留疑，也不伪造源码事实 ✗）
+ */
+Str CondText(const Expr& e)
+{
+    switch (e.astKind) {
+        case AstKind::REF_EXPR: {
+            auto& r = Cast<const RefExpr&>(e);
+            return r.ref.identifier.Val();
+        }
+        case AstKind::LIT_CONST_EXPR: {
+            auto& l = Cast<const LitConstExpr&>(e);
+            if (l.kind == Cangjie::AST::LitConstKind::STRING) {
+                return "\"" + l.stringValue + "\"";
+            }
+            return l.stringValue;
+        }
+        case AstKind::UNARY_EXPR: {
+            auto& u = Cast<const UnaryExpr&>(e);
+            return Tk2Str(u.op) + (u.expr != nullptr ? CondText(*u.expr) : Str("?"));
+        }
+        case AstKind::BINARY_EXPR: {
+            auto& b = Cast<const BinaryExpr&>(e);
+            Str ls = b.leftExpr != nullptr ? CondText(*b.leftExpr) : Str("?");
+            Str rs = b.rightExpr != nullptr ? CondText(*b.rightExpr) : Str("?");
+            return ls + " " + Tk2Str(b.op) + " " + rs;
+        }
+        default:
+            return "?";
+    }
+}
+
 Str ModText(const AstNode& node)
 {
     Str out;
@@ -207,16 +253,58 @@ Str ModText(const AstNode& node)
         return out;
     }
     auto& decl = Cast<const Decl&>(node);
-    std::vector<std::pair<Cangjie::Position, Str>> items;
-    for (auto& m : decl.modifiers) {
-        items.emplace_back(m.begin, Tk2Str(m.modifier));
-    }
-    std::stable_sort(items.begin(), items.end(), [](const auto& x, const auto& y) {
+    // ★★ 属性行**归一字段序**（用户口径 ✓ 两侧一致 ✓）：`位置 ⇒ Modifier ⇒ Annotation ⇒ 其它`
+    //   —— **不看源码语序** ✗：修饰符整组在前、注解整组在后 ✓（各组内部仍按源位次 ✓）
+    //   例：源码 `@Frozen public const func` ⇒ 归一后 `[public const @Frozen]` ✓
+    auto byPos = [](const std::pair<Cangjie::Position, Str>& x, const std::pair<Cangjie::Position, Str>& y) {
         if (x.first.line != y.first.line) {
             return x.first.line < y.first.line;
         }
         return x.first.column < y.first.column;
-    });
+    };
+    std::vector<std::pair<Cangjie::Position, Str>> items; // ① Modifier
+    for (auto& m : decl.modifiers) {
+        items.emplace_back(m.begin, Tk2Str(m.modifier));
+    }
+    std::vector<std::pair<Cangjie::Position, Str>> annos; // ② Annotation（同一属性行 ✓ 不单独下钻 ✗）
+    for (auto& an : decl.annotations) {
+        if (an == nullptr) {
+            continue;
+        }
+        Str at = "@";
+        if (an->isCompileTimeVisible) {
+            at += "!";
+        }
+        at += an->identifier.Val();
+        // 括号内文本（与 LLT 侧 `toTokens` 同形 ✓）：
+        //   ① `@When[cond]` ⇒ `condExpr` ✓（解析期生成 ✓）② `@Deprecated[msg: "..."]` ⇒ `args` ✓
+        Str inner;
+        if (an->condExpr != nullptr) {
+            inner = CondText(*an->condExpr);
+        } else {
+            for (auto& a : an->args) {
+                if (a == nullptr) {
+                    continue;
+                }
+                Str piece;
+                Str nm = a->name.Val(); // `SrcIdentifier` 是**值**类型 ✗ 非指针 ✓
+                if (!nm.empty()) {      // 具名实参 `message: "..."` ✓
+                    piece = nm + ": ";
+                }
+                if (a->expr != nullptr) {
+                    piece += CondText(*a->expr);
+                }
+                inner += (inner.empty() ? "" : ", ") + piece;
+            }
+        }
+        if (!inner.empty()) {
+            at += "[" + inner + "]";
+        }
+        annos.emplace_back(an->begin, at);
+    }
+    std::stable_sort(items.begin(), items.end(), byPos);
+    std::stable_sort(annos.begin(), annos.end(), byPos);
+    items.insert(items.end(), annos.begin(), annos.end());
     for (auto& it : items) {
         if (!out.empty()) {
             out += " ";
@@ -232,7 +320,18 @@ Str NameText(const AstNode& node)
     switch (node.astKind) {
         case AstKind::PACKAGE_SPEC: {
             auto& spec = Cast<const PackageSpec&>(node);
-            return spec.packageName.Empty() ? "default" : spec.packageName.Val();
+            if (spec.packageName.Empty()) {
+                return "default";
+            }
+            // ★ 修缺陷（用户裁定 ✓）：原实现只取 `packageName`（**末段** ✗）⇒ `package std.core` 打成 `core` ✗（丢前缀 ✗）
+            //   正解：按节点自带的 `prefixPaths`（前缀段 ✓）拼**全名** ⇒ `std.core` ✓
+            std::string full;
+            for (auto& seg : spec.prefixPaths) {
+                full += seg;
+                full += ".";
+            }
+            full += spec.packageName.Val();
+            return full;
         }
         case AstKind::PRIMITIVE_TYPE:
             return Cast<const PrimitiveType&>(node).str;
@@ -331,6 +430,10 @@ bool AstTreePrintPass::IsTransparentKind(const AstNode& node) const
 
 VisitResult AstTreePrintPass::BeforeNode(const AstNode& node)
 {
+    // ★ 整棵跳过（注解 ✓ 不出行、不进层、不下探 ⇒ 口径改由声明行属性位承载 ✓ 见 `ModText`）
+    if (IsSkippedKind(node.astKind)) {
+        return VisitResult::Skip;
+    }
     if (!IsTransparentKind(node)) {
         PRT().PVal(WordOf(node)).PVal(Detail(node, AtTop(node))).PNL();
         if (!IsRowOnlyKind(node.astKind)) {
@@ -342,6 +445,10 @@ VisitResult AstTreePrintPass::BeforeNode(const AstNode& node)
 
 void AstTreePrintPass::AfterNode(const AstNode& node)
 {
+    // ★ 整棵跳过节点不进层 ⇒ **亦不减层** ✓（缩进账与 BeforeNode 对称 ✗ 初版漏此 ⇒ 其后整段退一层 ✗）
+    if (IsSkippedKind(node.astKind)) {
+        return;
+    }
     // 透明节点未进层 ⇒ 亦不减层；行头节点（根/泛参行）不进层 ⇒ 亦不减层
     if (!IsTransparentKind(node) && !IsRowOnlyKind(node.astKind)) {
         PRT().Unindent();
@@ -351,22 +458,8 @@ void AstTreePrintPass::AfterNode(const AstNode& node)
 
 Str AstTreePrintPass::Detail(const AstNode& node, bool topLevel)
 {
-    if (node.astKind == AstKind::GENERIC) {
-        // golden：一行 `GenericParam T U // <Generic 自身位>`（名拼接；参数行不出）
-        Str names;
-        for (auto& gp : Cast<const Generic&>(node).typeParameters) {
-            if (gp == nullptr) {
-                continue;
-            }
-            if (!names.empty()) {
-                names += " ";
-            }
-            names += gp->identifier.Val();
-        }
-        Str o = " " + names + " ";
-        o += "// " + LocText(node);
-        return o;
-    }
+    // ★ 泛型形参：**一参一行**（用户口径 ✓）—— 原在此拼接为单行 ✗，现由参数节点各自出行 ✓
+    //   缩进：参数是其宿主的**子节点** ⇒ 比宿主深一级 ✓（用户口径「子节点要有缩进」✓）
     if (node.astKind == AstKind::VAR_WITH_PATTERN_DECL) {
         return " // " + LocText(node);   // golden：VarDecl 行不报名（名在模式侧）
     }
