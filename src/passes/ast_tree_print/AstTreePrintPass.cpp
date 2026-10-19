@@ -241,6 +241,13 @@ Str CondText(const Expr& e)
             Str rs = b.rightExpr != nullptr ? CondText(*b.rightExpr) : Str("?");
             return ls + " " + Tk2Str(b.op) + " " + rs;
         }
+        // ★ 括号表达式：递归渲染（TC-V3-49 口径 ② ✓ 见 typechecker/docs/baseline-print-spec.md）
+        //   原缺此分支 ⇒ 落 `default: "?"` ✗ ⇒ 印成 `@When[backend == "cjnative" && ?]`，
+        //   **整块右操作数被丢弃** ✗（实测 runtime_trace.cj:21 等 4 处 ✓）
+        case AstKind::PAREN_EXPR: {
+            auto& p = Cast<const ParenExpr&>(e);
+            return "(" + (p.expr != nullptr ? CondText(*p.expr) : Str("?")) + ")";
+        }
         default:
             return "?";
     }
