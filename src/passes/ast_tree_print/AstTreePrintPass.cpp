@@ -165,14 +165,55 @@ Str PrefixOnlyText(const ImportContent& ic)
     return s;
 }
 
-/** @brief 导入前缀是否相同（吸收同前缀兄弟的判据）。 */
-bool SameImportPrefix(const ImportContent& a, const ImportContent& b)
+/**
+ * @brief 兄弟 `IMPORT_SINGLE` 是否属于该花括号导入（吸收判据）。TC-V3-49 口径 ③ ✓
+ *
+ * ⚠️ 旧判据「前缀**相同**」对 `import {std.io.*, std.process.*, …}` **永不成立** ✗：
+ *    AST 实测（插桩一次定位）——`IMPORT_MULTI` 那项的 `content.prefixPaths` 是**空**
+ *    （`prefix=[] ident=[]`），各项 `IMPORT_SINGLE` 的却是 `[std,io]`/`[std,process]`/… ⇒
+ *    空 vs 非空**不等** ⇒ 一项都不吸收 ✗ ⇒ 退化成「每项一个 `ImportList`、各项位次全 =
+ *    花括号列」✗（规格见 typechecker/docs/baseline-print-spec.md ③ ✓）。
+ * ⇒ 新判据：**前缀以 multi 前缀开头** ✓（multi 前缀为空 ⇒ 恒真 ✓）＋ **与 multi 同行** ✓
+ *    （收窄用：防止把**后续独立的 `import` 语句**误吸收 ✓；语料 4 包实测无跨行花括号导入 ✓）。
+ */
+/**
+ * @brief 项名 = 该 content 的**源码写法**（去掉 multi 的公共前缀部分）。TC-V3-49 口径 ③ ✓
+ *
+ * 源码 `import std.overflow.{CheckedOp, WrappingOp}` ⇒ 公共前缀 `std.overflow` 出在**前缀行** ✓，
+ * 各项按**源码原样**只写 `CheckedOp` ✓（原实现把公共前缀又拼进项名 ✗ ⇒ 与源码不对应 ✗）。
+ * 无公共前缀时（`import {std.io.*, std.fsync.*, …}`）⇒ 原样全出 `std.io.*` ✓。
+ */
+Str ItemTextWithoutMultiPrefix(const ImportContent& ic, const ImportContent& multi)
 {
-    if (a.prefixPaths.size() != b.prefixPaths.size()) {
+    Str s;
+    const size_t skip = multi.prefixPaths.size();
+    for (size_t i = skip; i < ic.prefixPaths.size(); ++i) {
+        s += ic.prefixPaths[i] + ".";
+    }
+    s += ic.identifier.Empty() ? "*" : ic.identifier.Val();
+    if (!ic.aliasName.Empty()) {
+        s += " as " + ic.aliasName.Val();
+    }
+    return s;
+}
+
+bool IsImportItemOf(const ImportSpec& spec, const ImportSpec& multi)
+{
+    // ⚠️ 只认 IMPORT_SINGLE ✗ 会把通配项全拒（枚举实测：0=单名 `std.sync.Mutex` ／
+    //   2=**通配** `std.io.*` ／ 3=花括号 ⇒ 通配项才是多数 ✓）。故只拒「新的花括号导入」✓。
+    if (spec.content.kind == ImportKind::IMPORT_MULTI) {
         return false;
     }
-    for (size_t i = 0; i < a.prefixPaths.size(); ++i) {
-        if (a.prefixPaths[i] != b.prefixPaths[i]) {
+    if (spec.begin.line != multi.begin.line) {
+        return false;
+    }
+    const auto& a = spec.content.prefixPaths;
+    const auto& b = multi.content.prefixPaths;
+    if (a.size() < b.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < b.size(); ++i) {
+        if (a[i] != b[i]) {
             return false;
         }
     }
@@ -763,7 +804,14 @@ void AstTreePrintPass::WalkFileChildren(const AstNode& fileNode)
         EmitImportRow(*cur, "");
         parentIsFile_ = false;
         PRT().Indent();
-        EmitImportRow(multi->content, PrefixOnlyText(multi->content));
+        // 花括号前缀行：有公共前缀 ⇒ 印前缀 ✓；无（`import {a.*, b.*}`）⇒ **不印名** ✓
+        // ⚠️ 不能退回 `NameText` ✗（会把空前缀印成 `*` ✗）；也不能不印前缀 ✗（源码里前缀在花括号前 ✓）
+        Str bracePrefix = PrefixOnlyText(multi->content);
+        if (bracePrefix.empty()) {
+            PRT().PVal(WordOf(multi->content)).PVal(" ").PVal("// " + LocText(multi->content)).PNL();
+        } else {
+            EmitImportRow(multi->content, bracePrefix);
+        }
         PRT().Indent();
         while (i + 1 < kids.size()) {
             const AstNode* nx = kids[i + 1];
@@ -771,11 +819,12 @@ void AstTreePrintPass::WalkFileChildren(const AstNode& fileNode)
                 break;
             }
             auto& nspec = Cast<const ImportSpec&>(*nx);
-            if (nspec.content.kind != ImportKind::IMPORT_SINGLE ||
-                !SameImportPrefix(nspec.content, multi->content)) {
+            if (!IsImportItemOf(nspec, *multi)) {
                 break;
             }
-            EmitImportRow(nspec.content, nspec.content.identifier.Val(), LocText(nspec));
+            // 项名 = 源码写法（去掉 multi 公共前缀 ✓）：`CheckedOp` ✓ ／ 无前缀时 `std.io.*` ✓
+            EmitImportRow(nspec.content, ItemTextWithoutMultiPrefix(nspec.content, multi->content),
+                          LocText(nspec));
             ++i;   // 吸收该兄弟
         }
         PRT().Unindent();
