@@ -297,7 +297,12 @@ Str CondText(const Expr& e)
 Str ModText(const AstNode& node)
 {
     Str out;
-    if (!node.IsDecl()) {
+    // ⚠️ 不能只用 `node.IsDecl()` ✗：`VAR_WITH_PATTERN_DECL`（`var _ = …` ／ `var (a, b) = …`）虽
+    //   继承 `VarDeclAbstract <: Decl` ✓，却落在 `IsDecl()` 的 `[DECL, INVALID_DECL]` 区间**之外** ✗
+    //   ⇒ 本函数早退 ⇒ 它的 `@When[...]` 被**静默丢掉** ✓（实证 `runtime_trace.cj:131`
+    //   `@When[…]` ＋ `var _ = atExit(traceStopByConfig)` ⇒ 金印 `VarDecl // 131:1` 无属性 ✗、
+    //   我方有 ✓ ⇒ 判基线漏印 ⇒ 改基线 ✓；规格见 typechecker/docs/baseline-print-spec.md ②b ✓）。
+    if (!node.IsDecl() && node.astKind != AstKind::VAR_WITH_PATTERN_DECL) {
         return out;
     }
     auto& decl = Cast<const Decl&>(node);
@@ -509,7 +514,11 @@ Str AstTreePrintPass::Detail(const AstNode& node, bool topLevel)
     // ★ 泛型形参：**一参一行**（用户口径 ✓）—— 原在此拼接为单行 ✗，现由参数节点各自出行 ✓
     //   缩进：参数是其宿主的**子节点** ⇒ 比宿主深一级 ✓（用户口径「子节点要有缩进」✓）
     if (node.astKind == AstKind::VAR_WITH_PATTERN_DECL) {
-        return " // " + LocText(node);   // golden：VarDecl 行不报名（名在模式侧）
+        // golden：VarDecl 行不报名（名在模式侧）✓；**但属性/修饰符仍要印** ✓（TC-V3-49 口径 ②b）
+        //   ⚠️ 本分支原直接 return ⇒ 走不到下方 `ModText` ⇒ `var _ = …` 上的 `@When[...]` 被静默丢掉 ✗
+        //   （实证 runtime_trace.cj:131：金 `VarDecl // 131:1` 无属性 ✗、我方有 ✓ ⇒ 判基线漏印 ⇒ 改基线 ✓）
+        Str mods = ModText(node);
+        return " // " + LocText(node) + (mods.empty() ? Str("") : (" " + mods));
     }
     if (this->IsCtorContext(node)) {
         // golden：Constructor 行不出名（只有词面 ＋ 定位）
