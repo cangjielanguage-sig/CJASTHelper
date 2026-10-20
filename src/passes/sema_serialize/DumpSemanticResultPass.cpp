@@ -803,7 +803,12 @@ void DumpSemanticResultPass::WriteBindings()
         for (auto& r : rows) {
             // TC-12a：bind 行微压缩（两仓同步）——去缩进 + ` -> T` → `>T`
             // TC-12b：类型池去重后 T-id 重映射
-            prt.PVals(r.line, ":", r.col, ":", r.identity, ">T", pool.RemapId(r.tyId)).PNL();
+            prt.PVals(r.line, ":", r.col, ":", r.identity, ">T", pool.RemapId(r.tyId));
+            // ★ 引用节点的定义标识（✗ 不用 id ✓）：`#def:<包名>.<名>@<定义行>:<定义列>` ✓
+            if (!r.defText.empty()) {
+                prt.PVals("#def:", r.defText);
+            }
+            prt.PNL();
         }
     }
 }
@@ -857,7 +862,25 @@ protected:
                 if (scope == BindScope::EXPR && !IsExprKind(node.astKind)) {
                     return;
                 }
-                rowsRef.push_back(BindRow{node.begin.line, node.begin.column, identity, poolRef.Ensure(ty)});
+                // ★ 引用节点的**定义标识**（用户口径 ✓：引用/调用给「定义的唯一标识」而非 id ✓）——
+                //   `RefExpr.ref` 在 Sema 后即解析到的定义 Decl ✓（✗ 未 Sema 时 identifier 为空 ⇒ 不输出 ✓）
+                //   形态 `<包名>.<名>@<定义行>:<定义列>` ✓；局部变量无包名 ⇒ 只有 `<名>@…` ✓
+                Str defText;
+                if (node.astKind == AstKind::REF_EXPR) {
+                    if (auto* ref = dynamic_cast<const RefExpr*>(&node)) {
+                        // ★ `RefExpr::ref` 是 `Reference`（只有 identifier ✓）⇒ 定义标识取自
+                        //   **`Reference::target`**（Sema 解析出的定义 Decl ✓，`Ptr<Decl>` ✓）
+                        if (ref->ref.target) {
+                            const Decl& d = *ref->ref.target;
+                            if (d.identifier.Val() != "") {
+                                defText = d.fullPackageName.empty() ? Str("") : (d.fullPackageName + ".");
+                                defText += d.identifier.Val();
+                                defText += "@" + std::to_string(d.begin.line) + ":" + std::to_string(d.begin.column);
+                            }
+                        }
+                    }
+                }
+                rowsRef.push_back(BindRow{node.begin.line, node.begin.column, identity, poolRef.Ensure(ty), defText});
             }
         }
     }
