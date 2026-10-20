@@ -68,10 +68,41 @@ public:
                 dupRemap_[static_cast<int>(i)] = oldToNew[i];
             } else {
                 oldToNew[i] = seqId;
+                // ★ 全量登记 old→new（✗ 不能只登记重复项 ✓）：若只登记重复项，RemapId 对
+                //   「非重复」的旧号会原样返回 ✗ ⇒ 而池行已按 seqId 重排 ⇒ 首个重复项之后
+                //   的**所有非重复 id 全部错位** ✗（表现为：绑定指向池里另一个类型的行 ✓）
+                dupRemap_[static_cast<int>(i)] = seqId;
                 lines.push_back("T" + std::to_string(seqId) + ": " + encoded);
                 textToFirstId.emplace(std::move(encoded), static_cast<int>(i));
                 seqId++;
             }
+        }
+        // ★ CJAH-7：去重表是**逐步**填的（子类型引用恒为更大的 id ⇒ 编码该行时其映射尚未定 ✓），
+        //   故须在**循环后**对已编码行做第二遍：把行内**内嵌的 `T<旧 id>`** 一并重映射 ✗
+        //   否则内嵌引用仍指向已被并掉的旧 id ⇒ 出现「被引用但无对应行」的悬空 id ✓
+        //   （行头 "T<新 id>: " 已是新号 ⇒ 只改冒号之后的正文 ✓）
+        for (auto& line : lines) {
+            Size sep = line.find(": ");
+            if (sep == Str::npos) {
+                continue;
+            }
+            Str body = line.substr(sep + 2);
+            Str out;
+            out.reserve(body.size());
+            for (Size k = 0; k < body.size(); k++) {
+                bool digitNext = (k + 1 < body.size()) && body[k + 1] >= '0' && body[k + 1] <= '9';
+                if (body[k] == 'T' && digitNext) {
+                    Size j = k + 1;
+                    while (j < body.size() && body[j] >= '0' && body[j] <= '9') {
+                        j++;
+                    }
+                    out += "T" + std::to_string(RemapId(std::stoi(body.substr(k + 1, j - k - 1))));
+                    k = j - 1;
+                } else {
+                    out += body[k];
+                }
+            }
+            line = line.substr(0, sep + 2) + out;
         }
         return lines;
     }
@@ -81,7 +112,7 @@ public:
         return t2id.size();
     }
 
-    /** TC-12b: old_id → new_output_id（去重后映射；未去重时返回原 id） */
+    /** old_id → new_output_id（**全量**映射 ✓ 去重时并入首个等价类型的 id ✓） */
     int RemapId(int oldId) const
     {
         auto it = dupRemap_.find(oldId);
