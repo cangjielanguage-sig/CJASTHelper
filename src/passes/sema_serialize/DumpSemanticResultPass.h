@@ -203,13 +203,18 @@ struct SymRow {
 };
 
 /**
- * @brief 绑定行（<line>:<col>:<identity> -> T<id>）
+ * @brief 绑定行（<line>:<col>:<identity> -> T<id>[#def:<fullName>@<line>:<col>]）
  */
 struct BindRow {
     int line;
     int col;
     Str identity;
     int tyId;
+    /**
+     * @brief 引用节点的**定义标识**（✗ 不用 id ✓）：`<包名>.<名>@<定义行>:<定义列>`
+     *        仅 RefExpr 且已过 Sema（`ref.ref` 已解析）时非空 ✓；局部变量无包名 ⇒ 只有 `<名>@…` ✓
+     */
+    Str defText;
 };
 
 /**
