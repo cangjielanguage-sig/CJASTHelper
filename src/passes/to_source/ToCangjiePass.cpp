@@ -1619,7 +1619,10 @@ void ToCangjiePass::PrintTy(const Ty& ty)
         case TypeKind::TYPE_INTERFACE:
         case TypeKind::TYPE_STRUCT:
         case TypeKind::TYPE_ENUM:
-            PRT().PVal(Id(Ty::GetDeclOfTy(&ty)->identifier));
+            // ★ 修缺陷（实测 std.core 全量在 RefExpr 位崩 ✓）：sema 解糖后，某些类型的**声明指针为空**
+            //   （内置/合成类型 ⇒ `GetDeclOfTy` 返回 nullptr ✗）⇒ 原实现直接 `->identifier` 即空指针崩 ✓。
+            //   空则回退到类型自身的字符串形态（与下方 default 分支同口径 ✓ 不丢信息 ✓）。
+            PRT().PVal(Ty::GetDeclOfTy(&ty) != nullptr ? Id(Ty::GetDeclOfTy(&ty)->identifier) : ty.String());
             PRT().PVec<Ty>(
                 ty.typeArgs, [this](const Ty& argTy) { PrintTy(argTy); }, ", ", "<", ">");
             return;

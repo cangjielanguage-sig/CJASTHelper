@@ -759,6 +759,11 @@ void AstTreePrintPass::Visit(const ForInExpr& node, VisitResult& res)
 {
     bool saved = parentIsFile_;
     parentIsFile_ = false;
+    // ⓪ **模式**（`for (p in …)` 源码序在 range 之前 ⇒ 先出 pattern 子树 ✓）
+    //    基线旧口径「模式子级不出行」已按用户裁定废止（2026-10-21：基线与对齐都改）
+    if (node.pattern != nullptr) {
+        Traverse(*node.pattern, visitor);
+    }
     if (node.inExpression != nullptr) {
         Traverse(*node.inExpression, visitor); // ① range（`0..long` ✓）
     }
