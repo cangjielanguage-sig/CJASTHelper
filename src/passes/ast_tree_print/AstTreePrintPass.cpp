@@ -1065,17 +1065,9 @@ void AstTreePrintPass::TraversePatternExprChildren(const AstNode& node, VisitRes
         if (c == nullptr) {
             continue;
         }
-        switch (c->astKind) {
-            case AstKind::VAR_PATTERN:
-            case AstKind::VAR_OR_ENUM_PATTERN:
-            case AstKind::WILDCARD_PATTERN:
-            case AstKind::TUPLE_PATTERN:
-            case AstKind::ENUM_PATTERN:
-            case AstKind::CONST_PATTERN:
-                continue;   // 模式子级不出行（golden 口径）
-            default:
-                break;
-        }
+        // 模式子级**照常出行**：`let <pattern> <- e` 的模式（`Some(x)` / `VarPattern` …）
+        // 是语义绑定位 ⇒ 不打印会让参照侧「看着没有」这些绑定位（基线改用例见
+        // `duration.cj:123` 一族的 `EnumPattern`/`VarOrEnumPattern`）
         Traverse(*c, visitor);
     }
     parentIsFile_ = saved;
