@@ -518,11 +518,11 @@ Str AstTreePrintPass::Detail(const AstNode& node, bool topLevel)
         //   ⚠️ 本分支原直接 return ⇒ 走不到下方 `ModText` ⇒ `var _ = …` 上的 `@When[...]` 被静默丢掉 ✗
         //   （实证 runtime_trace.cj:131：金 `VarDecl // 131:1` 无属性 ✗、我方有 ✓ ⇒ 判基线漏印 ⇒ 改基线 ✓）
         Str mods = ModText(node);
-        return " // " + LocText(node) + (mods.empty() ? Str("") : (" " + mods));
+        return " // " + LocText(node) + (mods.empty() ? Str("") : (" " + mods)) + TySuffix(node);
     }
     if (this->IsCtorContext(node)) {
         // golden：Constructor 行不出名（只有词面 ＋ 定位）
-        return " // " + LocText(node);
+        return " // " + LocText(node) + TySuffix(node);
     }
     if (node.astKind == AstKind::FILE) {
         // 根行口径：`Program // <文件名> `（不定位，名后一空格）
@@ -543,13 +543,13 @@ Str AstTreePrintPass::Detail(const AstNode& node, bool topLevel)
         if (sp.modifier != nullptr) {
             out += " " + Tk2Str(sp.modifier->modifier);   // 与其余行同口径：定位与修饰符间留一空格
         }
-        return out;
+        return out + TySuffix(node);
     }
     Str mods = ModText(node);
     if (!mods.empty()) {
         out += " " + mods;
     }
-    return out;
+    return out + TySuffix(node);
 }
 
 void AstTreePrintPass::WalkChildren(const AstNode& node)
@@ -584,6 +584,136 @@ void AstTreePrintPass::AppendTypeAnnotation(const AstNode& node)
     if (ty != nullptr && !already) {
         Traverse(*ty, visitor);
     }
+}
+
+Str AstTreePrintPass::TyText(const Cangjie::AST::Ty* ty)
+{
+    using namespace Cangjie::AST;
+    if (ty == nullptr || ty->IsInvalid()) {
+        return Str("");
+    }
+    const auto arg = [this, ty](size_t i) -> Str {
+        return i < ty->typeArgs.size() && ty->typeArgs[i] != nullptr ? TyText(ty->typeArgs[i]) : Str("?");
+    };
+    const auto nominal = [](const Decl* d) -> Str {
+        if (d == nullptr) {
+            return Str("?");
+        }
+        return d->fullPackageName.empty() ? Str(d->identifier) : (d->fullPackageName + "." + d->identifier);
+    };
+    switch (ty->kind) {
+        case TypeKind::TYPE_ARRAY: {
+            // RawArray（内建）与 Array（std.core 定义）语义上都是 `Array<T>`；维度 >1 出 `Array<T, $N>`
+            auto& at = *static_cast<const ArrayTy*>(ty);
+            Str e = arg(0);
+            return at.dims > 1 ? ("Array<" + e + ", $" + std::to_string(at.dims) + ">") : ("Array<" + e + ">");
+        }
+        case TypeKind::TYPE_VARRAY: {
+            auto& vt = *static_cast<const VArrayTy*>(ty);
+            return "VArray<" + arg(0) + ", $" + std::to_string(vt.size) + ">";
+        }
+        case TypeKind::TYPE_POINTER:
+            return "CPointer<" + arg(0) + ">";
+        case TypeKind::TYPE_CSTRING:
+            return Str("CString");
+        case TypeKind::TYPE_TUPLE: {
+            Str out = "(";
+            for (size_t i = 0; i < ty->typeArgs.size(); ++i) {
+                if (i != 0) {
+                    out += ", ";
+                }
+                out += arg(i);
+            }
+            return out + ")";
+        }
+        case TypeKind::TYPE_FUNC: {
+            auto& ft = *static_cast<const FuncTy*>(ty);
+            Str out = "(";
+            for (size_t i = 0; i < ft.paramTys.size(); ++i) {
+                if (i != 0) {
+                    out += ", ";
+                }
+                out += TyText(ft.paramTys[i]);
+            }
+            out += ")->";
+            out += TyText(ft.retTy);
+            return out;
+        }
+        case TypeKind::TYPE_CLASS: {
+            auto& ct = *static_cast<const ClassTy*>(ty);
+            Str n = nominal(ct.decl);
+            if (ty->typeArgs.empty()) {
+                return n;
+            }
+            Str out = n + "<";
+            for (size_t i = 0; i < ty->typeArgs.size(); ++i) {
+                if (i != 0) {
+                    out += ", ";
+                }
+                out += arg(i);
+            }
+            return out + ">";
+        }
+        case TypeKind::TYPE_INTERFACE: {
+            auto& it = *static_cast<const InterfaceTy*>(ty);
+            Str n = nominal(it.decl);
+            if (ty->typeArgs.empty()) {
+                return n;
+            }
+            Str out = n + "<";
+            for (size_t i = 0; i < ty->typeArgs.size(); ++i) {
+                if (i != 0) {
+                    out += ", ";
+                }
+                out += arg(i);
+            }
+            return out + ">";
+        }
+        case TypeKind::TYPE_STRUCT: {
+            auto& st = *static_cast<const StructTy*>(ty);
+            Str n = nominal(st.decl);
+            if (ty->typeArgs.empty()) {
+                return n;
+            }
+            Str out = n + "<";
+            for (size_t i = 0; i < ty->typeArgs.size(); ++i) {
+                if (i != 0) {
+                    out += ", ";
+                }
+                out += arg(i);
+            }
+            return out + ">";
+        }
+        case TypeKind::TYPE_ENUM: {
+            auto& et = *static_cast<const EnumTy*>(ty);
+            Str n = nominal(et.decl);
+            if (ty->typeArgs.empty()) {
+                return n;
+            }
+            Str out = n + "<";
+            for (size_t i = 0; i < ty->typeArgs.size(); ++i) {
+                if (i != 0) {
+                    out += ", ";
+                }
+                out += arg(i);
+            }
+            return out + ">";
+        }
+        case TypeKind::TYPE:
+            return nominal(static_cast<const TypeAliasTy*>(ty)->declPtr);
+        case TypeKind::TYPE_GENERICS:
+            return Str(ty->name);   // 形参 `T`（`Generics-T` 是唯一名 ✗）
+        default:
+            return Str(ty->String());
+    }
+}
+
+Str AstTreePrintPass::TySuffix(const AstNode& node)
+{
+    // ★ 结构化 AST ＋ 语义类型一次成型（含解糖节点 ✓）：`type=<用户面名字>`
+    //   parse 阶段 `ty` 是 `Ty::GetInitialTy()`（无效）⇒ 不出后缀 ✓（既有 golden 不受影响）
+    Str t = TyText(node.GetTy());
+    return t.empty() ? Str("") : (" type=" + t);
 }
 
 void AstTreePrintPass::AppendMemberTypeArgs(const AstNode& node)
