@@ -98,7 +98,6 @@ function Show-Help {
     Write-Host -ForegroundColor $GREEN "    -h  Show this help message"
     Write-Host -ForegroundColor $GREEN "    -v  Dump build commands"
     Write-Host -ForegroundColor $GREEN "    -g  Enable test with googletest"
-    Write-Host -ForegroundColor $GREEN "    -a  Enable standalone version"
     Write-Host -ForegroundColor $GREEN "    -t  Config build type [Debug | Release] (default: Debug)"
     Write-Host -ForegroundColor $GREEN "    -p  Config install prefix (default: output)"
     Write-Host -ForegroundColor $GREEN "    -d  Override Cangjie lib path"
@@ -129,7 +128,6 @@ function Update-Cache {
         "-DCMAKE_BUILD_TYPE=$global:BuildType"
         "-DCMAKE_INSTALL_PREFIX=$global:PRE"
         "-DCMAKE_ENABLE_TEST=$global:TEST"
-        "-DCJAH_STANDALONE=$global:ALONE"
         "-DMINGW_BIN=$global:MINGW_BIN"
         "-DCMAKE_ENABLE_ASSERT=OFF"
     )
@@ -260,7 +258,6 @@ $global:PRE = "$CWD/output"
 # Default configuration
 $global:ShowCmd = $false
 $global:EnableTest = $false
-$global:Standalone = $false
 $global:BuildType = "Debug"
 $global:Prefix = "output"
 $global:CangjieLib = ""
@@ -269,7 +266,6 @@ $global:runArgs = @()
 $global:parsingArgs = $true
 
 $global:TEST = if ($global:EnableTest) { "ON" } else { "OFF" }
-$global:ALONE = if ($global:Standalone) { "ON" } else { "OFF" }
 
 # ==============================================================================
 # Parse Arguments
@@ -290,7 +286,6 @@ while ($argIndex -lt $rawArgs.Count) {
             '^--?[Hh](elp)?$' { Show-Help; exit 0 }
             '^-v$' { $global:ShowCmd = $true }
             '^-g$' { $global:EnableTest = $true; $global:TEST = "ON" }
-            '^-a$' { $global:Standalone = $true; $global:ALONE = "ON" }
             '^-t$' { 
                 if ($argIndex + 1 -lt $rawArgs.Count) {
                     $global:BuildType = $rawArgs[$argIndex + 1]

@@ -24,7 +24,6 @@ TEST_RUNNER=$BUILD_DIR/bin/cjah_test$EXT
 PRE=$CWD/output
 TEST=OFF
 CANGJIE_LIB=$CANGJIE_HOME/tools/lib
-ALONE=OFF
 
 function print_header() {
     echo -e "${CYAN}==========================================${NC}"
@@ -70,7 +69,6 @@ function update() {
         -DCMAKE_BUILD_TYPE=$BTYPE \
         -DCMAKE_INSTALL_PREFIX=$PRE \
         -DCMAKE_ENABLE_TEST=$TEST \
-        -DCJAH_STANDALONE=$ALONE \
         -DCMAKE_C_COMPILER=clang \
         -DCMAKE_CXX_COMPILER=clang++
     
@@ -170,7 +168,6 @@ function help() {
     echo -e "    ${GREEN}-h${NC} Show this help message"
     echo -e "    ${GREEN}-v${NC} Dump build verbose info"
     echo -e "    ${GREEN}-g${NC} Enable test with googletest"
-    echo -e "    ${GREEN}-a${NC} Enable standalone version"
     echo -e "    ${GREEN}-t${NC} Config build type [Debug | Release]"
     echo -e "    ${GREEN}-p${NC} Config install prefix"
     echo -e "    ${GREEN}-d${NC} Set dependent lib path"
@@ -188,7 +185,6 @@ function main() {
             -h) help; exit 0 ;;
             -v) VERBOSE="-v"; shift ;;
             -g) TEST="ON"; shift ;;
-            -a) ALONE="ON"; shift ;;
             -t) BTYPE="$2"; shift 2 ;;
             -p) PRE="$2"; shift 2 ;;
             -d) CANGJIE_LIB="$2"; shift 2 ;;

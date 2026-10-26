@@ -64,18 +64,6 @@ if(CMAKE_BUILD_TYPE MATCHES Release)
     endif()
 endif()
 
-if(CJAH_STANDALONE)
-    message(STATUS "search path: ${CANGJIE_LIB}")
-
-    # cangjie-fe library already found in parent CMakeLists.txt
-    if(NOT CANGJIE_FE_LIB)
-        message(FATAL_ERROR "cangjie-fe library not found")
-    endif()
-
-    # 安装依赖库 cangjie-fe 到 lib/
-    install(FILES ${CANGJIE_FE_LIB} DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
-endif()
-
 # 安装共享库
 install(TARGETS ${CJAH_LIBS}
     LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib

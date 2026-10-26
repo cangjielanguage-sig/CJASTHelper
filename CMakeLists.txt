@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.16.5)
 project(CJASTHelper LANGUAGES CXX)
 
-option(CJAH_STANDALONE "Build standalone version" OFF)
 option(CMAKE_ENABLE_ASSERT "Enable the assert and checking" OFF)
 option(CMAKE_ENABLE_TEST "Enable testing" OFF)
 
@@ -86,11 +85,7 @@ endif()
 # For release version
 if(CMAKE_BUILD_TYPE MATCHES Release)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -fPIC -fno-omit-frame-pointer -pipe -fno-common -fno-strict-aliasing -fstack-protector-all -ftrapv")
-    if(CJAH_STANDALONE)
-        set(CMAKE_CXX_FLAGS_RELEASE "-Os -ffunction-sections -fdata-sections")
-    else()
-        set(CMAKE_CXX_FLAGS_RELEASE "-D_FORTIFY_SOURCE=2 -O2")
-    endif()
+    set(CMAKE_CXX_FLAGS_RELEASE "-D_FORTIFY_SOURCE=2 -O2")
     if(NOT APPLE)
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s")
@@ -133,11 +128,7 @@ endif()
 
 # Depend libraries in Cangjie Tools
 set(DEPEND_LIBS ${LIB_SEC})
-if(CJAH_STANDALONE)
-    list(APPEND DEPEND_LIBS cangjie-fe)
-else()
-    list(APPEND DEPEND_LIBS cangjie-lsp)
-endif()
+list(APPEND DEPEND_LIBS cangjie-lsp)
 # Only cjnative
 # other version
 add_compile_definitions(CANGJIE_CODEGEN_CJNATIVE_BACKEND)
