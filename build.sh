@@ -24,6 +24,7 @@ TEST_RUNNER=$BUILD_DIR/bin/cjah_test$EXT
 PRE=$CWD/output
 TEST=OFF
 CANGJIE_LIB=$CANGJIE_HOME/tools/lib
+ALONE=OFF
 
 function print_header() {
     echo -e "${CYAN}==========================================${NC}"
@@ -101,6 +102,98 @@ function build() {
     fi
 }
 
+# ==============================================================================
+# alone 安装模式：把 SDK 提供的运行时库拷进安装目录，使安装产物不再依赖
+# CANGJIE_HOME / LD_LIBRARY_PATH / DYLD_LIBRARY_PATH 等外部配置即可运行。
+# 当前工程直接链接的 SDK 动态库只有仓颉前端库 cangjie-lsp（CMakeLists.txt 中的
+# IMPORTED 目标），其余均为系统库；Windows 侧由 build.ps1 处理（DLL 须与 exe 同目录）。
+# ==============================================================================
+
+# 平台对应的前端库文件名
+function sdk_frontend_lib_name() {
+    case "$(uname -s)" in
+        Darwin) echo "libcangjie-lsp.dylib" ;;
+        Linux)  echo "libcangjie-lsp.so" ;;
+        *)      echo "" ;;
+    esac
+}
+
+# macOS：链接时记录的是 SDK 内的绝对 install_name，拷贝出的副本不会被命中，
+# 需改写为 @rpath 引用并确保 rpath 存在，最后重做 adhoc 签名（arm64 必需）。
+function fixup_macos_alone_deps() {
+    local lib_name=$1
+    local sdk_ref="$CANGJIE_LIB/$lib_name"
+    local target rpath
+
+    if ! command -v install_name_tool >/dev/null 2>&1; then
+        print_warning "install_name_tool not found, skip install-name fixup"
+        return 0
+    fi
+
+    for target in "$PRE"/bin/cjah "$PRE"/lib/*.dylib; do
+        [ -f "$target" ] || continue
+        case "$target" in
+            */bin/*) rpath="@loader_path/../lib" ;;
+            *)       rpath="@loader_path" ;;
+        esac
+
+        if otool -L "$target" 2>/dev/null | grep -qF "$sdk_ref"; then
+            run_cmd install_name_tool -change "$sdk_ref" "@rpath/$lib_name" "$target" || return 1
+        fi
+        # -add_rpath 对已存在的 rpath 会报错，此处忽略（幂等）
+        run_cmd install_name_tool -add_rpath "$rpath" "$target" 2>/dev/null
+        if command -v codesign >/dev/null 2>&1; then
+            run_cmd codesign --force --sign - "$target" >/dev/null 2>&1
+        fi
+    done
+    print_info "Rewrote cangjie-lsp reference to @rpath/$lib_name"
+}
+
+# Linux：用 ldd 校验安装产物已无未解析动态库（依赖闭环）
+function check_alone_closure() {
+    if ! command -v ldd >/dev/null 2>&1; then
+        return 0
+    fi
+    local missing
+    missing=$( { ldd "$PRE"/bin/cjah; ldd "$PRE"/lib/*.so; } 2>/dev/null | grep "not found" || true )
+    if [ -n "$missing" ]; then
+        print_warning "Unresolved shared libraries after alone install:"
+        echo "$missing"
+        return 1
+    fi
+    print_info "Dependency closure verified: no unresolved shared libraries"
+}
+
+function deploy_alone_deps() {
+    local lib_name lib_src
+    lib_name=$(sdk_frontend_lib_name)
+    if [ -z "$lib_name" ]; then
+        print_error "Alone mode is not supported on $(uname -s); use build.ps1 on Windows"
+        return 1
+    fi
+
+    print_info "Alone mode: bundling SDK runtime libs into $PRE"
+    lib_src="$CANGJIE_LIB/$lib_name"
+    if [ ! -f "$lib_src" ]; then
+        print_error "Dependency library not found: $lib_src (check -d / CANGJIE_HOME)"
+        return 1
+    fi
+
+    run_cmd mkdir -p "$PRE/lib"
+    run_cmd cp -f "$lib_src" "$PRE/lib/"
+    if [ $? -ne 0 ]; then
+        print_error "Failed to copy $lib_name into $PRE/lib"
+        return 1
+    fi
+    print_success "Deployed $lib_name -> $PRE/lib"
+
+    if [ "$(uname -s)" == "Darwin" ]; then
+        fixup_macos_alone_deps "$lib_name" || return 1
+    else
+        check_alone_closure || return 1
+    fi
+}
+
 function install() {
     print_header
     print_info "Installing binaries..."
@@ -113,13 +206,25 @@ function install() {
         fi
     fi
     
-    run_cmd $NINJA_BIN -C $BUILD_DIR $VERBOSE install
-    
-    if [ $? -eq 0 ]; then
-        print_success "Installation completed successfully"
-    else
+    # 用 cmake --install 显式传 --prefix：`ninja install` 只认 configure 时的
+    # CMAKE_INSTALL_PREFIX，会让 -p <dir> 与 alone 部署目录不一致。
+    local install_args=(--install "$BUILD_DIR" --prefix "$PRE")
+    if [ -n "$VERBOSE" ]; then
+        install_args+=(--verbose)
+    fi
+    run_cmd cmake "${install_args[@]}"
+
+    if [ $? -ne 0 ]; then
         print_error "Installation failed"
         return 1
+    fi
+
+    if [ "$ALONE" == "ON" ]; then
+        deploy_alone_deps || return 1
+        print_success "Installation completed (alone mode, dependencies closed)"
+    else
+        print_success "Installation completed successfully"
+        print_info "Tip: add -a to bundle SDK runtime libs into the install dir (alone mode)"
     fi
 }
 
@@ -174,6 +279,7 @@ function help() {
     echo -e "    ${GREEN}-u${NC} Update cmake cache"
     echo -e "    ${GREEN}-b${NC} Build only"
     echo -e "    ${GREEN}-i${NC} Install binary"
+    echo -e "    ${GREEN}-a${NC} Alone install: bundle SDK runtime libs into install dir"
     echo -e "    ${GREEN}-c${NC} Clean build"
     echo -e "    ${GREEN}-r${NC} Run binary or test, optional with args '-- [runargs]'"
 }
@@ -191,6 +297,7 @@ function main() {
             -b) action="build"; shift ;;
             -u) action="update"; shift ;;
             -i) action="install"; shift ;;
+            -a) ALONE="ON"; shift ;;
             -c) action="clean"; shift ;;
             -r)
                 action="run"

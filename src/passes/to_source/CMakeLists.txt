@@ -4,3 +4,6 @@ add_library(cjast_to_source_pass SHARED ${TO_SOURCE_SRC})
 
 # 添加库依赖关系
 target_link_libraries(cjast_to_source_pass PUBLIC cjast_helper_core cjast_wrapper)
+
+# 注册到父目录，由 src/CMakeLists.txt 统一 install / RPATH
+set(CJAH_PASS_TARGETS ${CJAH_PASS_TARGETS} cjast_to_source_pass PARENT_SCOPE)

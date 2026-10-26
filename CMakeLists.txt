@@ -148,7 +148,7 @@ if(WIN32)
     set(LIBSSP_DLL ${MINGW_BIN}/../x86_64-w64-mingw32/bin/libssp-0.dll)
     message(STATUS "find libssp ${LIBSSP_DLL}")
     if(EXISTS "${LIBSSP_DLL}")
-        install(FILES "${LIBSSP_DLL}" DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
+        install(FILES "${LIBSSP_DLL}" DESTINATION bin)
     endif()
 endif()
 

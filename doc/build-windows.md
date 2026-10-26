@@ -85,7 +85,8 @@ powershell -File build.ps1 -t Release -i
 | `-d` | 覆盖 Cangjie 库路径（Windows 下会同时统一 `CANGJIE_HOME`，见下文警告） |
 | `-u` | 仅更新 CMake 缓存 |
 | `-b` | 仅构建 |
-| `-i` | 构建并安装（`ninja install`） |
+| `-i` | 构建并安装（`cmake --install`，前缀由 `-p` 指定，默认 `output`） |
+| `-a` | **alone 安装**：把 `cangjie-lsp.dll` 与工具链运行时 DLL 一并拷到 `bin/`，脱离 `PATH` / `CANGJIE_HOME` 独立运行（需与 `-i` 同用） |
 | `-c` | 清理 build/ 与 output/ |
 | `-r` | 构建后运行 cjah（配合 `-g` 则运行测试），参数放在 `--` 之后 |
 
@@ -101,6 +102,9 @@ powershell -File build.ps1 -t Release -i
    （exe 所在目录在 DLL 搜索顺序中优先级最高，避免依赖 PATH）
 2. 将 `config/*.json` 部署到 `build/bin/config/`（工具配置查找的候选位置）
 3. `-i` 时对 `output/bin/` 执行同样的部署
+4. `-a -i`（alone 模式）时，额外把 `cangjie-lsp.dll`（探测 `tools/lib`、`tools/bin`）与
+   `libc++.dll`、`libunwind.dll`、`libwinpthread-1.dll`、`libssp-0.dll` 拷到 `output/bin/`，
+   使安装产物不依赖 `PATH` / `CANGJIE_HOME` 即可启动
 
 ## 4. 产物
 

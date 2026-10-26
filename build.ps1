@@ -104,6 +104,7 @@ function Show-Help {
     Write-Host -ForegroundColor $GREEN "    -u  Update cmake cache"
     Write-Host -ForegroundColor $GREEN "    -b  Build only"
     Write-Host -ForegroundColor $GREEN "    -i  Install binary"
+    Write-Host -ForegroundColor $GREEN "    -a  Alone install: bundle SDK runtime libs into install dir"
     Write-Host -ForegroundColor $GREEN "    -c  Clean build"
     Write-Host -ForegroundColor $GREEN "    -r  Run binary or test, optional with args '-- [runargs]'"
     Write-Host ""
@@ -188,20 +189,29 @@ function Install-Project {
         }
     }
     
-    $originalDir = Get-Location
-    Set-Location $global:BUILD_DIR
-    $ninjaArgs = @("install")
-    if ($global:ShowCmd) { $ninjaArgs = @("-v") + $ninjaArgs }
-    $exitCode = Run-ExternalCommand $global:NINJA_BIN $ninjaArgs
-    Set-Location $originalDir
-    
-    if ($exitCode -eq 0) {
-        Write-Success "Installation completed successfully"
-        Copy-SdkRuntimeDeps -TargetDir "$global:PRE/bin"
-    } else {
+    # 用 cmake --install 显式传 --prefix：ninja install 只认 configure 时的
+    # CMAKE_INSTALL_PREFIX，会让 -p <dir> 与 alone 部署目录不一致
+    $cmakeArgs = @("--install", $global:BUILD_DIR, "--prefix", $global:PRE)
+    if ($global:ShowCmd) { $cmakeArgs += "--verbose" }
+    $exitCode = Run-ExternalCommand "cmake" $cmakeArgs
+
+    if ($exitCode -ne 0) {
         Write-Error "Installation failed"
+        return $exitCode
     }
-    return $exitCode
+
+    Copy-SdkRuntimeDeps -TargetDir "$global:PRE/bin"
+
+    if ($global:Alone) {
+        if (-not (Deploy-AloneDeps -TargetDir "$global:PRE/bin")) {
+            return 1
+        }
+        Write-Success "Installation completed (alone mode, dependencies closed)"
+    } else {
+        Write-Success "Installation completed successfully"
+        Write-Info "Tip: add -a to bundle SDK runtime DLLs next to cjah.exe (alone mode)"
+    }
+    return 0
 }
 
 function Run-Binary {
@@ -258,6 +268,7 @@ $global:PRE = "$CWD/output"
 # Default configuration
 $global:ShowCmd = $false
 $global:EnableTest = $false
+$global:Alone = $false
 $global:BuildType = "Debug"
 $global:Prefix = "output"
 $global:CangjieLib = ""
@@ -309,6 +320,7 @@ while ($argIndex -lt $rawArgs.Count) {
             '^-u$' { $global:action = "update" }
             '^-b$' { $global:action = "build" }
             '^-i$' { $global:action = "install" }
+            '^-a$' { $global:Alone = $true }
             '^-c$' { $global:action = "clean" }
             '^-r$' { 
                 $global:action = if ($global:EnableTest) { "test" } else { "run" }
@@ -346,6 +358,52 @@ $global:CANGJIE_CJNATIVE_LIB_DIR = "$env:CANGJIE_HOME/lib/windows_x86_64_cjnativ
 # ==============================================================================
 # Runtime deployment helpers
 # ==============================================================================
+
+# alone 安装模式：把 SDK / 工具链的动态库拷到 cjah.exe 同目录，使安装产物不依赖
+# CANGJIE_HOME / PATH 配置即可运行。Windows 加载器不认 RPATH，只按
+# 「exe 所在目录 -> PATH」查找 DLL，所以这些 DLL 必须落在 bin/ 下
+# （Linux/macOS 由 build.sh 拷到 lib/，靠 $ORIGIN / @loader_path 定位）。
+function Deploy-AloneDeps {
+    param([string]$TargetDir)
+
+    $ok = $true
+
+    # 1) 仓颉前端库：导入库在 tools/lib（libcangjie-lsp.dll.a），
+    #    运行时 DLL 可能在 tools/lib 或 tools/bin，两处都探测
+    $lspNames = @("cangjie-lsp.dll", "libcangjie-lsp.dll")
+    $lspDirs = @($global:CANGJIE_LIB_DIR, (Join-Path $env:CANGJIE_HOME "tools/bin"))
+    $lspCopied = $false
+    foreach ($dir in $lspDirs) {
+        foreach ($name in $lspNames) {
+            $src = Join-Path $dir $name
+            if (Test-Path $src) {
+                Copy-Item -Force $src $TargetDir
+                Write-Info "Deployed $name -> $TargetDir (from $dir)"
+                $lspCopied = $true
+                break
+            }
+        }
+        if ($lspCopied) { break }
+    }
+    if (-not $lspCopied) {
+        Write-Error "cangjie-lsp DLL not found in: $($lspDirs -join ', ')"
+        $ok = $false
+    }
+
+    # 2) llvm-mingw 运行时 DLL（libstdc++ / 线程 / -fstack-protector-all 依赖）
+    $mingwRuntimeDir = Join-Path $global:MINGW_BIN "../x86_64-w64-mingw32/bin"
+    foreach ($name in @("libc++.dll", "libunwind.dll", "libwinpthread-1.dll", "libssp-0.dll")) {
+        $src = Join-Path $mingwRuntimeDir $name
+        if (Test-Path $src) {
+            Copy-Item -Force $src $TargetDir
+            Write-Info "Deployed $name -> $TargetDir"
+        } else {
+            Write-Warning "$name not found: $src"
+        }
+    }
+
+    return $ok
+}
 
 # 仅复制工具链运行时 libssp-0.dll（-fstack-protector-all 链接依赖）到目标 bin 目录
 function Copy-SdkRuntimeDeps {

@@ -65,17 +65,32 @@ bash build.sh -t Release -b
 | `-d` | 覆盖 Cangjie 库路径（默认 `$CANGJIE_HOME/tools/lib`） |
 | `-u` | 仅更新 CMake 缓存 |
 | `-b` | 构建 |
-| `-i` | 安装（`ninja install`，前缀为 `output/`） |
+| `-i` | 安装（`cmake --install`，前缀由 `-p` 指定，默认 `output/`） |
+| `-a` | **alone 安装**：把依赖的 SDK 动态库一并拷进安装目录，脱离 SDK / `LD_LIBRARY_PATH` 独立运行（需与 `-i` 同用） |
 | `-c` | 清理 build/ 与 output/ |
 | `-r` | 运行 cjah（配合 `-g` 则运行测试），参数放在 `--` 之后 |
 
 ### 安装（可选）
 
 ```bash
+# 常规安装：产物依赖运行环境能找到 libcangjie-lsp.so（envsetup.sh 的 LD_LIBRARY_PATH）
 bash build.sh -t Release -i
+
+# alone 安装：把 libcangjie-lsp.so 一起拷进安装目录，安装后无需任何 Cangjie 环境变量（CANGJIE_HOME 除外）
+bash build.sh -t Release -a -i
 ```
 
-安装产物位于 `output/`，包含 `bin/`、`lib/` 与 `config/`。
+安装产物位于 `output/`（`-p <dir>` 可改），包含 `bin/`、`lib/` 与 `config/`。
+
+alone 模式下安装目录的依赖是闭环的：
+
+- 安装出的 `bin/cjah` 与 `lib/*.so` 使用相对 RPATH（Linux `$ORIGIN`，macOS `@loader_path`），
+  因此互相引用不依赖绝对路径；
+- `libcangjie-lsp.so`（macOS 为 `.dylib`）随包复制到 `lib/`，脚本用 `ldd`（macOS 用
+  `install_name_tool` 改写为 `@rpath` 并重签名）校验无未解析依赖后才会报成功。
+
+> 注意：alone 只闭环**动态库**。真正跑分析时 Cangjie 前端仍需 `CANGJIE_HOME` 定位标准库
+> （与是否 alone 无关），纯 `--check-syntax` 等不触达标准库的能力则可完全无环境变量运行。
 
 ## 4. 验证
 
