@@ -459,7 +459,14 @@ Vec<Options> ArgHelper::ParseArgs(int argc, const char* const* argv, const char*
     StrVec toolArgs;
     SplitArgs(args, toolArgs, options.args, validOpts);
     if (toolArgs.empty()) {
-        // 没有工具选项: 保持原有行为, 仅展示帮助信息
+        // 没有任何工具选项：`cjah` 裸调用保持「仅展示帮助」并返回成功；
+        // 但用户确实传了参数（误用本版本裁掉的选项、或只给了 cjc 透传参数）时若仍返回 0，
+        // 脚本会把它当成「检查通过」⇒ 假通过。此类情况标记解析失败，由 main 以非 0 退出。
+        if (args.size() > 1) {
+            std::cerr << "error: no recognized cjah tool option in arguments; nothing was done (see --help)"
+                      << std::endl;
+            options.valid = false;
+        }
         return {options};
     }
     try {

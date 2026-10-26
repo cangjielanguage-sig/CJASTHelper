@@ -11,7 +11,9 @@ cjah [options] [cjc-options]
 
 - `options`：本工具选项（下表）。未识别的参数**原样透传**给 Cangjie 前端
   （`libcangjie-lsp`），即上方示例中的 `cjc-options`，可用 `cjc -h` 查询其含义。
-- 不带任何工具选项时打印帮助信息。
+- 不带任何参数时打印帮助信息并以 0 退出；**传了参数却没有一个是本工具选项**（例如用了被
+  最小版裁掉的选项、或只给 `cjc-options`）时同样打印帮助，但以**非 0 退出**并提示
+  `no recognized cjah tool option in arguments`——避免脚本把「什么都没做」当成检查通过。
 
 内置帮助：
 

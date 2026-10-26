@@ -107,14 +107,19 @@ function check_prefix() {
     fi
 }
 
-# 依赖闭环自检：安装/裁剪后的产物不应再有未解析的动态库
+# 依赖闭环自检：暂存目录里**所有**二进制（bin/cjah 与 lib/*）的动态库引用都不得指向包外
 function check_closure() {
     local dir=$1
+    local targets=("$dir/bin/cjah") f
+    for f in "$dir/lib/"*.dylib "$dir/lib/"*.so; do
+        [ -f "$f" ] && targets+=("$f")
+    done
+
     case "$(uname -s)" in
         Linux)
             command -v ldd >/dev/null 2>&1 || return 0
             local missing
-            missing=$(ldd "$dir/bin/cjah" 2>/dev/null | grep "not found" || true)
+            missing=$(for f in "${targets[@]}"; do ldd "$f" 2>/dev/null; done | grep "not found" || true)
             if [[ -n "$missing" ]]; then
                 err "存在未解析的动态库:"
                 echo "$missing" >&2
@@ -126,7 +131,7 @@ function check_closure() {
             # alone 模式下引用应为 @rpath/@loader_path 或系统路径；
             # 出现 SDK 内的绝对路径说明打包后仍依赖外部 SDK
             local bad
-            bad=$(otool -L "$dir/bin/cjah" | awk 'NR>1 {print $1}' |
+            bad=$(for f in "${targets[@]}"; do otool -L "$f" 2>/dev/null | awk 'NR>1 {print $1}'; done |
                 grep -vE '^(@rpath/|@loader_path/|/usr/lib/|/System/)' || true)
             if [[ -n "$bad" ]]; then
                 err "存在指向包外的动态库引用:"
@@ -252,6 +257,14 @@ function self_check() {
         fi
     fi
 
+    # 3e) 传了参数但没有任何「本发行版支持的」工具选项 ⇒ 必须非 0
+    #     （历史 bug：只打印帮助就返回 0，脚本把「什么都没做」当成检查通过）
+    if "${run[@]}" --no-such-tool-option=true "$tmp/ok.cj" >/dev/null 2>&1; then
+        err "自检失败: 未知工具选项返回了 0（打帮助即成功 ⇒ 假通过）"
+        return 1
+    fi
+    ok "自检: 未知工具选项被拒（退出码非 0）"
+
     # 4) 选项可见性：最小版不得出现 check-syntax 之外的选项
     local help_text
     help_text=$("${run[@]}" --help 2>&1 || true)
@@ -268,6 +281,12 @@ function self_check() {
             return 1
         fi
         ok "自检: 选项仅剩 --check-syntax"
+        # 4b) 被裁掉的选项必须被拒（不能「只打帮助 + 退出 0」）
+        if "${run[@]}" --dump-source=parse "$tmp/ok.cj" >/dev/null 2>&1; then
+            err "自检失败: 最小版对被裁掉的 --dump-source 返回 0（假通过）"
+            return 1
+        fi
+        ok "自检: 被裁掉的选项被拒（退出码非 0）"
         # 5) 插件确实已裁掉（lib/ 与 bin/ 两种布局都查）
         if find "$dir/lib" "$dir/bin" -maxdepth 1 \
             \( -name 'libcjast_*_pass.*' -o -name 'cjast_*_pass.dll' \) | grep -q .; then
