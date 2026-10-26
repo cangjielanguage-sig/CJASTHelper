@@ -11,6 +11,9 @@
 #endif
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
+#include <cstdlib>
 #include <system_error>
 
 namespace fs = std::filesystem;
@@ -70,6 +73,59 @@ void CreateDirIfNotExists(ConStr& path)
     if (!fs::create_directories(path)) {
         throw std::logic_error("Try to create directory: " + path + " failed!");
     }
+}
+
+namespace {
+/**
+ * @brief 进程内单调唯一的后缀（时间戳 + 自增计数），避免依赖平台专有的 pid 接口
+ */
+Str UniqueSuffix()
+{
+    static std::atomic<unsigned long long> counter{0};
+    auto tick = std::chrono::steady_clock::now().time_since_epoch().count();
+    return std::to_string(static_cast<long long>(tick)) + "-" + std::to_string(counter.fetch_add(1));
+}
+} // namespace
+
+bool IsDirWritable(ConStr& dir)
+{
+    std::error_code ec;
+    auto probe = fs::path(dir) / ("cjah-write-probe-" + UniqueSuffix());
+    {
+        std::ofstream ofs(probe, std::ios::out | std::ios::trunc);
+        if (!ofs.is_open()) {
+            return false;
+        }
+    }
+    fs::remove(probe, ec);
+    return true;
+}
+
+Str CreateTempDir(ConStr& prefix)
+{
+    std::error_code ec;
+    auto base = fs::temp_directory_path(ec);
+    if (ec) {
+        return "";
+    }
+    static Vec<fs::path> created;
+    static bool cleanupRegistered = false;
+    if (!cleanupRegistered) {
+        cleanupRegistered = true;
+        std::atexit([]() {
+            std::error_code ec2;
+            for (auto& dir : created) {
+                fs::remove_all(dir, ec2);
+            }
+        });
+    }
+    auto dir = base / (prefix + "-" + UniqueSuffix());
+    fs::create_directories(dir, ec);
+    if (ec || !fs::is_directory(dir, ec)) {
+        return "";
+    }
+    created.push_back(dir);
+    return dir.string();
 }
 
 Str FindPath(ConStr& name, ConStrVec& paths)

@@ -212,6 +212,43 @@ function self_check() {
         { err "自检失败: 目录（多包）输入返回非 0"; return 1; }
     ok "自检: 目录（多包）输入通过"
 
+    # 3b) 目录内含语法错误文件：必须非 0
+    printf 'func x( {\n' >"$tmp/multi/pkgB/bad.cj"
+    if "${run[@]}" --check-syntax=true "$tmp/multi" >/dev/null 2>&1; then
+        err "自检失败: 目录内含语法错误文件却返回 0"
+        rm -f "$tmp/multi/pkgB/bad.cj"
+        return 1
+    fi
+    rm -f "$tmp/multi/pkgB/bad.cj"
+    ok "自检: 目录内含语法错误被正确判错"
+
+    # 3c) `--output-dir <dir>` 两段式写法（历史 bug：取值被当成输入目录 ⇒ 假通过）
+    mkdir -p "$tmp/outdir"
+    if "${run[@]}" --check-syntax=true --output-dir "$tmp/outdir" "$tmp/bad.cj" >/dev/null 2>&1; then
+        err "自检失败: '--output-dir <dir>' 两段式写法下语法错误未被判错（假通过）"
+        return 1
+    fi
+    ok "自检: '--output-dir <dir>' 两段式写法仍能判错"
+
+    # 3d) 只读当前目录（历史 bug：前端写不进去 ⇒ 一律返回 0）
+    if [ "$(id -u)" -ne 0 ]; then
+        mkdir -p "$tmp/ro"
+        if chmod 555 "$tmp/ro" 2>/dev/null; then
+            if (cd "$tmp/ro" && "${run[@]}" --check-syntax=true "$tmp/bad.cj" >/dev/null 2>&1); then
+                err "自检失败: 只读当前目录下语法错误未被判错（假通过）"
+                chmod 755 "$tmp/ro"
+                return 1
+            fi
+            if ! (cd "$tmp/ro" && "${run[@]}" --check-syntax=true "$tmp/ok.cj" >/dev/null 2>&1); then
+                err "自检失败: 只读当前目录下正确用例返回非 0"
+                chmod 755 "$tmp/ro"
+                return 1
+            fi
+            chmod 755 "$tmp/ro"
+            ok "自检: 只读当前目录下判定正确（自动改用临时输出目录）"
+        fi
+    fi
+
     # 4) 选项可见性：最小版不得出现 check-syntax 之外的选项
     local help_text
     help_text=$("${run[@]}" --help 2>&1 || true)
