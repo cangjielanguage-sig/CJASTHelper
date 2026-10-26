@@ -84,6 +84,18 @@ protected:
 
     /** @brief 成员访问类型实参自补（带指针去重）。 */
     void AppendMemberTypeArgs(const AstNode& node);
+    /**
+     * @brief 语义类型后缀 `type=<…>`（sema 后有效；parse 阶段 ty 为初始无效 ⇒ 空 ✓）
+     *
+     * 目的：让**结构化 AST ＋ 语义类型**一次成型（含解糖节点），作为对齐基线 ✓
+     */
+    Str TySuffix(const AstNode& node);
+    /**
+     * @brief 语义类型渲染成**用户面名字**（`std.core.String` / `Array<UInt8>` / `(A)->B` / `T`）
+     *
+     * `Ty::String()` 给的是**唯一名**（`Struct-String`/`Class-Object`）⇒ 不能直接当基线 ✗
+     */
+    Str TyText(const Cangjie::AST::Ty* ty);
 
     /** @brief 导入项 content 自补（收集器未纳入）。 */
     void Visit(const AstNode& node);

@@ -649,12 +649,16 @@ VisitResult ToCangjiePass::Before(const RefExpr& node)
     if (target && target->TestAttr(Attribute::ENUM_CONSTRUCTOR) && node.GetTy()) {
         auto ty = node.GetTy();
         if (target->astKind == AstKind::FUNC_DECL) {
-            ty = Cast<FuncTy*>(node.GetTy().get())->retTy;
+            // ★ 解糖后 `GetTy()` 未必是 `FuncTy`（合成/错误类型）⇒ 原 `Cast<FuncTy*>` 得 null 再 `->retTy` 崩
+            auto* ft = dynamic_cast<FuncTy*>(node.GetTy().get());
+            ty = ft != nullptr ? ft->retTy : nullptr;
         }
-        PrintTy(*ty);
-        PRT().PVal(".");
-        PRT().PVal(Id(node.ref.identifier));
-        return VisitResult::Skip();
+        if (ty != nullptr) {
+            PrintTy(*ty);
+            PRT().PVal(".");
+            PRT().PVal(Id(node.ref.identifier));
+            return VisitResult::Skip();
+        }
     }
     return VisitResult::Cont();
 }
@@ -882,7 +886,9 @@ inline bool IsRefEnum(const Expr& expr)
     if (expr.astKind != AstKind::REF_EXPR) {
         return false;
     }
-    return Cast<const RefExpr&>(expr).ref.target->astKind == AstKind::ENUM_DECL;
+    // ★ 解糖/合成的 RefExpr 可能**未解析**（`ref.target == nullptr`）⇒ 原实现直接 `->astKind` 崩
+    auto target = Cast<const RefExpr&>(expr).ref.target;
+    return target != nullptr && target->astKind == AstKind::ENUM_DECL;
 }
 } // namespace
 
@@ -891,7 +897,8 @@ void ToCangjiePass::Visit(const MemberAccess& node, VisitResult&)
     LOGD("For MemberAccess");
     VisitNode(node.baseExpr);
     PRT().PVals(".", Id(node.field));
-    if (!Config().Sema() || !IsRefEnum(*node.baseExpr)) {
+    // ★ 解糖/合成 MemberAccess 可能**无 baseExpr**（实测 std.core sema 全量在此崩）⇒ 按普通成员处理
+    if (!Config().Sema() || node.baseExpr == nullptr || !IsRefEnum(*node.baseExpr)) {
         PrintInstArgs(node, node.isPattern);
     }
 }
@@ -1540,8 +1547,12 @@ void ToCangjiePass::PrintInstArgs(const NameReferenceExpr& ref, bool isPattern)
         PRT().PVec<Type>(
             ref.typeArguments, [this](const Type& tp) { PrintType(tp); }, ", ", "<", ">");
     } else if (Config().Sema() && !isPattern) {
-        PRT().PVec<Ty>(
-            ref.instTys, [this](const Ty& ty) { PrintTy(ty); }, ", ", "<", ">");
+        // ★ `instTys` 里可能有**空元素**（解糖/合成节点）⇒ 原实现直接 `PrintTy(ty)` 解引空指针而崩
+        //   （实测 std.core sema 全量：MemberAccess 位 `Dereferencing a null pointer`）
+        auto valid = ref.instTys;
+        valid.erase(std::remove_if(valid.begin(), valid.end(), [](const auto& t) { return t == nullptr; }),
+                    valid.end());
+        PRT().PVec<Ty>(valid, [this](const Ty& ty) { PrintTy(ty); }, ", ", "<", ">");
     }
 }
 
@@ -1660,6 +1671,10 @@ namespace {
  */
 inline Str TryGetCallRef(const CallExpr& node)
 {
+    // ★ 解糖/合成 CallExpr 可能**无 baseFunc**（实测 std.core sema 全量在此崩：Dereferencing a null pointer）
+    if (node.baseFunc == nullptr) {
+        return "";
+    }
     if (node.baseFunc->astKind == AstKind::REF_EXPR) {
         return Cast<const RefExpr&>(node.baseFunc.get()).ref.identifier.Val();
     }
@@ -1688,7 +1703,7 @@ inline bool IsOverloadCall(const CallExpr& node)
     if (node.resolvedFunction->op == TokenKind::ILLEGAL) {
         return false;
     }
-    return node.baseFunc->astKind == AstKind::MEMBER_ACCESS;
+    return node.baseFunc != nullptr && node.baseFunc->astKind == AstKind::MEMBER_ACCESS;
 }
 
 /**
@@ -1805,7 +1820,7 @@ bool ToCangjiePass::TryRecoverPropCallExpr(const CallExpr& node)
     auto fn = node.resolvedFunction;
     auto propDecl = fn->propDecl;
     AH_CHECK_NULL(propDecl);
-    bool isMem = node.baseFunc->astKind == AstKind::MEMBER_ACCESS;
+    bool isMem = node.baseFunc != nullptr && node.baseFunc->astKind == AstKind::MEMBER_ACCESS;
     if (isMem) {
         auto& ma = Cast<const MemberAccess&>(node.baseFunc.get());
         TryPrintNode(ma.baseExpr.get(), "", ".");
