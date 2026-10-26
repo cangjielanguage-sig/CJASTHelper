@@ -146,9 +146,65 @@ powershell -File build.ps1 -r -- --dump-source=sema test\data\inputs\main.cj --o
 - 若本机 PATH 中同时存在多个 Cangjie SDK（如 DevEco 6.1 渠道），请确保
   `CANGJIE_HOME` 与编译所用 SDK 一致后再运行（参见上文警告）。
 
-## 6. 常见问题
+## 6. 打包发布（scripts/package_release.ps1）
 
-### 6.1 构建报 `Please set correct CANGJIE_INCLUDE`（CANGJIE_HOME 被 DevEco 渠道 SDK 抢占）
+构建脚本只负责产出安装目录（`output/`），分发用的压缩包由打包脚本生成
+（对应 Linux/macOS 的 `scripts/package_release.sh`）：
+
+```powershell
+# 完整版（bin\ + config\ + lib\，含全部 pass 插件）
+powershell -ExecutionPolicy Bypass -File scripts\package_release.ps1 -v alpha_0.0.7
+
+# 最小版（仅 --check-syntax：裁掉 pass 插件，config 只留 valid_options.json）
+powershell -File scripts\package_release.ps1 -v alpha_0.0.7 -m
+```
+
+产物为 `dist\cjah_<version>.zip` / `dist\cjah_minimal_<version>.zip`（解压即用，
+顶层目录即包名），脚本结尾打印大小与 sha256。
+
+参数与 sh 版一一对应：
+
+| 选项 | 说明 |
+|---|---|
+| `-v, --version` | 版本号（必填） |
+| `-m, --minimal` | 生成最小版 |
+| `-p, --prefix` | 安装目录（默认 `output`，需先 `build.ps1 -a -i`） |
+| `-o, --out` | 输出目录（默认 `dist`） |
+| `-k, --keep` | 保留暂存目录 |
+
+打包前必须用 **alone 模式**安装（`-a -i`）：脚本会检查 `bin\libcangjie-lsp.dll`
+是否存在，缺失直接报错（否则产物无法脱离 SDK 运行）。
+
+自检用例全部在**清空环境变量**的子进程里执行（只保留 `SystemRoot`/`SystemDrive`/
+`TEMP`/`TMP`），因此通过即证明产物不依赖 `CANGJIE_HOME` / `PATH` / `MINGW_BIN`：
+
+| 用例 | 期望 |
+|---|---|
+| 单文件语法检查 | 退出码 0 |
+| 语法错误单文件 | 退出码非 0 |
+| 多包目录 / 目录内含错 | 0 / 非 0 |
+| `--output-dir <dir>` 两段式写法 | 语法错误仍被判错 |
+| 未知工具选项 | 退出码非 0（不再「只打帮助就返回 0」） |
+| `--help` | 列出 `--check-syntax`；最小版只列这一项，被裁掉的选项实调必须非 0 |
+| 完整版 `--dump-source=parse` | 退出码 0 且有 `*_source.cj` 产物（pass 插件可加载） |
+| PE 导入表（静态） | 所有非系统导入均命中包内 `bin\`（`ldd`/`otool` 的 Windows 对应物） |
+| 解包验证 | 解压到含空格/中文的路径后重跑关键用例 |
+
+平台差异（与 sh 版）：
+
+- 归档格式为 **zip**（`System32\tar.exe` 生成，条目分隔符为 `/`；无 tar 时回退
+  `Compress-Archive`）；
+- 依赖闭环检查用 PE 导入表（`llvm-objdump` / `objdump`），而非 `ldd` / `otool -L`；
+- 「只读当前目录」用例跳过（Windows 无 chmod 语义），由 Linux/macOS 版覆盖。
+
+> **独立使用的边界（实测）**：`--check-syntax`、`--dump-source=parse` 等 parse 阶段
+> 能力在清空环境下可用；`--dump-source=sema`、macro 展开等需要调用 Cangjie 编译器
+> 驱动的阶段仍要求 `CANGJIE_HOME` 指向有效 SDK（报错
+> `failed to detect cangjie home`）——这是前端能力边界，不是打包缺陷。
+
+## 7. 常见问题
+
+### 7.1 构建报 `Please set correct CANGJIE_INCLUDE`（CANGJIE_HOME 被 DevEco 渠道 SDK 抢占）
 
 DevEco Studio / ohpm 安装时会在**用户环境变量**里写入 `CANGJIE_HOME`，指向
 `.cangjie-sdk/<版本>/cangjie/build-tools`——该渠道工具链**不含 C++ include 头**，
@@ -172,7 +228,7 @@ build.bat -b -t Debug
 3. 修改 `scripts/win_env.ps1` 的默认 `CANGJIE_HOME`，或删除 DevEco 写入的用户级
    `CANGJIE_HOME`（会影响 DevEco 自身，不推荐）。
 
-### 6.2 启动即段错误（SIGSEGV / 退出码 139）
+### 7.2 启动即段错误（SIGSEGV / 退出码 139）
 
 症状：cjah 打印若干行 `find ... json` 配置查找日志后直接崩溃，没有任何 `Exception:` 输出。
 
@@ -189,7 +245,7 @@ build.bat -b -t Debug
 powershell -File build.ps1 -t Debug -b
 ```
 
-### 6.3 缺 DLL：`error while loading shared libraries: utils.dll`
+### 7.3 缺 DLL：`error while loading shared libraries: utils.dll`
 
 提示可能具有误导性。实际缺失的往往是 `libssp-0.dll`（llvm-mingw 的 stack protector
 运行库，重编译后新增的依赖）。检查依赖清单：
@@ -202,7 +258,7 @@ objdump -p build/bin/cjah.exe | grep "DLL Name"
 复制到 `build/bin/`。重编译后建议对照 `output/bin/` 与 `build/bin/` 的 DLL 集合。
 新版本已通过 CMake 安装规则与构建脚本自动部署。
 
-### 6.4 check-syntax 的退出码
+### 7.4 check-syntax 的退出码
 
 - 有语法错误：退出码 1；
 - 无效目录：打印 `error: invalid file or directory '...'`，但退出码为 **0**；
@@ -210,7 +266,7 @@ objdump -p build/bin/cjah.exe | grep "DLL Name"
 
 退出码不能作为唯一判据，请以 stderr 诊断内容为准。
 
-### 6.5 配置查找日志（find ... json）不是错误
+### 7.5 配置查找日志（find ... json）不是错误
 
 工具按 exe 目录依次查找 `./config/`、`../config/` 等位置加载 `valid_options.json` /
 `passes.json`，找不到会打印日志；构建脚本已将 `config/*.json` 部署到 `build/bin/config/`，
