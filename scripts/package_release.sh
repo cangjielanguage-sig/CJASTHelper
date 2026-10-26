@@ -95,7 +95,7 @@ function parse_args() {
 
 # 检查安装目录是否可用（并提示缺失原因）
 function check_prefix() {
-    [[ -d "$PREFIX" ]] || die "安装目录不存在: $PREFIX（先执行 bash build.sh -a -i）"
+    [[ -d "$PREFIX" ]] || die "安装目录不存在: ${PREFIX}（先执行 bash build.sh -a -i）"
     [[ -x "$PREFIX/bin/cjah" ]] || die "未找到可执行文件: $PREFIX/bin/cjah（先执行 bash build.sh -a -i）"
     [[ -d "$PREFIX/config" ]] || die "安装目录缺少 config/: $PREFIX/config"
     [[ -d "$PREFIX/lib" ]] || die "安装目录缺少 lib/: $PREFIX/lib"
@@ -308,7 +308,7 @@ function main() {
     info "版本号: $VERSION"
     info "安装目录: $PREFIX"
     info "输出目录: $OUT_DIR"
-    info "包名: $name（$([[ $MINIMAL == ON ]] && echo 最小版/仅语法检查 || echo 完整版)）"
+    info "包名: ${name}（$([[ $MINIMAL == ON ]] && echo 最小版/仅语法检查 || echo 完整版)）"
 
     rm -rf "$stage"
     mkdir -p "$stage"
