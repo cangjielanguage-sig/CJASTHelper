@@ -251,10 +251,17 @@ StrMap<Str> ParseEnv(const char* const* envp, const StrSet& focus)
 
 void ConfigGlobalOptions(ArgumentParser& ap)
 {
-    // 解析并获取pass配置
-    auto passCfg = ap.GetSingleValue("pass-config", "passes.json");
-    LOGD("pass config: ", passCfg);
-    PassManager::Init(passCfg);
+    // ★ 语法检查模式不执行任何 pass（check-syntax 只跑 parse 阶段）⇒ 不加载 pass 配置。
+    //   好处：最小发布包（config/ 仅含 valid_options.json）无需携带 passes.json；
+    //   其它模式保持原有强校验：pass 配置缺失即报错，避免静默少跑 pass。
+    if (ap.GetSingleValue("check-syntax", "false") != "true") {
+        // 解析并获取pass配置
+        auto passCfg = ap.GetSingleValue("pass-config", "passes.json");
+        LOGD("pass config: ", passCfg);
+        PassManager::Init(passCfg);
+    } else {
+        LOGD("check-syntax mode: skip pass config loading");
+    }
     // 解析并获取 parallels
     int val = 1;
     auto parallels = ap.GetSingleValue("parallel-tasks", "1");
@@ -264,6 +271,41 @@ void ConfigGlobalOptions(ArgumentParser& ap)
     }
     LOGD("paralles: ", Options::Parallels());
 }
+
+namespace {
+/**
+ * @brief cjc 透传选项里「取值写在下一个 token」的选项清单。
+ *
+ * check-syntax 需要按包重排输入文件，必须把这些取值从输入列表里剔除：
+ * 否则 `--output-dir /tmp/out` 的取值 `/tmp/out` 会被当成输入目录，
+ * 而孤立的 `--output-dir` 又会把后面的 `.cj` 路径吃成它的取值
+ * ⇒ 输入列表变空 ⇒ 前端不报错 ⇒ 误判为「语法正确」（退出码 0）。
+ *
+ * 注意：清单只影响 check-syntax 的输入识别；用 `--opt=value` 写法的参数不受影响。
+ */
+bool IsValueTakingOpt(ConStr& arg)
+{
+    static const StrSet opts{
+        "-o", "--output-dir", "--output-type", "--target", "--sysroot", "-L", "-l", "--import-path",
+        "--module-name", "--package", "--link-options", "--macro-lib", "-j", "--jobs", "--error-count-limit",
+        "--diagnostic-format", "--save-temps", "--prefix", "--profile", "--coverage", "--sanitizer", "--lto",
+        "--env", "--target-cpu", "--module-version", "--features"};
+    return opts.count(arg) > 0;
+}
+
+/**
+ * @brief 参数里是否已显式指定输出目录（`--output-dir <dir>` / `--output-dir=<dir>` / `-o`）
+ */
+bool HasOutputDirArg(ConStrVec& args)
+{
+    for (auto& arg : args) {
+        if (arg == "--output-dir" || arg == "-o" || arg.rfind("--output-dir=", 0) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+} // namespace
 
 /**
  * @brief 配置选项并生成检查任务
@@ -278,6 +320,23 @@ Vec<Options> ConfigOptions(ArgumentParser& ap, Options options)
     if (options.checkSyntax) {
         // 语法检查模式: 只需要 parse 阶段, 无需 --dump-source, 不配置任何 pass
         options.Stage("parse");
+
+        // ★ cjc 缺省把输出目录当作 "./"：只读 cwd 下前端因写不进去而提前退出，且不产生诊断
+        //   ⇒ 会被误判为「语法正确」。未显式给出输出目录且 cwd 不可写时，改用进程专属临时目录。
+        if (!HasOutputDirArg(options.args)) {
+            Str cwd = ".";
+            if (!IsDirWritable(cwd)) {
+                Str tmp = CreateTempDir("cjah-check-syntax");
+                if (tmp.empty()) {
+                    throw std::invalid_argument(
+                        "current directory is not writable; please pass --output-dir=<writable dir>");
+                }
+                std::cerr << "warning: current directory is not writable, using temporary output dir: " << tmp
+                          << std::endl;
+                options.args.push_back("--output-dir=" + tmp);
+            }
+        }
+
         // 按包分组: 包目录(排序保证包序确定) -> 该目录下的 .cj 文件
         std::map<Str, StrVec> pkgFiles;
         StrVec commonArgs;
@@ -286,6 +345,15 @@ Vec<Options> ConfigOptions(ArgumentParser& ap, Options options)
         }
         for (size_t i = 1; i < options.args.size(); ++i) {
             auto& arg = options.args[i];
+            // ★ 透传选项及其取值一律不参与输入识别，否则 `--output-dir /tmp/out` 会被
+            //   拆成「输入目录 /tmp/out」+「孤立 --output-dir（把 .cj 吃成取值）」⇒ 假通过
+            if (!arg.empty() && arg[0] == '-') {
+                commonArgs.push_back(arg);
+                if (IsValueTakingOpt(arg) && i + 1 < options.args.size()) {
+                    commonArgs.push_back(options.args[++i]);
+                }
+                continue;
+            }
             std::error_code ec;
             if (std::filesystem::is_directory(arg, ec)) {
                 auto groups = GroupCjFilesByDir(arg);
@@ -305,8 +373,10 @@ Vec<Options> ConfigOptions(ArgumentParser& ap, Options options)
             }
         }
         if (pkgFiles.empty()) {
-            // 没有可检查的输入(目录为空或仅透传参数): 保持原参数交给前端报错
-            return {std::move(options)};
+            // ★ 没有任何可检查的 .cj 输入时必须报错：前端拿不到输入不会报错，
+            //   静默返回会变成「假通过」（退出码 0）。
+            throw std::invalid_argument(
+                "no .cj input found; pass a .cj file or a directory containing .cj files");
         }
         Vec<Options> opts;
         for (auto& [pkgDir, files] : pkgFiles) {

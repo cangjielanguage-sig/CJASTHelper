@@ -85,7 +85,8 @@ public:
     template <Level level = Level::DEBUG, typename... Args> void Log(const cjah::source_location& loc, Args&&... args)
     {
 
-        if (this->level > level) {
+        // enabled=false ⇒ 所有候选日志文件都打不开（如只读 cwd），此时静默丢弃日志
+        if (!enabled || this->level > level) {
             return;
         }
         p.PVals("[", LevelName(level), "]");
@@ -102,15 +103,19 @@ public:
 
 private:
     /**
-     * @brief 私有构造函数，用于初始化文件日志流。
+     * @brief 私有构造函数：按候选路径顺序尝试打开日志文件。
      *
-     * @param path 文件路径。
+     * 全部失败时置 enabled=false（禁用文件日志），不抛异常，避免发布包在
+     * 只读当前目录下直接启动失败。
+     *
+     * @param paths 候选日志文件路径（按优先级排列）
      */
-    Logger(ConStr& path);
+    Logger(Vec<Str>& paths);
 
 private:
     Printer p;                         // 打印器对象
     Level level = Level::DEBUG;        // 当前日志级别
+    bool enabled = false;              // 日志文件是否成功打开
     static inline std::fstream fs;     // 文件流
     static UniquePtr<Logger> instance; // 日志实例集合
 };

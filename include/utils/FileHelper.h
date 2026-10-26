@@ -10,6 +10,23 @@ std::filesystem::path getExecutablePath();
 bool CheckExist(ConStr& file);
 Str FileName(ConStr& filePath);
 void CreateDirIfNotExists(ConStr& path);
+
+/**
+ * @brief 判断目录是否可写（创建并删除一个探针文件，不依赖平台专有 API）
+ * @param dir 目录路径
+ * @return 可写返回 true
+ */
+bool IsDirWritable(ConStr& dir);
+
+/**
+ * @brief 在系统临时目录下创建一个进程专属子目录（进程退出时自动删除）
+ *
+ * 用途：只读当前目录下前端无法使用缺省输出目录 "./" 时，给它一个可写目录。
+ *
+ * @param prefix 子目录名前缀
+ * @return 目录路径；创建失败返回空串
+ */
+Str CreateTempDir(ConStr& prefix);
 Str FindPath(ConStr& name, ConStrVec& paths);
 
 /**

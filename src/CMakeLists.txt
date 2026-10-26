@@ -3,7 +3,8 @@ add_subdirectory(wrapper)
 add_subdirectory(core)
 add_subdirectory(passes)
 
-set(PASSES cjast_desugar_pass cjast_to_source_pass)
+# 由 src/passes/* 子目录自注册（新增 pass 无需再改本文件）
+set(PASSES ${CJAH_PASS_TARGETS})
 
 set(CJAH_LIBS cjast_helper_core cjast_wrapper utils)
 # DEPEND_LIBS from parent scope contains Cangjie libraries, add our libs to it
@@ -32,65 +33,51 @@ if(WIN32)
 endif()
 
 # 设置RPATH以便运行时能找到共享库
+# 安装产物统一使用相对 RPATH（Linux: $ORIGIN / macOS: @loader_path），
+# 配合 build.sh|build.ps1 的 alone 安装模式（把 cangjie-lsp 拷进安装目录）实现依赖闭环；
+# 这里只设置 INSTALL_RPATH（不设 BUILD_WITH_INSTALL_RPATH），构建树仍保留 CMake 自动生成的
+# 链接目录 RPATH，因此构建目录内直接 `-r` 运行不受影响。
 if(CMAKE_BUILD_TYPE MATCHES Release)
-    # macOS: 使用 @loader_path（推荐）
-    # Linux: 使用 $ORIGIN
     if(APPLE)
         target_link_options(cjah PRIVATE -dead_strip -flto)
-        # macOS: 使用 @loader_path 表示可执行文件所在目录
-        # 仅对某个 target 设置 RPATH
-        set_target_properties(cjah PROPERTIES
-            INSTALL_RPATH "@loader_path/../lib"
-            BUILD_WITH_INSTALL_RPATH ON
-        )
-        
-        # 为共享库设置RPATH
-        set_target_properties(${CJAH_LIBS} PROPERTIES
-            INSTALL_RPATH "@loader_path"
-            BUILD_WITH_INSTALL_RPATH ON
-        )
-    elseif(UNIX AND NOT APPLE)
-        # Linux: 使用 $ORIGIN 表示可执行文件所在目录
-        set_target_properties(cjah PROPERTIES
-            INSTALL_RPATH "\$ORIGIN/../lib"
-            BUILD_WITH_INSTALL_RPATH ON
-        )
-        
-        # 为共享库设置RPATH
-        set_target_properties(cjast_helper_core cjast_wrapper utils PROPERTIES
-            INSTALL_RPATH "\$ORIGIN"
-            BUILD_WITH_INSTALL_RPATH ON
-        )
     endif()
 endif()
 
-if(CJAH_STANDALONE)
-    message(STATUS "search path: ${CANGJIE_LIB}")
-
-    # cangjie-fe library already found in parent CMakeLists.txt
-    if(NOT CANGJIE_FE_LIB)
-        message(FATAL_ERROR "cangjie-fe library not found")
-    endif()
-
-    # 安装依赖库 cangjie-fe 到 lib/
-    install(FILES ${CANGJIE_FE_LIB} DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
+if(APPLE)
+    # macOS: 使用 @loader_path 表示可执行文件/库所在目录
+    set_target_properties(cjah PROPERTIES
+        INSTALL_RPATH "@loader_path/../lib"
+    )
+    set_target_properties(${CJAH_LIBS} ${PASSES} PROPERTIES
+        INSTALL_RPATH "@loader_path"
+    )
+elseif(UNIX)
+    # Linux: 使用 $ORIGIN 表示可执行文件/库所在目录
+    set_target_properties(cjah PROPERTIES
+        INSTALL_RPATH "\$ORIGIN/../lib"
+    )
+    set_target_properties(${CJAH_LIBS} ${PASSES} PROPERTIES
+        INSTALL_RPATH "\$ORIGIN"
+    )
 endif()
 
 # 安装共享库
+# 注意：DESTINATION 必须写相对路径，否则 configure 期就被绝对化，
+# `cmake --install --prefix <dir>` / DESTDIR 都无法改写到别的安装目录。
 install(TARGETS ${CJAH_LIBS}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-    RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION bin
 )
 
 install(TARGETS ${PASSES}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-    RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION bin
 )
 
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../config DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/../config DESTINATION .)
 
 install(TARGETS cjah 
-    RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+    RUNTIME DESTINATION bin
 )
