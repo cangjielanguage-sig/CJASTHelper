@@ -251,10 +251,17 @@ StrMap<Str> ParseEnv(const char* const* envp, const StrSet& focus)
 
 void ConfigGlobalOptions(ArgumentParser& ap)
 {
-    // 解析并获取pass配置
-    auto passCfg = ap.GetSingleValue("pass-config", "passes.json");
-    LOGD("pass config: ", passCfg);
-    PassManager::Init(passCfg);
+    // ★ 语法检查模式不执行任何 pass（check-syntax 只跑 parse 阶段）⇒ 不加载 pass 配置。
+    //   好处：最小发布包（config/ 仅含 valid_options.json）无需携带 passes.json；
+    //   其它模式保持原有强校验：pass 配置缺失即报错，避免静默少跑 pass。
+    if (ap.GetSingleValue("check-syntax", "false") != "true") {
+        // 解析并获取pass配置
+        auto passCfg = ap.GetSingleValue("pass-config", "passes.json");
+        LOGD("pass config: ", passCfg);
+        PassManager::Init(passCfg);
+    } else {
+        LOGD("check-syntax mode: skip pass config loading");
+    }
     // 解析并获取 parallels
     int val = 1;
     auto parallels = ap.GetSingleValue("parallel-tasks", "1");

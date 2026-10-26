@@ -113,9 +113,9 @@ bash scripts/package_release.sh -v alpha_0.0.7 --minimal
 | `-k, --keep` | 保留暂存目录 |
 
 最小版内容：`bin/cjah`、`lib/{libcangjie-lsp,libcjast_helper_core,libcjast_wrapper,libutils}.so`、
-`config/{valid_options,passes}.json`。注意 `config/passes.json` 必须保留 —— `ArgHelper` 启动时
-无条件解析它（`PassManager::Init`），缺失会直接启动失败；而 pass 插件在 `--check-syntax`
-下不会被 `dlopen`（已用 `LD_DEBUG=files` 验证）。
+`config/valid_options.json`（**不含** `passes.json`、任务配置与 pass 插件）。check-syntax 只跑 parse
+阶段，既不 `dlopen` pass 插件（`LD_DEBUG=files` 验证），也不加载 pass 配置
+（`ArgHelper::ConfigGlobalOptions` 在 check-syntax 下跳过 `PassManager::Init`）。
 
 脚本在打 tar 包前会对**暂存目录**做真实自检，任一失败就中止并保留暂存目录：
 

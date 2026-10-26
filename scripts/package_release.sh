@@ -154,8 +154,12 @@ function make_minimal() {
     done
     info "保留动态库: $(ls "$dir/lib" 2>/dev/null | tr '\n' ' ')"
 
-    # 2) 任务/流程配置与 check-syntax 无关，一并裁掉
-    rm -f "$dir/config/tasks.json" "$dir/config/stdcore_sema_task.json"
+    # 2) 与 check-syntax 无关的配置一并裁掉：
+    #    tasks.json / stdcore_sema_task.json 是任务配置；
+    #    passes.json 是 pass 配置 —— check-syntax 不跑任何 pass，启动时也不加载它
+    #    （ArgHelper::ConfigGlobalOptions 在 check-syntax 下跳过 PassManager::Init），
+    #    因此最小版 config/ 只留 valid_options.json。
+    rm -f "$dir/config/tasks.json" "$dir/config/stdcore_sema_task.json" "$dir/config/passes.json"
 
     # 3) valid_options.json 只保留 check-syntax（从安装目录的原始文件裁剪，避免漂移）
     python3 - "$dir/config/valid_options.json" <<'PY' || return 1
@@ -175,8 +179,7 @@ with open(path, "w", encoding="utf-8") as f:
     f.write("\n")
 print("kept options:", [o["key"] for o in keep])
 PY
-    # config/passes.json 必须保留：ArgHelper 启动时无条件解析它（PassManager::Init）
-    [[ -f "$dir/config/passes.json" ]] || die "最小版缺少 config/passes.json（启动即会失败）"
+    [[ -f "$dir/config/valid_options.json" ]] || die "最小版缺少 config/valid_options.json（启动即会失败）"
     return 0
 }
 
@@ -272,6 +275,14 @@ function self_check() {
             return 1
         fi
         ok "自检: 无 pass 插件残留"
+        # 5b) config 只保留 valid_options.json
+        local cfg_extra
+        cfg_extra=$(ls "$dir/config" 2>/dev/null | grep -v '^valid_options\.json$' || true)
+        if [[ -n "$cfg_extra" ]]; then
+            err "自检失败: 最小版 config 含多余文件: $(echo "$cfg_extra" | tr '\n' ' ')"
+            return 1
+        fi
+        ok "自检: config 仅含 valid_options.json"
     fi
 
     # 6) 依赖闭环（不依赖外部 SDK / LD_LIBRARY_PATH）
