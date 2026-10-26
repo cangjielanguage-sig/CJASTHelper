@@ -389,9 +389,18 @@ Vec<Options> ConfigOptions(ArgumentParser& ap, Options options)
         }
         return opts;
     }
-    options.Stage(ap.GetSingleValue("dump-source"));
+    // ★ `--dump-source` 缺省时不能直接取单值（会抛 "Invalid option: dump-source"）：
+    //   只要给了别的「动作型」选项（--print-ast / --dump-ast / --enable-passes），就按最小
+    //   可用阶段 parse 跑；一个动作都没给才保持 DEFAULT（main 打印帮助）。
+    const auto dumpSource = ap.GetSingleValue("dump-source", "");
     options.EnableAstOutPath(ap.GetSingleValue("dump-ast", ""));
     options.EnableAstTreePrint(ap.GetSingleValue("print-ast", ""));
+    const auto passes = ap.GetMultiValue("enable-passes");
+    if (!dumpSource.empty()) {
+        options.Stage(dumpSource);
+    } else if (options.astOutPath.has_value() || options.astTreeOutPath.has_value() || !passes.empty()) {
+        options.Stage("parse");
+    }
     options.FilterDecls(ap.GetMultiValue("filter-decls"));
     // TODO: update default false
     options.EnableDesugar(ap.GetSingleValue("enable-desugar", "true"));
@@ -400,7 +409,6 @@ Vec<Options> ConfigOptions(ArgumentParser& ap, Options options)
     options.IgnoreDecls(ap.GetMultiValue("ignore-decls"));
     options.ImportedPkgs(ap.GetMultiValue("dump-import"));
 
-    auto passes = ap.GetMultiValue("enable-passes");
     if (!passes.empty()) {
         options.Passes(passes);
         return {std::move(options)};
