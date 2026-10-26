@@ -11,7 +11,9 @@ cjah [options] [cjc-options]
 
 - `options`：本工具选项（下表）。未识别的参数**原样透传**给 Cangjie 前端
   （`libcangjie-lsp`），即上方示例中的 `cjc-options`，可用 `cjc -h` 查询其含义。
-- 不带任何工具选项时打印帮助信息。
+- 不带任何参数时打印帮助信息并以 0 退出；**传了参数却没有一个是本工具选项**（例如用了被
+  最小版裁掉的选项、或只给 `cjc-options`）时同样打印帮助，但以**非 0 退出**并提示
+  `no recognized cjah tool option in arguments`——避免脚本把「什么都没做」当成检查通过。
 
 内置帮助：
 
@@ -23,7 +25,8 @@ cjah [options] [cjc-options]
 
 | 选项 | 值 | 默认 | 说明 |
 |---|---|---|---|
-| `--dump-source` | `parse`、`desugared-parse`、`macro`、`sema`、`desugared-sema` | 无 | 打印指定阶段后的源码 |
+| `--dump-source` | `parse`、`desugared-parse`、`macro`、`sema`、`desugared-sema` | 无 | 打印指定阶段后的源码；缺省但给了 `--print-ast`/`--dump-ast`/`--enable-passes` 时按最小可用阶段 `parse` 执行 |
+| `--print-ast` | 已存在的目录 | 无 | 按 golden 结构打印 AST 树到 `<目录>/<包全名>.tree` |
 | `--dump-ast` | 文件路径 | 无 | 将 AST 转储到 `<路径>/<文件名>.ast` |
 | `--check-syntax` | `true` / `false` | `false` | 仅做语法检查，跳过分析/转换；输入可为文件或目录 |
 | `--enable-macro` | `true` / `false` | `true` | 是否执行宏展开 |
@@ -100,6 +103,8 @@ Pass 转换，无需指定 `--dump-source`。
 ### 诊断输出
 
 - 诊断（含 `--diagnostic-format=json`）输出到 **stderr**，stdout 恒为空；
+- `--diagnostic-format=json` 是透传给前端的 cjc 选项，**最小发布包同样支持**（`=` 与空格
+  两种写法均可），`--help` 里不会列出它（它不属于本工具选项）；
 - JSON 模式（透传 `--diagnostic-format=json`）下，目录多包检查会把所有包的诊断
   去重、按（文件, 行, 列）排序后合并为**一份** `{"Diags": [...]}` 文档输出；
 - 每条诊断字段为 PascalCase：`DiagKind / Severity / DiagCategory / Message /
@@ -112,10 +117,11 @@ Pass 转换，无需指定 `--dump-source`。
 |---|---|
 | 全部通过 / 语法错误为 0 | 0 |
 | 存在语法错误 | 1 |
-| 无效目录（`error: invalid file or directory`） | 0 |
-| 空目录（`warning: no .cj file found in directory`） | 0 |
+| 输入路径不存在，或目录里一个 `.cj` 都没有 | 1 |
+| 传了参数却没有一个是本工具选项（如最小版被裁掉的选项） | 1 |
 
-> 退出码不能作为唯一判据，请结合 stderr 诊断判断。
+> 退出码可直接作为判据：0 = 全部文件语法通过；非 0 = 有语法错误，或**检查没能执行**
+> （输入不存在、目录无可检查文件、选项不被本发行版支持）。诊断内容仍输出到 stderr。
 
 ```bash
 # 文件模式，文本诊断

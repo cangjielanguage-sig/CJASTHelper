@@ -149,16 +149,32 @@ function fixup_macos_alone_deps() {
     print_info "Rewrote cangjie-lsp reference to @rpath/$lib_name"
 }
 
-# Linux：用 ldd 校验安装产物已无未解析动态库（依赖闭环）
+# 依赖闭环自检：安装产物里**所有**二进制（bin/cjah 与 lib/*.so|*.dylib）的动态库引用
+# 只能是包内相对引用（Linux `$ORIGIN` ⇒ 解析为 @rpath/绝对包内路径；macOS @rpath/@loader_path）
+# 或系统路径；残留 SDK 绝对路径即说明脱离不了外部 SDK。
 function check_alone_closure() {
-    if ! command -v ldd >/dev/null 2>&1; then
-        return 0
-    fi
-    local missing
-    missing=$( { ldd "$PRE"/bin/cjah; ldd "$PRE"/lib/*.so; } 2>/dev/null | grep "not found" || true )
-    if [ -n "$missing" ]; then
-        print_warning "Unresolved shared libraries after alone install:"
-        echo "$missing"
+    local targets=("$PRE/bin/cjah") f
+    for f in "$PRE/lib/"*.dylib "$PRE/lib/"*.so; do
+        [ -f "$f" ] && targets+=("$f")
+    done
+
+    local bad=""
+    case "$(uname -s)" in
+        Darwin)
+            command -v otool >/dev/null 2>&1 || return 0
+            bad=$(for f in "${targets[@]}"; do otool -L "$f" 2>/dev/null | awk 'NR>1 {print $1}'; done |
+                grep -vE '^(@rpath/|@loader_path/|/usr/lib/|/System/)' || true)
+            ;;
+        Linux)
+            command -v ldd >/dev/null 2>&1 || return 0
+            bad=$(for f in "${targets[@]}"; do ldd "$f" 2>/dev/null; done | grep "not found" || true)
+            ;;
+        *) return 0 ;;
+    esac
+
+    if [ -n "$bad" ]; then
+        print_error "Unresolved or out-of-package shared library references after alone install:"
+        echo "$bad"
         return 1
     fi
     print_info "Dependency closure verified: no unresolved shared libraries"
@@ -189,9 +205,8 @@ function deploy_alone_deps() {
 
     if [ "$(uname -s)" == "Darwin" ]; then
         fixup_macos_alone_deps "$lib_name" || return 1
-    else
-        check_alone_closure || return 1
     fi
+    check_alone_closure || return 1
 }
 
 function install() {

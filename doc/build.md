@@ -122,9 +122,12 @@ bash scripts/package_release.sh -v alpha_0.0.7 --minimal
 1. 单文件语法正确 → 退出码 0；
 2. 单文件语法错误 → 退出码非 0；
 3. 目录输入（多包分组）→ 退出码 0；
-4. `--help` 只列出允许的选项（最小版仅 `--check-syntax`）；
-5. 最小版无 pass 插件残留；
-6. 动态库依赖闭环（Linux `ldd` / macOS `otool` 无未解析或指向包外的引用）。
+4. 未知工具选项 → 退出码非 0（不再「只打帮助就返回 0」）；
+5. `--help` 只列出允许的选项（最小版仅 `--check-syntax`），被裁掉的选项（如
+   `--dump-source`）实调必须非 0；
+6. 最小版无 pass 插件残留、`config/` 仅含 `valid_options.json`；
+7. 动态库依赖闭环（Linux `ldd` / macOS `otool`，覆盖 `bin/cjah` 与 `lib/*` 全部二进制，
+   无未解析或指向包外的引用）。
 
 解包即用：
 
