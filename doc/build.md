@@ -92,6 +92,47 @@ alone 模式下安装目录的依赖是闭环的：
 > 注意：alone 只闭环**动态库**。真正跑分析时 Cangjie 前端仍需 `CANGJIE_HOME` 定位标准库
 > （与是否 alone 无关），纯 `--check-syntax` 等不触达标准库的能力则可完全无环境变量运行。
 
+### 打包发布
+
+`scripts/package_release.sh` 把安装目录按版本号打成可分发的 `tar.gz`（默认输出到 `dist/`）：
+
+```bash
+# 完整版 -> dist/cjah_alpha_0.0.7.tar.gz
+bash scripts/package_release.sh -v alpha_0.0.7
+
+# 最小版（仅语法检查）-> dist/cjah_minimal_alpha_0.0.7.tar.gz
+bash scripts/package_release.sh -v alpha_0.0.7 --minimal
+```
+
+| 选项 | 说明 |
+|---|---|
+| `-v, --version <ver>` | 版本号（必填），如 `alpha_0.0.7`，仅允许字母数字与 `.` `_` `-` |
+| `-m, --minimal` | 生成最小版：裁掉 pass 插件、`valid_options.json` 只留 `check-syntax` |
+| `-p, --prefix <dir>` | 安装目录（默认 `output/`，应先用 `-a -i` 安装） |
+| `-o, --out <dir>` | 输出目录（默认 `dist/`） |
+| `-k, --keep` | 保留暂存目录 |
+
+最小版内容：`bin/cjah`、`lib/{libcangjie-lsp,libcjast_helper_core,libcjast_wrapper,libutils}.so`、
+`config/{valid_options,passes}.json`。注意 `config/passes.json` 必须保留 —— `ArgHelper` 启动时
+无条件解析它（`PassManager::Init`），缺失会直接启动失败；而 pass 插件在 `--check-syntax`
+下不会被 `dlopen`（已用 `LD_DEBUG=files` 验证）。
+
+脚本在打 tar 包前会对**暂存目录**做真实自检，任一失败就中止并保留暂存目录：
+
+1. 单文件语法正确 → 退出码 0；
+2. 单文件语法错误 → 退出码非 0；
+3. 目录输入（多包分组）→ 退出码 0；
+4. `--help` 只列出允许的选项（最小版仅 `--check-syntax`）；
+5. 最小版无 pass 插件残留；
+6. 动态库依赖闭环（Linux `ldd` / macOS `otool` 无未解析或指向包外的引用）。
+
+解包即用：
+
+```bash
+tar -xzf dist/cjah_minimal_alpha_0.0.7.tar.gz
+./cjah_minimal_alpha_0.0.7/bin/cjah --check-syntax=true some.cj   # 无需任何环境变量
+```
+
 ## 4. 验证
 
 ```bash
