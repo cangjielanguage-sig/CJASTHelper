@@ -136,6 +136,10 @@ tar -xzf dist/cjah_minimal_alpha_0.0.7.tar.gz
 ./cjah_minimal_alpha_0.0.7/bin/cjah --check-syntax=true some.cj   # 无需任何环境变量
 ```
 
+> Windows 上参数与自检用例完全一致的脚本是 `scripts/package_release.ps1`
+> （产物为 `.zip`，依赖闭环改用 PE 导入表检查），详见
+> [build-windows.md §6](./build-windows.md#6-打包发布scriptspackage_releaseps1)。
+
 ## 4. 验证
 
 ```bash

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     CJASTHelper Windows 构建环境路径配置（每台机器 / 每个环境一份）
 
@@ -43,8 +43,14 @@ if ($env:CANGJIE_HOME) {
     $env:CANGJIE_HOME = "D:/sdks/cangjie"
 }
 
-# Cangjie 配套源码路径
-$env:CANGJIE_SRC_HOME = "D:/sdks/cangjie_compiler-v1.1.3"
+# Cangjie 配套源码路径（提供编译头 include/cangjie/...）
+# 版本必须与 CANGJIE_HOME 的 SDK 版本一致：AST 类布局由头文件决定，跨版本
+# 组合会在运行期跨 DLL 访问时崩溃。SDK ∈ {STS113 (1.1.3), B120RC3 (1.2.0-beta.rc3)}，
+# 本机开发分支 dev 自 2026-09-14 起要求 B120RC3（Node::ty 改为 GetTy() 访问器）。
+if ($env:CANGJIE_SRC_HOME) {
+} else {
+    $env:CANGJIE_SRC_HOME = "D:/sdks/cangjie_compiler-v1.2.0-beta.rc3"
+}
 
 # ------------------------------------------------------------------------------
 # Scoop shims 目录（ninja 由 Scoop 安装，追加到 PATH）
