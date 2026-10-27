@@ -116,11 +116,11 @@ protected:
     void Visit(const AsExpr& node, VisitResult& res);
     /** @brief ArrayExpr：值数组只出实参（不出类型子树）。 */
     void Visit(const ArrayExpr& node, VisitResult& res);
-    /** @brief VarWithPatternDecl：通配模式不出模式行，直接出初始化式。 */
+    /** @brief VarWithPatternDecl：模式子树下钻（通配模式不出模式行）＋ 初始化式（收集器未纳入）。 */
     void Visit(const VarWithPatternDecl& node, VisitResult& res);
     /** @brief VarPattern：不出内层 VarDecl 行，直接出其子级。 */
     void Visit(const VarPattern& node, VisitResult& res);
-    /** @brief TuplePattern：叶（golden 下不出现元素行）。 */
+    /** @brief TuplePattern：元素模式逐个出行（`let (a, b) = …` 的绑定项是语义绑定位）。 */
     void Visit(const TuplePattern& node, VisitResult& res);
     /** @brief ConstPattern：叶。 */
     void Visit(const ConstPattern& node, VisitResult& res);

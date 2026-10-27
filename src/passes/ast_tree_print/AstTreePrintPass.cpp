@@ -32,34 +32,6 @@ const UnorderedMap<AstKind, const char*>& AllKinds()
 /** @brief kind → 打印词（golden 词面例外集中于此）。 */
 const char* KindWord(AstKind kind)
 {
-    switch (kind) {
-        case AstKind::FILE:
-            return "Program";
-        case AstKind::PACKAGE_SPEC:
-            return "PackageHeader";
-        case AstKind::FUNC_ARG:
-            return "Argument";       // golden 词面
-        case AstKind::IMPORT_SPEC:
-            return "ImportList";     // golden 词面
-        case AstKind::TUPLE_LIT:
-            return "TupleLiteral";   // golden 词面
-        case AstKind::VAR_WITH_PATTERN_DECL:
-            return "VarDecl";        // golden 词面（golden 不报名，见 Detail）
-        case AstKind::CONSTANT_TYPE:
-            return "ConstantType";   // 见透明集：golden 不出此行
-        case AstKind::ARRAY_EXPR:
-            return "ArrayLiteral";   // 值数组型由 WordOf 细分（isValueArray ⇒ VArrayExpr）
-        case AstKind::OPTION_TYPE:
-            return "PrefixType";     // golden 词面（`PrefixType ?`）
-        case AstKind::LET_PATTERN_DESTRUCTOR:
-            return "LetPatternExpr"; // golden 词面
-        case AstKind::ARRAY_LIT:
-            return "ArrayLiteral";   // golden 词面
-        case AstKind::GENERIC_PARAM_DECL:
-            return "GenericParam";   // golden 词面（★ 一参一行 ⇒ 词挂**参数节点** ✓ 用户口径 ✓）
-        default:
-            break;
-    }
     auto& table = AllKinds();
     auto it = table.find(kind);
     return it == table.end() ? "Unknown" : it->second;
@@ -165,17 +137,6 @@ Str PrefixOnlyText(const ImportContent& ic)
     return s;
 }
 
-/**
- * @brief 兄弟 `IMPORT_SINGLE` 是否属于该花括号导入（吸收判据）。TC-V3-49 口径 ③ ✓
- *
- * ⚠️ 旧判据「前缀**相同**」对 `import {std.io.*, std.process.*, …}` **永不成立** ✗：
- *    AST 实测（插桩一次定位）——`IMPORT_MULTI` 那项的 `content.prefixPaths` 是**空**
- *    （`prefix=[] ident=[]`），各项 `IMPORT_SINGLE` 的却是 `[std,io]`/`[std,process]`/… ⇒
- *    空 vs 非空**不等** ⇒ 一项都不吸收 ✗ ⇒ 退化成「每项一个 `ImportList`、各项位次全 =
- *    花括号列」✗（规格见 typechecker/docs/baseline-print-spec.md ③ ✓）。
- * ⇒ 新判据：**前缀以 multi 前缀开头** ✓（multi 前缀为空 ⇒ 恒真 ✓）＋ **与 multi 同行** ✓
- *    （收窄用：防止把**后续独立的 `import` 语句**误吸收 ✓；语料 4 包实测无跨行花括号导入 ✓）。
- */
 /**
  * @brief 项名 = 该 content 的**源码写法**（去掉 multi 的公共前缀部分）。TC-V3-49 口径 ③ ✓
  *
@@ -485,7 +446,7 @@ VisitResult AstTreePrintPass::BeforeNode(const AstNode& node)
 {
     // ★ 整棵跳过（注解 ✓ 不出行、不进层、不下探 ⇒ 口径改由声明行属性位承载 ✓ 见 `ModText`）
     if (IsSkippedKind(node.astKind)) {
-        return VisitResult::Skip;
+        return VisitResult::Skip();
     }
     if (!IsTransparentKind(node)) {
         PRT().PVal(WordOf(node)).PVal(Detail(node, AtTop(node))).PNL();
@@ -916,8 +877,18 @@ void AstTreePrintPass::Visit(const FuncParam& node, VisitResult& res)
 }
 void AstTreePrintPass::Visit(const TuplePattern& node, VisitResult& res)
 {
-    (void)node;
-    res = VisitResult::Cont();   // 叶：不下探
+    // ★ 元素模式**照常出行**：原实现把 TuplePattern 当叶 ⇒ `let (a, b) = (1, 2)` 只剩一行空的
+    //   `TuplePattern`，绑定项（`VarPattern a` / `VarPattern b`）与元素内类型全丢 ✗。
+    //   收集器 `TUPLE_PATTERN ⇒ pat.patterns` 已备好子级，此处按序下探即可。
+    bool saved = parentIsFile_;
+    parentIsFile_ = false;
+    for (auto& pattern : node.patterns) {
+        if (pattern != nullptr) {
+            Traverse(*pattern, visitor);
+        }
+    }
+    parentIsFile_ = saved;
+    res = VisitResult::Cont();
 }
 void AstTreePrintPass::Visit(const ConstPattern& node, VisitResult& res)
 {
@@ -1074,9 +1045,6 @@ void AstTreePrintPass::Visit(const FuncBody& node, VisitResult& res)
     }
     if (node.body != nullptr) {
         Traverse(*node.body, visitor);
-    } else if (!inEnumBody_) {
-        // golden：接口方法无体仍出一行 `Block // -`（枚举构造符无体则不出，见 golden `Constructor // 88:7`）
-        EmitEmptyBodyBlock();
     }
     parentIsFile_ = saved;
     res = VisitResult::Cont();
@@ -1161,16 +1129,31 @@ void AstTreePrintPass::Visit(const ArrayExpr& node, VisitResult& res)
 
 void AstTreePrintPass::Visit(const VarWithPatternDecl& node, VisitResult& res)
 {
+    bool saved = parentIsFile_;
+    parentIsFile_ = false;
     if (node.irrefutablePattern != nullptr && node.irrefutablePattern->astKind == AstKind::WILDCARD_PATTERN) {
-        bool saved = parentIsFile_;
-        parentIsFile_ = false;
+        Traverse(*node.irrefutablePattern, visitor);
+        // 通配模式（`var _ = e`）不出模式行，直接出初始化式
         if (node.initializer != nullptr) {
             Traverse(*node.initializer, visitor);
         }
-        parentIsFile_ = saved;
     } else {
-        this->WalkChildren(node);
+        // ★ 模式子树**照常下钻**（与 ForInExpr / LetPatternDestructor 同口径：模式是语义绑定位）。
+        //   源码序 `<pattern> [: <type>] = <initializer>`。
+        //   ⚠️ 初始化式必须在此显式下探：`VAR_WITH_PATTERN_DECL` 的收集器只纳入
+        //      `irrefutablePattern`（走 `CollectChildren(const Decl&)` ⇒ 不含 type/initializer），
+        //      靠 WalkChildren 会整段丢掉 `let (a, b) = (1, 2)` 的右值 ✗。
+        if (node.irrefutablePattern != nullptr) {
+            Traverse(*node.irrefutablePattern, visitor);
+        }
+        if (node.type != nullptr) {
+            Traverse(*node.type, visitor);
+        }
+        if (node.initializer != nullptr) {
+            Traverse(*node.initializer, visitor);
+        }
     }
+    parentIsFile_ = saved;
     res = VisitResult::Cont();
 }
 
@@ -1287,20 +1270,23 @@ void AstTreePrintPass::Run(AstNode& node)
         return;
     }
     // 一包一文件：多源文件按序拼接、文件间不留空行。
-    // 序取配置的源文件序（命令行序，对齐 golden）；未登记的（如仅用 --enable-passes）沿用 AST 序。
+    // ★ 顺序：**按文件名升序**（基名相同则用完整路径兜底）。
+    //   既不按命令行参数序，也不按 `pkg->files` 的 AST 序 —— 后者取决于前端
+    //   目录遍历/glob 次序，不保证跨机器稳定 ⇒ 同一包多文件的 .tree 不可复现。
     std::vector<const File*> ordered;
-    for (auto& name : Config().sourceOrder) {
-        for (auto& file : pkg->files) {
-            if (file != nullptr && file->fileName == name) {
-                ordered.push_back(file.get());
-            }
-        }
-    }
     for (auto& file : pkg->files) {
-        if (file != nullptr && std::find(ordered.begin(), ordered.end(), file.get()) == ordered.end()) {
+        if (file != nullptr) {
             ordered.push_back(file.get());
         }
     }
+    std::stable_sort(ordered.begin(), ordered.end(), [](const File* lhs, const File* rhs) {
+        ConStr lName = FileName(lhs->fileName);
+        ConStr rName = FileName(rhs->fileName);
+        if (lName != rName) {
+            return lName < rName;
+        }
+        return lhs->fileName < rhs->fileName;   // 基名相同（如 a.cj / a.cj.bak）时保证全序
+    });
     for (auto* file : ordered) {
         (void)Traverse(*file, visitor);
     }
