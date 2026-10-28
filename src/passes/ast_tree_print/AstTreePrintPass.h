@@ -152,6 +152,8 @@ protected:
 
     /** @brief File 直接子级遍历；对花括号导入（IMPORT_MULTI）做表现层重分组（golden 嵌套形态）。 */
     void WalkFileChildren(const AstNode& fileNode);
+    /** @brief 包级内建声明（BuiltInDecl）收尾块：源码文件块之后统一打印 `<builtin>`。 */
+    void PrintBuiltinDecls(const Package& pkg);
     /** @brief IsExpr/AsExpr 共用：表达式 ＋ 目标类型两面都出。 */
     void TraverseTypeTestChildren(const AstNode& node, VisitResult& res);
     /** @brief LetPatternDestructor / ForInExpr 共用：不出模式子级。 */

@@ -38,15 +38,45 @@ const char* KindWord(AstKind kind)
 }
 
 /** @brief 控制符转义（golden 用字面 \t/\n/\r 写法） */
+/** @brief 单字节控制字符 → `\u{X}`（统一口径：除 \t/\n/\r 三个惯用写法外，其余控制字符一律转义）。 */
+Str ControlCharEscape(unsigned char c)
+{
+    static const char* kHex = "0123456789ABCDEF";
+    Str out = "\\u{";
+    if (c >= 0x10) {
+        out += kHex[(c >> 4) & 0xF];
+    }
+    out += kHex[c & 0xF];
+    out += "}";
+    return out;
+}
+
+/**
+ * @brief 文本转义：把不可见字符转成可读形式，避免树文件被写成二进制。
+ *
+ * 口径（2026-10-27 统一）：
+ *   - `\t` / `\n` / `\r` → 惯用转义（与源码写法一致，保持既有基线不变）；
+ *   - 其余控制字符（`0x00`–`0x1F`、`0x7F`）→ `\u{X}`（大写十六进制、最短位数）——
+ *     原实现只处理三个惯用转义，`r'\0'` 之类会**原样写出 NUL 字节** ⇒
+ *     `<pkg>.tree` 变成二进制文件（`grep` 报 "binary file matches"、diff 工具失效）。
+ *   - 其余字节原样保留（含 UTF-8 多字节序列，逐字节透传不改动）。
+ */
 Str EscapeText(ConStr& s)
 {
     Str out;
-    for (char c : s) {
+    for (char ch : s) {
+        unsigned char c = static_cast<unsigned char>(ch);
         switch (c) {
             case '\t': out += "\\t"; break;
             case '\n': out += "\\n"; break;
             case '\r': out += "\\r"; break;
-            default: out += c; break;
+            default:
+                if (c < 0x20 || c == 0x7F) {
+                    out += ControlCharEscape(c);
+                } else {
+                    out += ch;
+                }
+                break;
         }
     }
     return out;
@@ -901,7 +931,9 @@ void AstTreePrintPass::WalkFileChildren(const AstNode& fileNode)
     // 一次性取子级指针序列 ⇒ 便于索引扫描（花括号导入需向后吸收兄弟）
     std::vector<const AstNode*> kids;
     for (auto& c : AstNodeHelper::GetChildren(fileNode)) {
-        if (c != nullptr) {
+        // ★ 内建声明（BuiltInDecl）不属该文件源码：前端 sema 把它们硬塞进 pkg->files[0]->decls，
+        //   这里统一跳过，改由 PrintBuiltinDecls() 收在文件块之后输出（见该函数注释）。
+        if (c != nullptr && c->astKind != AstKind::BUILTIN_DECL) {
             kids.emplace_back(&*c);
         }
     }
@@ -1290,7 +1322,48 @@ void AstTreePrintPass::Run(AstNode& node)
     for (auto* file : ordered) {
         (void)Traverse(*file, visitor);
     }
+    PrintBuiltinDecls(*pkg);
     PRT().Flush();
+}
+
+/**
+ * @brief 包级内建声明（`BuiltInDecl`）统一收在**所有源码文件块之后**打印（用户口径 2026-10-27）。
+ *
+ * 由来：前端 sema 阶段给 `std.core` 注入 `RawArray` / `VArray` / `CPointer` / `CFunc` / `CString`
+ * （`Sema/TypeChecker.cpp` 的 `AddBuiltIn*Decl`），注入点**硬编码**为 `pkg->files[0]->decls`
+ * 末尾；而前端又按 `fileName` 字典序排序 `pkg->files`（`Frontend/CompileStrategy.cpp`）
+ * ⇒ 换个输入文件集就"搬家"（实测：`annotation.cj` 恰好是最小的文件名，于是这批节点看起来
+ * 像 annotation.cj 的源码声明 ✗）。
+ *
+ * 处理：源码文件块遍历时跳过它们（见 WalkFileChildren），全部集中到末尾一个 `<builtin>`
+ * 伪文件块里打印；顺序保持前端注入序（不做排序，便于与前端行为对照）。
+ */
+void AstTreePrintPass::PrintBuiltinDecls(const Package& pkg)
+{
+    std::vector<const AstNode*> builtins;
+    for (auto& file : pkg.files) {
+        if (file == nullptr) {
+            continue;
+        }
+        for (auto& decl : file->decls) {
+            if (decl != nullptr && decl->astKind == AstKind::BUILTIN_DECL) {
+                builtins.emplace_back(decl.get());
+            }
+        }
+    }
+    if (builtins.empty()) {
+        return;   // 非 std.core（或其他未注入的包）不出现该块
+    }
+    // 与源码文件根行同形：`File // <名> `（名后一空格、不定位）
+    PRT().PVal("File").PVal(" // <builtin> ").PNL();
+    PRT().Indent();
+    bool saved = parentIsFile_;
+    parentIsFile_ = false;
+    for (auto* decl : builtins) {
+        Traverse(*decl, visitor);
+    }
+    parentIsFile_ = saved;
+    PRT().Unindent();
 }
 
 /** @brief 自注册（本库被 dlopen 时生效；名称须在 config/passes.json 的 names 中登记）。
