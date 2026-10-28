@@ -110,6 +110,18 @@ Vec<Ptr<AstNode>> AstNodeHelper::GetChildren(const AstNode& node)
     if (auto fn = AstNodeHelper::GetInstance().handlers.TryGet<CollectFunc>(node.astKind)) {
         fn->get()(node, result);
     }
+    // ★ 解糖节点（统一在此收集，下游 pass 不必各自补）：任意 `Expr` 的 `desugarExpr` 作为**尾槽**追加。
+    //   依据：`desugarExpr` 挂在基类 `Expr`（`Node.h:1765`），且集合表是**按具体 kind 精确注册**的
+    //   （`TryGet` 无继承回退）⇒ 逐 kind 补要动 38 对 Collect/Replace；改为通用尾槽只改这两处。
+    //   唯一性：各 kind 的收集器**只收源码子级**、一律不收 `desugarExpr`（`SUBSCRIPT_EXPR` 原来的
+    //   "有解糖就顶替源码子级"已归一）⇒ 解糖节点由此处唯一提供，不会重复，无需去重。
+    //   槽位：尾槽在最后，与各 kind 的 `ReplaceFunc`（从 `begin()` 顺序消费）不冲突。
+    if (node.astKind > AstKind::EXPR && node.astKind < AstKind::INVALID_EXPR) {
+        auto& desugar = Cast<const Expr&>(node).desugarExpr;
+        if (desugar != nullptr) {
+            result.push_back(desugar);   // OwnedPtr → Ptr（同 CollectChildren 体内写法）
+        }
+    }
     return result;
 }
 
@@ -117,6 +129,24 @@ void AstNodeHelper::ReplaceChildren(AstNode& node, Vec<OwnedPtr<AstNode>>& child
 {
     if (auto fn = AstNodeHelper::GetInstance().handlers.TryGet<ReplaceFunc>(node.astKind)) {
         fn->get()(node, children);
+    }
+    // ★ 与 `GetChildren()` 的尾槽**成对**：各 kind 的 `ReplaceFunc` 只消费自己那段（从 `begin()` 顺序），
+    //   末尾追加的 `desugarExpr` 在此回写。不同步处理的话，`ReplaceAstVisitor::DefaultMergeResult`
+    //   （`MutAstVisitor.cpp`）会把尾槽的替换结果塞进 `children` 局部向量却无人取 ⇒ 该节点随作用域
+    //   销毁（丢节点 / 悬垂引用）。
+    if (node.astKind > AstKind::EXPR && node.astKind < AstKind::INVALID_EXPR && !children.empty()) {
+        auto& expr = Cast<Expr&>(node);
+        OwnedPtr<AstNode>& tail = children.back();
+        if (tail != nullptr) {
+            AstNode* raw = tail.release();
+            if (auto* asExpr = dynamic_cast<Expr*>(raw); asExpr != nullptr) {
+                Expr* old = expr.desugarExpr.release();
+                expr.desugarExpr.reset(asExpr);
+                tail.reset(old);            // 旧值随 children 作用域销毁（替换语义）
+            } else {
+                tail.reset(raw);            // 类型不符：原样放回
+            }
+        }
     }
 }
 
@@ -396,13 +426,13 @@ void AstNodeHelper::RegCollectHandlers()
             })
         .Reg<CollectFunc>(AstKind::SUBSCRIPT_EXPR,
             [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
+                // ★ 只收**源码子级**（baseExpr ＋ indexExprs）；解糖结果由 `GetChildren()` 的统一尾槽提供。
+                //   原实现是"有解糖就用解糖顶替源码子级"⇒ ①同一棵树里其它 kind 都是源码子级＋尾槽，
+                //   只有它不同（口径不一致）②与 `ReplaceFunc` 不对称（那边固定按 baseExpr, indexExprs
+                //   两个槽位消费，收集却可能只给 1 个元素）
                 auto& expr = Cast<const SubscriptExpr&>(node);
-                if (expr.desugarExpr) {
-                    CollectChildren(expr.desugarExpr, children);
-                } else {
-                    CollectChildren(expr.baseExpr, children);
-                    CollectChildren(expr.indexExprs, children);
-                }
+                CollectChildren(expr.baseExpr, children);
+                CollectChildren(expr.indexExprs, children);
             })
         .Reg<CollectFunc>(AstKind::INC_OR_DEC_EXPR,
             [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
@@ -535,7 +565,6 @@ void AstNodeHelper::RegCollectHandlers()
                 auto& pat = Cast<const TypePattern&>(node);
                 CollectChildren(pat.pattern, children);
                 CollectChildren(pat.type, children);
-                // CollectChildren(pat.desugarExpr, children);
                 // CollectChildren(pat.desugarVarPattern, children);
             })
         .Reg<CollectFunc>(AstKind::VAR_OR_ENUM_PATTERN,

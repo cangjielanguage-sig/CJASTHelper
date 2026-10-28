@@ -13,6 +13,7 @@
 #include <sstream>
 #include <string>
 
+#include "cangjie/AST/AttributePack.h"
 #include "cangjie/AST/Node.h"
 #include "utils/Cast.h"
 #include "wrapper/AstNodeHelper.h"
@@ -285,16 +286,20 @@ Str CondText(const Expr& e)
     }
 }
 
-Str ModText(const AstNode& node)
+Str ModText(const AstNode& node, bool semaStage)
 {
     Str out;
+    // ★ 语义属性（用户口径）：sema 阶段把 `Attribute::COMPILER_ADD`（编译器新增 / 解糖生成）
+    //   一并打到属性位。非声明节点（解糖表达式等）同样会带该属性 ⇒ 不能再靠下面 `IsDecl()`
+    //   早退把它吞掉（那是"属性只在声明行出现"的旧口径）。
+    const bool compilerAdded = semaStage && node.TestAttr(Attribute::COMPILER_ADD);
     // ⚠️ 不能只用 `node.IsDecl()` ✗：`VAR_WITH_PATTERN_DECL`（`var _ = …` ／ `var (a, b) = …`）虽
     //   继承 `VarDeclAbstract <: Decl` ✓，却落在 `IsDecl()` 的 `[DECL, INVALID_DECL]` 区间**之外** ✗
     //   ⇒ 本函数早退 ⇒ 它的 `@When[...]` 被**静默丢掉** ✓（实证 `runtime_trace.cj:131`
     //   `@When[…]` ＋ `var _ = atExit(traceStopByConfig)` ⇒ 金印 `VarDecl // 131:1` 无属性 ✗、
     //   我方有 ✓ ⇒ 判基线漏印 ⇒ 改基线 ✓；规格见 typechecker/docs/baseline-print-spec.md ②b ✓）。
     if (!node.IsDecl() && node.astKind != AstKind::VAR_WITH_PATTERN_DECL) {
-        return out;
+        return compilerAdded ? Str("COMPILER_ADD") : out;
     }
     auto& decl = Cast<const Decl&>(node);
     // ★★ 属性行**归一字段序**（用户口径 ✓ 两侧一致 ✓）：`位置 ⇒ Modifier ⇒ Annotation ⇒ 其它`
@@ -354,6 +359,13 @@ Str ModText(const AstNode& node)
             out += " ";
         }
         out += it.second;
+    }
+    // 语义属性排最后（`位置 ⇒ Modifier ⇒ Annotation ⇒ 语义属性`）
+    if (compilerAdded) {
+        if (!out.empty()) {
+            out += " ";
+        }
+        out += "COMPILER_ADD";
     }
     return out;
 }
@@ -508,7 +520,7 @@ Str AstTreePrintPass::Detail(const AstNode& node, bool topLevel)
         // golden：VarDecl 行不报名（名在模式侧）✓；**但属性/修饰符仍要印** ✓（TC-V3-49 口径 ②b）
         //   ⚠️ 本分支原直接 return ⇒ 走不到下方 `ModText` ⇒ `var _ = …` 上的 `@When[...]` 被静默丢掉 ✗
         //   （实证 runtime_trace.cj:131：金 `VarDecl // 131:1` 无属性 ✗、我方有 ✓ ⇒ 判基线漏印 ⇒ 改基线 ✓）
-        Str mods = ModText(node);
+        Str mods = ModText(node, Config().Sema());
         return " // " + LocText(node) + (mods.empty() ? Str("") : (" " + mods)) + TySuffix(node);
     }
     if (this->IsCtorContext(node)) {
@@ -536,7 +548,7 @@ Str AstTreePrintPass::Detail(const AstNode& node, bool topLevel)
         }
         return out + TySuffix(node);
     }
-    Str mods = ModText(node);
+    Str mods = ModText(node, Config().Sema());
     if (!mods.empty()) {
         out += " " + mods;
     }
@@ -548,6 +560,17 @@ void AstTreePrintPass::WalkChildren(const AstNode& node)
     bool saved = parentIsFile_;
     parentIsFile_ = false;      // 仅 File 的直接子级算"顶层"（留白 5）
     for (auto& child : AstNodeHelper::GetChildren(node)) {
+        // ★ 字符串字面量的 `ref` 是 sema 期**编译器补的脚手架** RefType（`Sema/Collector.cpp`
+        //   `CollectLitConstExpr()`：仅 STRING/JSTRING，带 `Attribute::COMPILER_ADD | IN_CORE`，
+        //   位置与字面量相同）⇒ 打印期隐藏，否则每个字符串字面量都会多出一行与行尾
+        //   `type=std.core.String` 完全重复的 `RefType String`。
+        //   ✗ 不能改收集器去掉它：`Wrapper.cpp` 的 ReplaceFunc 按 `[ref, siExpr]` 两个槽位
+        //     顺序消费 children，收集器少收一个会让 `ReplaceNode` 越界解引用（实测 SIGSEGV，
+        //     `OwnedPtr::operator bool(this=0x0)`）⇒ 只能在打印期过滤。
+        if (node.astKind == AstKind::LIT_CONST_EXPR && child->astKind == AstKind::REF_TYPE &&
+            child->TestAttr(Attribute::COMPILER_ADD)) {
+            continue;
+        }
         Traverse(*child, visitor);
     }
     parentIsFile_ = saved;
@@ -1067,7 +1090,7 @@ void AstTreePrintPass::Visit(const FuncBody& node, VisitResult& res)
     if (node.generic != nullptr) {   // golden：函数泛参/约束排在返回类型之前（`FuncDecl genFirst ⇒ GenericParam T ⇒ GenericConstraint ⇒ RefType Base ⇒ 返回类型 ⇒ 形参`）
         Traverse(*node.generic, visitor);
     }
-    if (node.retType != nullptr) {
+    if (node.retType != nullptr && !node.retType->TestAnyAttr(Attribute::COMPILER_ADD)) {
         Traverse(*node.retType, visitor);
     }
     for (auto& pl : node.paramLists) {
