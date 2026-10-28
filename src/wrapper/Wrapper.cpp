@@ -96,12 +96,24 @@ CompilerInvocation& CangjieFrontendHelper::ParseArgs(ConStrVec& args, ConStrMap<
  */
 Str AstKind2Str(AstKind kind)
 {
-    static UnorderedMap<AstKind, Str> kindsInfo{
+    // 两级来源（同 `AstTreePrintPass::AllKinds`）：① 仓内 `AstInfo.inc` ② SDK `ASTKind.inc` 兜底。
+    // `AstInfo.inc` 因兼作"类型别名清单"只收 95/114 个 kind，缺区间标记与 effect/feature 系列
+    // ⇒ 原来 `kindsInfo.at(kind)` 遇到这些 kind **直接抛 out_of_range**；现改为全量兜底 + 安全回退。
+    static const UnorderedMap<AstKind, Str> kindsInfo = [] {
+        UnorderedMap<AstKind, Str> kinds{
 #define AST_INFO(KIND, STR, DEF) {AstKind::KIND, STR},
 #include "wrapper/AstInfo.inc"
 #undef AST_INFO
-    };
-    return kindsInfo.at(kind);
+        };
+#define ASTKIND(KIND, VALUE, NODE, SIZE) kinds.emplace(AstKind::KIND, VALUE);
+#include "cangjie/AST/ASTKind.inc"
+#undef ASTKIND
+        return kinds;
+    }();
+    if (auto it = kindsInfo.find(kind); it != kindsInfo.end()) {
+        return it->second;
+    }
+    return "unknown";
 }
 
 Vec<Ptr<AstNode>> AstNodeHelper::GetChildren(const AstNode& node)
@@ -127,29 +139,38 @@ Vec<Ptr<AstNode>> AstNodeHelper::GetChildren(const AstNode& node)
 
 void AstNodeHelper::ReplaceChildren(AstNode& node, Vec<OwnedPtr<AstNode>>& children)
 {
+    // ★ 先**剥离** `GetChildren()` 追加的解糖尾槽，再交给各 kind 的 `ReplaceFunc`：
+    //   那张表里有大量 `ReplaceRange(dst, it, children.end())`（`pkg.files`/`params`/`args`/
+    //   `indexExprs`/`body`/`children`…），都会把"到 end 为止"整段吞进自己的容器 ⇒ 尾槽被当成
+    //   最后一个子级搬进这些字段，所有权随即双重释放（实测 `macro.cj --dump-source=sema`：
+    //   `double free or corruption (!prev)` → SIGSEGV）。
+    const bool isExprKind = node.astKind > AstKind::EXPR && node.astKind < AstKind::INVALID_EXPR;
+    OwnedPtr<AstNode> desugarTail;
+    if (isExprKind && !children.empty()) {
+        desugarTail = std::move(children.back());
+        children.pop_back();
+    }
     if (auto fn = AstNodeHelper::GetInstance().handlers.TryGet<ReplaceFunc>(node.astKind)) {
         fn->get()(node, children);
     }
-    // ★ 与 `GetChildren()` 的尾槽**成对**：各 kind 的 `ReplaceFunc` 只消费自己那段（从 `begin()` 顺序），
-    //   末尾追加的 `desugarExpr` 在此回写。不同步处理的话，`ReplaceAstVisitor::DefaultMergeResult`
-    //   （`MutAstVisitor.cpp`）会把尾槽的替换结果塞进 `children` 局部向量却无人取 ⇒ 该节点随作用域
-    //   销毁（丢节点 / 悬垂引用）。
-    if (node.astKind > AstKind::EXPR && node.astKind < AstKind::INVALID_EXPR && !children.empty()) {
-        auto& expr = Cast<Expr&>(node);
-        OwnedPtr<AstNode>& tail = children.back();
-        if (tail != nullptr) {
-            AstNode* raw = tail.release();
-            if (auto* asExpr = dynamic_cast<Expr*>(raw); asExpr != nullptr) {
-                Expr* old = expr.desugarExpr.release();
-                expr.desugarExpr.reset(asExpr);
-                tail.reset(old);            // 旧值随 children 作用域销毁（替换语义）
-            } else {
-                tail.reset(raw);            // 类型不符：原样放回
-            }
-        }
+    if (!isExprKind) {
+        return;
+    }
+    // 尾槽回写：非空表示访问者给 `desugarExpr` 产出了替换值 ⇒ 换进 AST，旧值交还 `children`
+    // （由调用方的局部向量销毁），避免丢节点/悬垂；为空则保持原样（常见路径）。
+    auto& expr = Cast<Expr&>(node);
+    if (desugarTail == nullptr) {
+        return;
+    }
+    AstNode* raw = desugarTail.release();
+    if (auto* asExpr = dynamic_cast<Expr*>(raw); asExpr != nullptr) {
+        Expr* old = expr.desugarExpr.release();
+        expr.desugarExpr.reset(asExpr);
+        children.emplace_back(old);
+    } else {
+        children.emplace_back(raw);
     }
 }
-
 void AstNodeHelper::DumpAst(const AstNode& node, const Str& path)
 {
     std::ofstream file(path);
@@ -593,7 +614,6 @@ void AstNodeHelper::RegCollectHandlers()
             [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& ident = Cast<const VarPattern&>(node);
                 CollectChildren(ident.varDecl, children);
-                // CollectChildren(ident.desugarExpr, children);
             })
         .Reg<CollectFunc>(AstKind::MACRO_EXPAND_DECL,
             [](const AstNode& node, Vec<Ptr<AstNode>>& children) {

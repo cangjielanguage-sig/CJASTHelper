@@ -19,7 +19,8 @@
  *
  * 遍历：复用 `ConstAstVisitor` —— 注册 Before/Visit/After 钩子驱动整棵树；
  * 缩进：复用仓库 `Printer` 的 `Indent()/Unindent()`（步长取配置 indent，默认 4）；
- * 词面：取 `AstInfo.inc` 第三字段（禁自造词表）；类型名取 `TypeKind.inc` 第三字段。
+ * 词面：`AstInfo.inc` 第三字段 ＋ SDK `ASTKind.inc` 类名兜底（禁自造词表；任何 kind 都有词，不再出 `Unknown`）；
+ *       类型名取 `TypeKind.inc` 第三字段。
  *
  * 本 pass 只读遍历，不改动 AST，亦不持有旁路状态。
  */

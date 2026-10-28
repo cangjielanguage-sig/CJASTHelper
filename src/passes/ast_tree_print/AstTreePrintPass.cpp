@@ -19,14 +19,31 @@
 #include "wrapper/AstNodeHelper.h"
 
 namespace {
-/** @brief 全 kind 表：`AstInfo.inc` 第三字段为 golden 词面（第二字段为小写内部名，勿用）。 */
+/**
+ * @brief 全 kind 表（kind → 打印词）。
+ *
+ * 两级来源，禁止自造词：
+ *   ① `wrapper/AstInfo.inc` 第三字段 —— golden 词面（与 SDK 类名同源，个别词可在此覆盖）；
+ *   ② SDK `cangjie/AST/ASTKind.inc` 第三字段（类名）—— **全量兜底**。
+ *      为什么需要②：`AstInfo.inc` 同时被 `TypeAlias.h` 当"类型别名清单"用（`using AST::DEF;`），
+ *      只能列**真实存在且可别名**的节点（95/114）；区间标记（`DECL`/`EXPR`/`TYPE`/`PATTERN` 等）与
+ *      `PERFORM_EXPR`/`RESUME_EXPR`/`IF_AVAILABLE_EXPR`/`DUMMY_BODY`/`FEATURE_*` 共 19 个缺失，
+ *      以前这些节点一律打成 `Unknown`（如 sema 生成的 `ArrayExpr.type`）。
+ *      用 `emplace` 兜底且不覆盖① ⇒ **任何合法 kind 都有词**，`Unknown` 只剩防御性默认值。
+ */
 const UnorderedMap<AstKind, const char*>& AllKinds()
 {
-    static const UnorderedMap<AstKind, const char*> table{
+    static const UnorderedMap<AstKind, const char*> table = [] {
+        UnorderedMap<AstKind, const char*> kinds{
 #define AST_INFO(KIND, STR, DEF) {AstKind::KIND, #DEF},
 #include "wrapper/AstInfo.inc"
 #undef AST_INFO
-    };
+        };
+#define ASTKIND(KIND, VALUE, NODE, SIZE) kinds.emplace(AstKind::KIND, #NODE);
+#include "cangjie/AST/ASTKind.inc"
+#undef ASTKIND
+        return kinds;
+    }();
     return table;
 }
 
