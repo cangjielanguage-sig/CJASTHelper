@@ -538,11 +538,11 @@ Str AstTreePrintPass::Detail(const AstNode& node, bool topLevel)
         //   ⚠️ 本分支原直接 return ⇒ 走不到下方 `ModText` ⇒ `var _ = …` 上的 `@When[...]` 被静默丢掉 ✗
         //   （实证 runtime_trace.cj:131：金 `VarDecl // 131:1` 无属性 ✗、我方有 ✓ ⇒ 判基线漏印 ⇒ 改基线 ✓）
         Str mods = ModText(node, Config().Sema());
-        return " // " + LocText(node) + (mods.empty() ? Str("") : (" " + mods)) + TySuffix(node);
+        return " // " + LocText(node) + (mods.empty() ? Str("") : (" " + mods)) + TySuffix(node) + RefSuffix(node);
     }
     if (this->IsCtorContext(node)) {
         // golden：Constructor 行不出名（只有词面 ＋ 定位）
-        return " // " + LocText(node) + TySuffix(node);
+        return " // " + LocText(node) + TySuffix(node) + RefSuffix(node);
     }
     if (node.astKind == AstKind::FILE) {
         // 根行口径：`Program // <文件名> `（不定位，名后一空格）
@@ -563,13 +563,13 @@ Str AstTreePrintPass::Detail(const AstNode& node, bool topLevel)
         if (sp.modifier != nullptr) {
             out += " " + Tk2Str(sp.modifier->modifier);   // 与其余行同口径：定位与修饰符间留一空格
         }
-        return out + TySuffix(node);
+        return out + TySuffix(node) + RefSuffix(node);
     }
     Str mods = ModText(node, Config().Sema());
     if (!mods.empty()) {
         out += " " + mods;
     }
-    return out + TySuffix(node);
+    return out + TySuffix(node) + RefSuffix(node);
 }
 
 void AstTreePrintPass::WalkChildren(const AstNode& node)
@@ -739,12 +739,87 @@ Str AstTreePrintPass::TyText(const Cangjie::AST::Ty* ty)
     }
 }
 
+/**
+ * @brief 是否**局部声明**（函数体/表达式体内定义）——局部名不进全名（用户口径）。
+ *
+ * 判据：`outerDecl` 链上先遇到函数/契约体 ⇒ 局部；先遇到类/接口/结构/扩展/枚举 ⇒ 成员。
+ * 局部声明没有包级全名（`default::a` 是伪全名），故只显示标识符。
+ */
+bool IsLocalDeclOf(const Decl& decl)
+{
+    for (Ptr<Decl> outer = decl.outerDecl; outer != nullptr; outer = outer->outerDecl) {
+        if (outer->IsNominalDecl()) {
+            return false;   // 成员声明：包名 ＋ 类型限定名
+        }
+        if (outer->astKind == AstKind::FUNC_DECL || outer->astKind == AstKind::FUNC_BODY ||
+            outer->astKind == AstKind::LAMBDA_EXPR || outer->astKind == AstKind::MACRO_DECL) {
+            return true;    // 形参、局部 func/闭包内声明
+        }
+    }
+    // 链到头（`outerDecl == nullptr`）时靠语义属性区分（实测：
+    //   包级 `func println`/`let gv` ⇒ `Attribute::GLOBAL` ✓；
+    //   函数体内的 `let a`／模式变量 ⇒ 无 GLOBAL、非成员 ✗ ⇒ 局部）
+    return !decl.IsNominalDecl() && !decl.IsMemberDecl() && !decl.TestAttr(Attribute::GLOBAL);
+}
+
+/**
+ * @brief 绑定目标的显示名（用户口径：统一 `ref=<fullname>`，局部定义不出全名）。
+ *
+ * 全名 = `<fullPackageName>::<外层声明标识符.…>.<标识符>`；局部声明只给标识符。
+ * 只给名字，暂不带声明 kind/位置（后续按需补）。
+ */
+Str RefTargetName(const Decl& decl)
+{
+    Str name = decl.identifier.Val();
+    if (name.empty() || IsLocalDeclOf(decl)) {
+        return name;
+    }
+    Str qualified = name;
+    for (Ptr<Decl> outer = decl.outerDecl; outer != nullptr; outer = outer->outerDecl) {
+        Str id = outer->identifier.Val();
+        if (!id.empty()) {
+            qualified = id + "." + qualified;
+        }
+    }
+    return decl.fullPackageName.empty() ? qualified : (decl.fullPackageName + "::" + qualified);
+}
+
 Str AstTreePrintPass::TySuffix(const AstNode& node)
 {
     // ★ 结构化 AST ＋ 语义类型一次成型（含解糖节点 ✓）：`type=<用户面名字>`
     //   parse 阶段 `ty` 是 `Ty::GetInitialTy()`（无效）⇒ 不出后缀 ✓（既有 golden 不受影响）
     Str t = TyText(node.GetTy());
     return t.empty() ? Str("") : (" type=" + t);
+}
+
+Str AstTreePrintPass::RefSuffix(const AstNode& node)
+{
+    // ★ 引用的**绑定结果**（用户口径：统一 `ref=<fullname>`）：只打名字，不带声明 kind/位置。
+    //   仅在语义阶段有效：parse 阶段这些字段都还没填 ⇒ 天然不出 ✓。
+    //   覆盖面：`RefExpr.ref.target`／`MemberAccess.target`／`CallExpr.resolvedFunction`。
+    //   重载集合（`ref.targets` / `MemberAccess.targets`）没有唯一目标 ⇒ 暂不打（后续按需补）。
+    if (!Config().Sema()) {
+        return Str("");
+    }
+    Ptr<const Decl> target = nullptr;
+    switch (node.astKind) {
+        case AstKind::REF_EXPR:
+            target = Cast<const RefExpr&>(node).ref.target;
+            break;
+        case AstKind::MEMBER_ACCESS:
+            target = Cast<const MemberAccess&>(node).target;
+            break;
+        case AstKind::CALL_EXPR:
+            target = Cast<const CallExpr&>(node).resolvedFunction;
+            break;
+        default:
+            break;
+    }
+    if (target == nullptr) {
+        return Str("");
+    }
+    Str name = RefTargetName(*target);
+    return name.empty() ? Str("") : (" ref=" + name);
 }
 
 void AstTreePrintPass::AppendMemberTypeArgs(const AstNode& node)

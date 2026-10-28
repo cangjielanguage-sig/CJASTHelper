@@ -91,6 +91,8 @@ protected:
      * 目的：让**结构化 AST ＋ 语义类型**一次成型（含解糖节点），作为对齐基线 ✓
      */
     Str TySuffix(const AstNode& node);
+    /** @brief 绑定结果后缀 `ref=<fullname>`（语义阶段；局部声明只给标识符）。 */
+    Str RefSuffix(const AstNode& node);
     /**
      * @brief 语义类型渲染成**用户面名字**（`std.core.String` / `Array<UInt8>` / `(A)->B` / `T`）
      *
