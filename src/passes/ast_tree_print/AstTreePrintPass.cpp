@@ -796,7 +796,8 @@ Str AstTreePrintPass::RefSuffix(const AstNode& node)
 {
     // ★ 引用的**绑定结果**（用户口径：统一 `ref=<fullname>`）：只打名字，不带声明 kind/位置。
     //   仅在语义阶段有效：parse 阶段这些字段都还没填 ⇒ 天然不出 ✓。
-    //   覆盖面：`RefExpr.ref.target`／`MemberAccess.target`／`CallExpr.resolvedFunction`。
+    //   覆盖面：`RefExpr.ref.target`／`MemberAccess.target`／`CallExpr.resolvedFunction`，
+    //   以及**类型节点**里的绑定目标：`RefType.ref.target`／`QualifiedType.target`。
     //   重载集合（`ref.targets` / `MemberAccess.targets`）没有唯一目标 ⇒ 暂不打（后续按需补）。
     if (!Config().Sema()) {
         return Str("");
@@ -811,6 +812,12 @@ Str AstTreePrintPass::RefSuffix(const AstNode& node)
             break;
         case AstKind::CALL_EXPR:
             target = Cast<const CallExpr&>(node).resolvedFunction;
+            break;
+        case AstKind::REF_TYPE:
+            target = Cast<const RefType&>(node).ref.target;
+            break;
+        case AstKind::QUALIFIED_TYPE:
+            target = Cast<const QualifiedType&>(node).target;
             break;
         default:
             break;
