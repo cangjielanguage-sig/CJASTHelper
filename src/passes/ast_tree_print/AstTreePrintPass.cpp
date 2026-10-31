@@ -857,6 +857,17 @@ Str AstTreePrintPass::RefSuffix(const AstNode& node)
         case AstKind::QUALIFIED_TYPE:
             target = Cast<const QualifiedType&>(node).target;
             break;
+        case AstKind::BINARY_EXPR:
+            // ★ 二元运算解糖：`a != b` 在非原生型上解糖为 `CallExpr(operator!=)`；
+            //   语法节点 BinaryExpr 本身**没有** ref ⇒ 从解糖 CallExpr 的
+            //   `resolvedFunction` 上取，语义回落到语法节点（与下标同一口径）。
+            for (auto& ch : AstNodeHelper::GetChildren(node)) {
+                if (ch->astKind == AstKind::CALL_EXPR) {
+                    target = Cast<const CallExpr&>(*ch).resolvedFunction;
+                    break;
+                }
+            }
+            break;
         case AstKind::SUBSCRIPT_EXPR:
             // ★ 下标解糖的绑定目标取解糖 `CallExpr ▸ MemberAccess []` 的 target
             //   （读写两个方向都指向 `[]` 运算符符号；区分靠 TySuffix 的实参个数）
