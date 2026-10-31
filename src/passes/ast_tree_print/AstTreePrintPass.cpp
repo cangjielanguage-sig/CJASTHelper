@@ -12,6 +12,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <functional>
 
 #include "cangjie/AST/AttributePack.h"
 #include "cangjie/AST/Node.h"
@@ -919,7 +920,66 @@ Str AstTreePrintPass::TySuffix(const AstNode& node)
     // ★ 结构化 AST ＋ 语义类型一次成型（含解糖节点 ✓）：`type=<用户面名字>`
     //   parse 阶段 `ty` 是 `Ty::GetInitialTy()`（无效）⇒ 不出后缀 ✓（既有 golden 不受影响）
     Str t = TyText(node.GetTy());
-    return t.empty() ? Str("") : (" type=" + t);
+    if (!t.empty()) {
+        return " type=" + t;
+    }
+    // ★ 语法节点被解糖**替换**而自身没留型：同 kind 的 `COMPILER_ADD` 兄弟节点带着型
+    //   （如隐式转换的实参：`f(r)` ⇒ 合成 `FuncArg` 包 `ArrayLit`）⇒ 取兄弟的型回填。
+    //   只认同 kind 兄弟，避免把别的节点型挂错。
+    for (auto& ch : AstNodeHelper::GetChildren(node)) {
+        if (ch->astKind != node.astKind || !ch->TestAttr(Attribute::COMPILER_ADD)) {
+            continue;
+        }
+        Str ct = TyText(ch->GetTy());
+        if (!ct.empty()) {
+            return " type=" + ct;
+        }
+    }
+    //   解糖常把**实参整体重写**：语法 `FuncArg` 留空，同位置的 `FuncArg` 落在被改写的
+    //   `CallExpr(COMPILER_ADD)` 之下 ⇒ 到这些合成兄弟的子树里按「同 kind ＋ 同起点」找。
+    if (parent_ != nullptr) {
+        std::function<Str(const AstNode&, int)> dig = [&](const AstNode& sub, int depth) -> Str {
+            if (depth > 3) {
+                return Str("");
+            }
+            for (auto& ch : AstNodeHelper::GetChildren(sub)) {
+                // 实参被搬进 `ArrayLit` 时同位置的是**别的 kind**（`FuncArg` ↔ `CallExpr`）
+                // ⇒ 实参节点按位置认领即可（实参的型就是表达式型）。
+                bool sameKind = ch->astKind == node.astKind;
+                bool argPick = node.astKind == AstKind::FUNC_ARG;
+                if ((sameKind || argPick) && ch->begin == node.begin) {
+                    Str ct = TyText(ch->GetTy());
+                    if (!ct.empty()) {
+                        return ct;
+                    }
+                }
+                Str got = dig(*ch, depth + 1);
+                if (!got.empty()) {
+                    return got;
+                }
+            }
+            return Str("");
+        };
+        for (auto& sib : AstNodeHelper::GetChildren(*parent_)) {
+            if (sib.get() == &node || !sib->TestAttr(Attribute::COMPILER_ADD)) {
+                continue;
+            }
+            Str st = dig(*sib, 0);
+            if (!st.empty()) {
+                return " type=" + st;
+            }
+        }
+    }
+    // ★ 实参节点本身不持型：型在实参表达式上（`f(abs(x), 2)` 的 `abs(x)`）
+    if (node.astKind == AstKind::FUNC_ARG) {
+        for (auto& ch : AstNodeHelper::GetChildren(node)) {
+            Str ct = TyText(ch->GetTy());
+            if (!ct.empty()) {
+                return " type=" + ct;
+            }
+        }
+    }
+    return Str("");
 }
 
 Str AstTreePrintPass::RefSuffix(const AstNode& node)
