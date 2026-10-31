@@ -572,10 +572,25 @@ Str AstTreePrintPass::Detail(const AstNode& node, bool topLevel)
     return out + TySuffix(node) + RefSuffix(node);
 }
 
+Str ExtendHostName(const Cangjie::AST::ExtendDecl& ext);   // 定义在后（RefTargetName 附近）
+
 void AstTreePrintPass::WalkChildren(const AstNode& node)
 {
     bool saved = parentIsFile_;
     Ptr<const AstNode> savedParent = parent_;
+    Str savedHost = enclosingHost_;
+    if (node.astKind == AstKind::CLASS_DECL || node.astKind == AstKind::STRUCT_DECL ||
+        node.astKind == AstKind::ENUM_DECL || node.astKind == AstKind::INTERFACE_DECL) {
+        Str n = NameText(node);
+        if (!n.empty()) {
+            enclosingHost_ = n;
+        }
+    } else if (node.astKind == AstKind::EXTEND_DECL) {
+        Str h = ExtendHostName(Cast<const ExtendDecl&>(node));
+        if (!h.empty()) {
+            enclosingHost_ = h;
+        }
+    }
     parentIsFile_ = false;      // 仅 File 的直接子级算"顶层"（留白 5）
     for (auto& child : AstNodeHelper::GetChildren(node)) {
         // ★ 字符串字面量的 `ref` 是 sema 期**编译器补的脚手架** RefType（`Sema/Collector.cpp`
@@ -593,6 +608,7 @@ void AstTreePrintPass::WalkChildren(const AstNode& node)
         Traverse(*child, visitor);
     }
     parent_ = savedParent;
+    enclosingHost_ = savedHost;
     parentIsFile_ = saved;
 }
 
@@ -778,16 +794,10 @@ bool IsLocalDeclOf(const Decl& decl)
  * 成员名会退化成 `包名::成员名`（`std.core::size`），把 `Array.size`/`String.size`/
  * `StringBuilder.size` 全塌成同一个字符串。此处补上宿主类型段。
  */
-Str ExtendHostName(const ExtendDecl& ext)
+/** 名义类型的声明名（类/接口/结构/枚举），取不到返回空串。 */
+Str NominalTyName(const Ty* ty)
 {
     using namespace Cangjie::AST;
-    auto nodeOwned = ext.extendedType.get();        // AST 侧的 Type 语法节点
-    const Type* typeNode = nodeOwned.get();
-    if (typeNode == nullptr) {
-        return Str("");
-    }
-    Ptr<Ty> tyPtr = typeNode->GetTy();               // 语义侧的 Ty
-    const Ty* ty = tyPtr.get();
     if (ty == nullptr) {
         return Str("");
     }
@@ -811,13 +821,38 @@ Str ExtendHostName(const ExtendDecl& ext)
     return host == nullptr ? Str("") : Str(host->identifier);
 }
 
-Str RefTargetName(const Decl& decl)
+/** `extend` 块的宿主类型名（`extend<T> Array<T>` ⇒ `Array`）。 */
+Str ExtendHostName(const ExtendDecl& ext)
+{
+    auto nodeOwned = ext.extendedType.get();
+    const Type* typeNode = nodeOwned.get();
+    return typeNode == nullptr ? Str("") : NominalTyName(typeNode->GetTy().get());
+}
+
+/** 成员访问的接收者静态类型名（`x.attr` ⇒ `x` 的类型名）。
+ *
+ *  函数型 extend 成员常常拿不到 ExtendDecl（`outerDecl` 缺失或宿主类型节点无 Ty），
+ *  只能从使用点反推宿主；否则名字退化为 `包::成员`，`Array/Thread.toString` 会混为一谈。
+ */
+Str ReceiverHostName(const AstNode& memberNode)
+{
+    for (auto& ch : AstNodeHelper::GetChildren(memberNode)) {
+        Str n = NominalTyName(ch->GetTy().get());
+        if (!n.empty()) {
+            return n;
+        }
+    }
+    return Str("");
+}
+
+Str RefTargetName(const Decl& decl, const Str& hostHint)
 {
     Str name = decl.identifier.Val();
     if (name.empty() || IsLocalDeclOf(decl)) {
         return name;
     }
     Str qualified = name;
+    bool hasHost = false;
     for (Ptr<Decl> outer = decl.outerDecl; outer != nullptr; outer = outer->outerDecl) {
         Str id = outer->identifier.Val();
         if (id.empty() && outer->astKind == AstKind::EXTEND_DECL) {
@@ -825,7 +860,12 @@ Str RefTargetName(const Decl& decl)
         }
         if (!id.empty()) {
             qualified = id + "." + qualified;
+            hasHost = true;
         }
+    }
+    // 链上取不到宿主（函数型 extend 成员）⇒ 用使用点的接收者类型补一段
+    if (!hasHost && !hostHint.empty() && decl.TestAttr(Cangjie::AST::Attribute::IN_EXTEND)) {
+        qualified = hostHint + "." + qualified;
     }
     return decl.fullPackageName.empty() ? qualified : (decl.fullPackageName + "::" + qualified);
 }
@@ -964,7 +1004,23 @@ Str AstTreePrintPass::RefSuffix(const AstNode& node)
     if (target == nullptr) {
         return Str("");
     }
-    Str name = RefTargetName(*target);
+    // 宿主提示：成员访问取接收者类型；调用取被调 MemberAccess 的接收者类型
+    Str hostHint;
+    if (node.astKind == AstKind::MEMBER_ACCESS) {
+        hostHint = ReceiverHostName(node);
+    } else if (node.astKind == AstKind::CALL_EXPR) {
+        for (auto& ch : AstNodeHelper::GetChildren(node)) {
+            if (ch->astKind == AstKind::MEMBER_ACCESS) {
+                hostHint = ReceiverHostName(*ch);
+                break;
+            }
+        }
+    }
+    if (hostHint.empty()) {
+        // 隐式 self 调用（`toString()` 直接调，callee 是 RefExpr）⇒ 用所在类/extend 宿主
+        hostHint = enclosingHost_;
+    }
+    Str name = RefTargetName(*target, hostHint);
     return name.empty() ? Str("") : (" ref=" + name);
 }
 

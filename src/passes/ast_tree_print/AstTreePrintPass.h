@@ -185,6 +185,7 @@ private:
 
     bool inEnumBody_ = false;     /**< 是否处于枚举体直接子级（ctor 语境） */
     bool inNestedImport_ = false; /**< 是否处于 ImportSpec 子级（嵌套导入条目） */
-    Ptr<const AstNode> parent_ = nullptr;   /**< 父节点（写场景下标：解糖 CallExpr 是 SubscriptExpr 的**兄弟**） */
+    Ptr<const AstNode> parent_ = nullptr;
+    Str enclosingHost_;          /**< 当前所在的类/结构/枚举/接口（或 extend 宿主）名，供隐式 self 调用的 ref 补宿主 */   /**< 父节点（写场景下标：解糖 CallExpr 是 SubscriptExpr 的**兄弟**） */
     bool parentIsFile_ = false;   /**< 当前节点之父是否为 File（顶层留白判定，仅一层） */
 };
