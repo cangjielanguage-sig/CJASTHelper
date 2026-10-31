@@ -857,6 +857,23 @@ Str AstTreePrintPass::RefSuffix(const AstNode& node)
         case AstKind::QUALIFIED_TYPE:
             target = Cast<const QualifiedType&>(node).target;
             break;
+        case AstKind::ASSIGN_EXPR: {
+            // ★ 复合赋值解糖：外层（语法）AssignExpr ▸ 内层（COMPILER_ADD）AssignExpr ▸ 运算符 CallExpr。
+            //   语法节点本身没有 ref ⇒ 从**内层**的解糖 AssignExpr 里取运算符 CallExpr 的
+            //   resolvedFunction（下标写 `a[i] = v` 的 CallExpr 是兄弟节点，绑定归 SubscriptExpr）。
+            for (auto& ch : AstNodeHelper::GetChildren(node)) {
+                if (ch->astKind != AstKind::ASSIGN_EXPR || !ch->TestAttr(Attribute::COMPILER_ADD)) {
+                    continue;
+                }
+                for (auto& c2 : AstNodeHelper::GetChildren(*ch)) {
+                    if (c2->astKind == AstKind::CALL_EXPR) {
+                        target = Cast<const CallExpr&>(*c2).resolvedFunction;
+                        break;
+                    }
+                }
+            }
+            break;
+        }
         case AstKind::BINARY_EXPR:
             // ★ 二元运算解糖：`a != b` 在非原生型上解糖为 `CallExpr(operator!=)`；
             //   语法节点 BinaryExpr 本身**没有** ref ⇒ 从解糖 CallExpr 的
