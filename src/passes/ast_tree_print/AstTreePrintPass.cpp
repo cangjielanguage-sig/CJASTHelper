@@ -575,6 +575,7 @@ Str AstTreePrintPass::Detail(const AstNode& node, bool topLevel)
 void AstTreePrintPass::WalkChildren(const AstNode& node)
 {
     bool saved = parentIsFile_;
+    Ptr<const AstNode> savedParent = parent_;
     parentIsFile_ = false;      // 仅 File 的直接子级算"顶层"（留白 5）
     for (auto& child : AstNodeHelper::GetChildren(node)) {
         // ★ 字符串字面量的 `ref` 是 sema 期**编译器补的脚手架** RefType（`Sema/Collector.cpp`
@@ -588,8 +589,10 @@ void AstTreePrintPass::WalkChildren(const AstNode& node)
             child->TestAttr(Attribute::COMPILER_ADD)) {
             continue;
         }
+        parent_ = &node;
         Traverse(*child, visitor);
     }
+    parent_ = savedParent;
     parentIsFile_ = saved;
 }
 
@@ -786,6 +789,41 @@ Str RefTargetName(const Decl& decl)
 
 Str AstTreePrintPass::TySuffix(const AstNode& node)
 {
+    // ★ 下标解糖的语义落在**语法节点**上（用户口径：解糖节点可选打印，语义比对不计数）：
+    //   `a[i]` 的唯一子节点是解糖 CallExpr ⇒ 按其 `FuncArg` 个数定读写：
+    //     · 1 个实参 ⇒ getter，给**元素型**（基线与解糖前语法一致）
+    //     · ≥2 个实参 ⇒ setter，`a[i]` 在左值位**不产生值** ⇒ 不给型（Unit 由 AssignExpr 承担）
+    if (node.astKind == AstKind::SUBSCRIPT_EXPR) {
+        Ptr<const AstNode> call = nullptr;
+        for (auto& ch : AstNodeHelper::GetChildren(node)) {
+            if (ch->astKind == AstKind::CALL_EXPR) {
+                call = ch;
+            }
+        }
+        if (call == nullptr) {
+            // 无子 CallExpr：写场景（CallExpr 为 AssignExpr 下的兄弟）⇒ 不给型；
+            // 其余（如元组下标 `pos[0]`，`[]` 不在子节点链上）⇒ 回退到本节点自身的 ty
+            bool isWrite = false;
+            if (AstNodeHelper::GetChildren(node).empty() && parent_ != nullptr) {
+                for (auto& sib : AstNodeHelper::GetChildren(*parent_)) {
+                    if (sib->astKind == AstKind::CALL_EXPR && sib->TestAttr(Attribute::COMPILER_ADD)) {
+                        isWrite = true;
+                    }
+                }
+            }
+            if (isWrite) {
+                return Str("");
+            }
+            Str own = TyText(node.GetTy());
+            return own.empty() ? Str("") : (" type=" + own);
+        }
+        // ⚠️ 不能用「实参个数」判读写：元组下标 `pos[0]` 的 `[]` 是 2 实参的**读取**
+        //    （`(Int64, Bool)->T`，第二参为 hasValue）⇒ 会误判成 setter 而丢型。
+        //    正确判据：**CallExpr 在 SubscriptExpr 之下 ⇒ 读**（给 CallExpr 的 ty）；
+        //    写场景 CallExpr 是 SubscriptExpr 的兄弟（SubscriptExpr 自身无子节点）⇒ 不给型。
+        Str sub = TyText(call->GetTy());
+        return sub.empty() ? Str("") : (" type=" + sub);
+    }
     // ★ 结构化 AST ＋ 语义类型一次成型（含解糖节点 ✓）：`type=<用户面名字>`
     //   parse 阶段 `ty` 是 `Ty::GetInitialTy()`（无效）⇒ 不出后缀 ✓（既有 golden 不受影响）
     Str t = TyText(node.GetTy());
@@ -818,6 +856,36 @@ Str AstTreePrintPass::RefSuffix(const AstNode& node)
             break;
         case AstKind::QUALIFIED_TYPE:
             target = Cast<const QualifiedType&>(node).target;
+            break;
+        case AstKind::SUBSCRIPT_EXPR:
+            // ★ 下标解糖的绑定目标取解糖 `CallExpr ▸ MemberAccess []` 的 target
+            //   （读写两个方向都指向 `[]` 运算符符号；区分靠 TySuffix 的实参个数）
+            //   ⚠️ **写场景**（`a[i] = v`）解糖后的 CallExpr 是 SubscriptExpr 的**兄弟**节点
+            //      （同在 AssignExpr 下，SubscriptExpr 自身为空）⇒ 需回看父节点找兄弟 ✓
+            if (AstNodeHelper::GetChildren(node).empty() && parent_ != nullptr) {
+                for (auto& sib : AstNodeHelper::GetChildren(*parent_)) {
+                    if (sib->astKind != AstKind::CALL_EXPR) {
+                        continue;
+                    }
+                    for (auto& sc : AstNodeHelper::GetChildren(*sib)) {
+                        if (sc->astKind == AstKind::MEMBER_ACCESS) {
+                            target = Cast<const MemberAccess&>(*sc).target;
+                            break;
+                        }
+                    }
+                }
+            }
+            for (auto& c1 : AstNodeHelper::GetChildren(node)) {
+                if (c1->astKind != AstKind::CALL_EXPR) {
+                    continue;
+                }
+                for (auto& c2 : AstNodeHelper::GetChildren(*c1)) {
+                    if (c2->astKind == AstKind::MEMBER_ACCESS) {
+                        target = Cast<const MemberAccess&>(*c2).target;
+                        break;
+                    }
+                }
+            }
             break;
         default:
             break;
