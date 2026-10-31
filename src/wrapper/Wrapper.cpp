@@ -96,12 +96,24 @@ CompilerInvocation& CangjieFrontendHelper::ParseArgs(ConStrVec& args, ConStrMap<
  */
 Str AstKind2Str(AstKind kind)
 {
-    static UnorderedMap<AstKind, Str> kindsInfo{
+    // 两级来源（同 `AstTreePrintPass::AllKinds`）：① 仓内 `AstInfo.inc` ② SDK `ASTKind.inc` 兜底。
+    // `AstInfo.inc` 因兼作"类型别名清单"只收 95/114 个 kind，缺区间标记与 effect/feature 系列
+    // ⇒ 原来 `kindsInfo.at(kind)` 遇到这些 kind **直接抛 out_of_range**；现改为全量兜底 + 安全回退。
+    static const UnorderedMap<AstKind, Str> kindsInfo = [] {
+        UnorderedMap<AstKind, Str> kinds{
 #define AST_INFO(KIND, STR, DEF) {AstKind::KIND, STR},
 #include "wrapper/AstInfo.inc"
 #undef AST_INFO
-    };
-    return kindsInfo.at(kind);
+        };
+#define ASTKIND(KIND, VALUE, NODE, SIZE) kinds.emplace(AstKind::KIND, VALUE);
+#include "cangjie/AST/ASTKind.inc"
+#undef ASTKIND
+        return kinds;
+    }();
+    if (auto it = kindsInfo.find(kind); it != kindsInfo.end()) {
+        return it->second;
+    }
+    return "unknown";
 }
 
 Vec<Ptr<AstNode>> AstNodeHelper::GetChildren(const AstNode& node)
@@ -110,16 +122,55 @@ Vec<Ptr<AstNode>> AstNodeHelper::GetChildren(const AstNode& node)
     if (auto fn = AstNodeHelper::GetInstance().handlers.TryGet<CollectFunc>(node.astKind)) {
         fn->get()(node, result);
     }
+    // ★ 解糖节点（统一在此收集，下游 pass 不必各自补）：任意 `Expr` 的 `desugarExpr` 作为**尾槽**追加。
+    //   依据：`desugarExpr` 挂在基类 `Expr`（`Node.h:1765`），且集合表是**按具体 kind 精确注册**的
+    //   （`TryGet` 无继承回退）⇒ 逐 kind 补要动 38 对 Collect/Replace；改为通用尾槽只改这两处。
+    //   唯一性：各 kind 的收集器**只收源码子级**、一律不收 `desugarExpr`（`SUBSCRIPT_EXPR` 原来的
+    //   "有解糖就顶替源码子级"已归一）⇒ 解糖节点由此处唯一提供，不会重复，无需去重。
+    //   槽位：尾槽在最后，与各 kind 的 `ReplaceFunc`（从 `begin()` 顺序消费）不冲突。
+    if (node.astKind > AstKind::EXPR && node.astKind < AstKind::INVALID_EXPR) {
+        auto& desugar = Cast<const Expr&>(node).desugarExpr;
+        if (desugar != nullptr) {
+            result.push_back(desugar);   // OwnedPtr → Ptr（同 CollectChildren 体内写法）
+        }
+    }
     return result;
 }
 
 void AstNodeHelper::ReplaceChildren(AstNode& node, Vec<OwnedPtr<AstNode>>& children)
 {
+    // ★ 先**剥离** `GetChildren()` 追加的解糖尾槽，再交给各 kind 的 `ReplaceFunc`：
+    //   那张表里有大量 `ReplaceRange(dst, it, children.end())`（`pkg.files`/`params`/`args`/
+    //   `indexExprs`/`body`/`children`…），都会把"到 end 为止"整段吞进自己的容器 ⇒ 尾槽被当成
+    //   最后一个子级搬进这些字段，所有权随即双重释放（实测 `macro.cj --dump-source=sema`：
+    //   `double free or corruption (!prev)` → SIGSEGV）。
+    const bool isExprKind = node.astKind > AstKind::EXPR && node.astKind < AstKind::INVALID_EXPR;
+    OwnedPtr<AstNode> desugarTail;
+    if (isExprKind && !children.empty()) {
+        desugarTail = std::move(children.back());
+        children.pop_back();
+    }
     if (auto fn = AstNodeHelper::GetInstance().handlers.TryGet<ReplaceFunc>(node.astKind)) {
         fn->get()(node, children);
     }
+    if (!isExprKind) {
+        return;
+    }
+    // 尾槽回写：非空表示访问者给 `desugarExpr` 产出了替换值 ⇒ 换进 AST，旧值交还 `children`
+    // （由调用方的局部向量销毁），避免丢节点/悬垂；为空则保持原样（常见路径）。
+    auto& expr = Cast<Expr&>(node);
+    if (desugarTail == nullptr) {
+        return;
+    }
+    AstNode* raw = desugarTail.release();
+    if (auto* asExpr = dynamic_cast<Expr*>(raw); asExpr != nullptr) {
+        Expr* old = expr.desugarExpr.release();
+        expr.desugarExpr.reset(asExpr);
+        children.emplace_back(old);
+    } else {
+        children.emplace_back(raw);
+    }
 }
-
 void AstNodeHelper::DumpAst(const AstNode& node, const Str& path)
 {
     std::ofstream file(path);
@@ -396,13 +447,13 @@ void AstNodeHelper::RegCollectHandlers()
             })
         .Reg<CollectFunc>(AstKind::SUBSCRIPT_EXPR,
             [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
+                // ★ 只收**源码子级**（baseExpr ＋ indexExprs）；解糖结果由 `GetChildren()` 的统一尾槽提供。
+                //   原实现是"有解糖就用解糖顶替源码子级"⇒ ①同一棵树里其它 kind 都是源码子级＋尾槽，
+                //   只有它不同（口径不一致）②与 `ReplaceFunc` 不对称（那边固定按 baseExpr, indexExprs
+                //   两个槽位消费，收集却可能只给 1 个元素）
                 auto& expr = Cast<const SubscriptExpr&>(node);
-                if (expr.desugarExpr) {
-                    CollectChildren(expr.desugarExpr, children);
-                } else {
-                    CollectChildren(expr.baseExpr, children);
-                    CollectChildren(expr.indexExprs, children);
-                }
+                CollectChildren(expr.baseExpr, children);
+                CollectChildren(expr.indexExprs, children);
             })
         .Reg<CollectFunc>(AstKind::INC_OR_DEC_EXPR,
             [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
@@ -535,7 +586,6 @@ void AstNodeHelper::RegCollectHandlers()
                 auto& pat = Cast<const TypePattern&>(node);
                 CollectChildren(pat.pattern, children);
                 CollectChildren(pat.type, children);
-                // CollectChildren(pat.desugarExpr, children);
                 // CollectChildren(pat.desugarVarPattern, children);
             })
         .Reg<CollectFunc>(AstKind::VAR_OR_ENUM_PATTERN,
@@ -564,7 +614,6 @@ void AstNodeHelper::RegCollectHandlers()
             [](const AstNode& node, Vec<Ptr<AstNode>>& children) {
                 auto& ident = Cast<const VarPattern&>(node);
                 CollectChildren(ident.varDecl, children);
-                // CollectChildren(ident.desugarExpr, children);
             })
         .Reg<CollectFunc>(AstKind::MACRO_EXPAND_DECL,
             [](const AstNode& node, Vec<Ptr<AstNode>>& children) {

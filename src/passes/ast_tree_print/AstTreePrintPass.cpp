@@ -12,69 +12,90 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <functional>
 
+#include "cangjie/AST/AttributePack.h"
 #include "cangjie/AST/Node.h"
 #include "utils/Cast.h"
 #include "wrapper/AstNodeHelper.h"
 
 namespace {
-/** @brief 全 kind 表：`AstInfo.inc` 第三字段为 golden 词面（第二字段为小写内部名，勿用）。 */
+/**
+ * @brief 全 kind 表（kind → 打印词）。
+ *
+ * 两级来源，禁止自造词：
+ *   ① `wrapper/AstInfo.inc` 第三字段 —— golden 词面（与 SDK 类名同源，个别词可在此覆盖）；
+ *   ② SDK `cangjie/AST/ASTKind.inc` 第三字段（类名）—— **全量兜底**。
+ *      为什么需要②：`AstInfo.inc` 同时被 `TypeAlias.h` 当"类型别名清单"用（`using AST::DEF;`），
+ *      只能列**真实存在且可别名**的节点（95/114）；区间标记（`DECL`/`EXPR`/`TYPE`/`PATTERN` 等）与
+ *      `PERFORM_EXPR`/`RESUME_EXPR`/`IF_AVAILABLE_EXPR`/`DUMMY_BODY`/`FEATURE_*` 共 19 个缺失，
+ *      以前这些节点一律打成 `Unknown`（如 sema 生成的 `ArrayExpr.type`）。
+ *      用 `emplace` 兜底且不覆盖① ⇒ **任何合法 kind 都有词**，`Unknown` 只剩防御性默认值。
+ */
 const UnorderedMap<AstKind, const char*>& AllKinds()
 {
-    static const UnorderedMap<AstKind, const char*> table{
+    static const UnorderedMap<AstKind, const char*> table = [] {
+        UnorderedMap<AstKind, const char*> kinds{
 #define AST_INFO(KIND, STR, DEF) {AstKind::KIND, #DEF},
 #include "wrapper/AstInfo.inc"
 #undef AST_INFO
-    };
+        };
+#define ASTKIND(KIND, VALUE, NODE, SIZE) kinds.emplace(AstKind::KIND, #NODE);
+#include "cangjie/AST/ASTKind.inc"
+#undef ASTKIND
+        return kinds;
+    }();
     return table;
 }
 
 /** @brief kind → 打印词（golden 词面例外集中于此）。 */
 const char* KindWord(AstKind kind)
 {
-    switch (kind) {
-        case AstKind::FILE:
-            return "Program";
-        case AstKind::PACKAGE_SPEC:
-            return "PackageHeader";
-        case AstKind::FUNC_ARG:
-            return "Argument";       // golden 词面
-        case AstKind::IMPORT_SPEC:
-            return "ImportList";     // golden 词面
-        case AstKind::TUPLE_LIT:
-            return "TupleLiteral";   // golden 词面
-        case AstKind::VAR_WITH_PATTERN_DECL:
-            return "VarDecl";        // golden 词面（golden 不报名，见 Detail）
-        case AstKind::CONSTANT_TYPE:
-            return "ConstantType";   // 见透明集：golden 不出此行
-        case AstKind::ARRAY_EXPR:
-            return "ArrayLiteral";   // 值数组型由 WordOf 细分（isValueArray ⇒ VArrayExpr）
-        case AstKind::OPTION_TYPE:
-            return "PrefixType";     // golden 词面（`PrefixType ?`）
-        case AstKind::LET_PATTERN_DESTRUCTOR:
-            return "LetPatternExpr"; // golden 词面
-        case AstKind::ARRAY_LIT:
-            return "ArrayLiteral";   // golden 词面
-        case AstKind::GENERIC_PARAM_DECL:
-            return "GenericParam";   // golden 词面（★ 一参一行 ⇒ 词挂**参数节点** ✓ 用户口径 ✓）
-        default:
-            break;
-    }
     auto& table = AllKinds();
     auto it = table.find(kind);
     return it == table.end() ? "Unknown" : it->second;
 }
 
 /** @brief 控制符转义（golden 用字面 \t/\n/\r 写法） */
+/** @brief 单字节控制字符 → `\u{X}`（统一口径：除 \t/\n/\r 三个惯用写法外，其余控制字符一律转义）。 */
+Str ControlCharEscape(unsigned char c)
+{
+    static const char* kHex = "0123456789ABCDEF";
+    Str out = "\\u{";
+    if (c >= 0x10) {
+        out += kHex[(c >> 4) & 0xF];
+    }
+    out += kHex[c & 0xF];
+    out += "}";
+    return out;
+}
+
+/**
+ * @brief 文本转义：把不可见字符转成可读形式，避免树文件被写成二进制。
+ *
+ * 口径（2026-10-27 统一）：
+ *   - `\t` / `\n` / `\r` → 惯用转义（与源码写法一致，保持既有基线不变）；
+ *   - 其余控制字符（`0x00`–`0x1F`、`0x7F`）→ `\u{X}`（大写十六进制、最短位数）——
+ *     原实现只处理三个惯用转义，`r'\0'` 之类会**原样写出 NUL 字节** ⇒
+ *     `<pkg>.tree` 变成二进制文件（`grep` 报 "binary file matches"、diff 工具失效）。
+ *   - 其余字节原样保留（含 UTF-8 多字节序列，逐字节透传不改动）。
+ */
 Str EscapeText(ConStr& s)
 {
     Str out;
-    for (char c : s) {
+    for (char ch : s) {
+        unsigned char c = static_cast<unsigned char>(ch);
         switch (c) {
             case '\t': out += "\\t"; break;
             case '\n': out += "\\n"; break;
             case '\r': out += "\\r"; break;
-            default: out += c; break;
+            default:
+                if (c < 0x20 || c == 0x7F) {
+                    out += ControlCharEscape(c);
+                } else {
+                    out += ch;
+                }
+                break;
         }
     }
     return out;
@@ -165,17 +186,6 @@ Str PrefixOnlyText(const ImportContent& ic)
     return s;
 }
 
-/**
- * @brief 兄弟 `IMPORT_SINGLE` 是否属于该花括号导入（吸收判据）。TC-V3-49 口径 ③ ✓
- *
- * ⚠️ 旧判据「前缀**相同**」对 `import {std.io.*, std.process.*, …}` **永不成立** ✗：
- *    AST 实测（插桩一次定位）——`IMPORT_MULTI` 那项的 `content.prefixPaths` 是**空**
- *    （`prefix=[] ident=[]`），各项 `IMPORT_SINGLE` 的却是 `[std,io]`/`[std,process]`/… ⇒
- *    空 vs 非空**不等** ⇒ 一项都不吸收 ✗ ⇒ 退化成「每项一个 `ImportList`、各项位次全 =
- *    花括号列」✗（规格见 typechecker/docs/baseline-print-spec.md ③ ✓）。
- * ⇒ 新判据：**前缀以 multi 前缀开头** ✓（multi 前缀为空 ⇒ 恒真 ✓）＋ **与 multi 同行** ✓
- *    （收窄用：防止把**后续独立的 `import` 语句**误吸收 ✓；语料 4 包实测无跨行花括号导入 ✓）。
- */
 /**
  * @brief 项名 = 该 content 的**源码写法**（去掉 multi 的公共前缀部分）。TC-V3-49 口径 ③ ✓
  *
@@ -294,16 +304,20 @@ Str CondText(const Expr& e)
     }
 }
 
-Str ModText(const AstNode& node)
+Str ModText(const AstNode& node, bool semaStage)
 {
     Str out;
+    // ★ 语义属性（用户口径）：sema 阶段把 `Attribute::COMPILER_ADD`（编译器新增 / 解糖生成）
+    //   一并打到属性位。非声明节点（解糖表达式等）同样会带该属性 ⇒ 不能再靠下面 `IsDecl()`
+    //   早退把它吞掉（那是"属性只在声明行出现"的旧口径）。
+    const bool compilerAdded = semaStage && node.TestAttr(Attribute::COMPILER_ADD);
     // ⚠️ 不能只用 `node.IsDecl()` ✗：`VAR_WITH_PATTERN_DECL`（`var _ = …` ／ `var (a, b) = …`）虽
     //   继承 `VarDeclAbstract <: Decl` ✓，却落在 `IsDecl()` 的 `[DECL, INVALID_DECL]` 区间**之外** ✗
     //   ⇒ 本函数早退 ⇒ 它的 `@When[...]` 被**静默丢掉** ✓（实证 `runtime_trace.cj:131`
     //   `@When[…]` ＋ `var _ = atExit(traceStopByConfig)` ⇒ 金印 `VarDecl // 131:1` 无属性 ✗、
     //   我方有 ✓ ⇒ 判基线漏印 ⇒ 改基线 ✓；规格见 typechecker/docs/baseline-print-spec.md ②b ✓）。
     if (!node.IsDecl() && node.astKind != AstKind::VAR_WITH_PATTERN_DECL) {
-        return out;
+        return compilerAdded ? Str("COMPILER_ADD") : out;
     }
     auto& decl = Cast<const Decl&>(node);
     // ★★ 属性行**归一字段序**（用户口径 ✓ 两侧一致 ✓）：`位置 ⇒ Modifier ⇒ Annotation ⇒ 其它`
@@ -363,6 +377,13 @@ Str ModText(const AstNode& node)
             out += " ";
         }
         out += it.second;
+    }
+    // 语义属性排最后（`位置 ⇒ Modifier ⇒ Annotation ⇒ 语义属性`）
+    if (compilerAdded) {
+        if (!out.empty()) {
+            out += " ";
+        }
+        out += "COMPILER_ADD";
     }
     return out;
 }
@@ -485,7 +506,7 @@ VisitResult AstTreePrintPass::BeforeNode(const AstNode& node)
 {
     // ★ 整棵跳过（注解 ✓ 不出行、不进层、不下探 ⇒ 口径改由声明行属性位承载 ✓ 见 `ModText`）
     if (IsSkippedKind(node.astKind)) {
-        return VisitResult::Skip;
+        return VisitResult::Skip();
     }
     if (!IsTransparentKind(node)) {
         PRT().PVal(WordOf(node)).PVal(Detail(node, AtTop(node))).PNL();
@@ -517,12 +538,12 @@ Str AstTreePrintPass::Detail(const AstNode& node, bool topLevel)
         // golden：VarDecl 行不报名（名在模式侧）✓；**但属性/修饰符仍要印** ✓（TC-V3-49 口径 ②b）
         //   ⚠️ 本分支原直接 return ⇒ 走不到下方 `ModText` ⇒ `var _ = …` 上的 `@When[...]` 被静默丢掉 ✗
         //   （实证 runtime_trace.cj:131：金 `VarDecl // 131:1` 无属性 ✗、我方有 ✓ ⇒ 判基线漏印 ⇒ 改基线 ✓）
-        Str mods = ModText(node);
-        return " // " + LocText(node) + (mods.empty() ? Str("") : (" " + mods)) + TySuffix(node);
+        Str mods = ModText(node, Config().Sema());
+        return " // " + LocText(node) + (mods.empty() ? Str("") : (" " + mods)) + TySuffix(node) + RefSuffix(node);
     }
     if (this->IsCtorContext(node)) {
         // golden：Constructor 行不出名（只有词面 ＋ 定位）
-        return " // " + LocText(node) + TySuffix(node);
+        return " // " + LocText(node) + TySuffix(node) + RefSuffix(node);
     }
     if (node.astKind == AstKind::FILE) {
         // 根行口径：`Program // <文件名> `（不定位，名后一空格）
@@ -543,22 +564,52 @@ Str AstTreePrintPass::Detail(const AstNode& node, bool topLevel)
         if (sp.modifier != nullptr) {
             out += " " + Tk2Str(sp.modifier->modifier);   // 与其余行同口径：定位与修饰符间留一空格
         }
-        return out + TySuffix(node);
+        return out + TySuffix(node) + RefSuffix(node);
     }
-    Str mods = ModText(node);
+    Str mods = ModText(node, Config().Sema());
     if (!mods.empty()) {
         out += " " + mods;
     }
-    return out + TySuffix(node);
+    return out + TySuffix(node) + RefSuffix(node);
 }
+
+Str ExtendHostName(const Cangjie::AST::ExtendDecl& ext);   // 定义在后（RefTargetName 附近）
 
 void AstTreePrintPass::WalkChildren(const AstNode& node)
 {
     bool saved = parentIsFile_;
+    Ptr<const AstNode> savedParent = parent_;
+    Str savedHost = enclosingHost_;
+    if (node.astKind == AstKind::CLASS_DECL || node.astKind == AstKind::STRUCT_DECL ||
+        node.astKind == AstKind::ENUM_DECL || node.astKind == AstKind::INTERFACE_DECL) {
+        Str n = NameText(node);
+        if (!n.empty()) {
+            enclosingHost_ = n;
+        }
+    } else if (node.astKind == AstKind::EXTEND_DECL) {
+        Str h = ExtendHostName(Cast<const ExtendDecl&>(node));
+        if (!h.empty()) {
+            enclosingHost_ = h;
+        }
+    }
     parentIsFile_ = false;      // 仅 File 的直接子级算"顶层"（留白 5）
     for (auto& child : AstNodeHelper::GetChildren(node)) {
+        // ★ 字符串字面量的 `ref` 是 sema 期**编译器补的脚手架** RefType（`Sema/Collector.cpp`
+        //   `CollectLitConstExpr()`：仅 STRING/JSTRING，带 `Attribute::COMPILER_ADD | IN_CORE`，
+        //   位置与字面量相同）⇒ 打印期隐藏，否则每个字符串字面量都会多出一行与行尾
+        //   `type=std.core.String` 完全重复的 `RefType String`。
+        //   ✗ 不能改收集器去掉它：`Wrapper.cpp` 的 ReplaceFunc 按 `[ref, siExpr]` 两个槽位
+        //     顺序消费 children，收集器少收一个会让 `ReplaceNode` 越界解引用（实测 SIGSEGV，
+        //     `OwnedPtr::operator bool(this=0x0)`）⇒ 只能在打印期过滤。
+        if (node.astKind == AstKind::LIT_CONST_EXPR && child->astKind == AstKind::REF_TYPE &&
+            child->TestAttr(Attribute::COMPILER_ADD)) {
+            continue;
+        }
+        parent_ = &node;
         Traverse(*child, visitor);
     }
+    parent_ = savedParent;
+    enclosingHost_ = savedHost;
     parentIsFile_ = saved;
 }
 
@@ -708,12 +759,349 @@ Str AstTreePrintPass::TyText(const Cangjie::AST::Ty* ty)
     }
 }
 
+/**
+ * @brief 是否**局部声明**（函数体/表达式体内定义）——局部名不进全名（用户口径）。
+ *
+ * 判据：`outerDecl` 链上先遇到函数/契约体 ⇒ 局部；先遇到类/接口/结构/扩展/枚举 ⇒ 成员。
+ * 局部声明没有包级全名（`default::a` 是伪全名），故只显示标识符。
+ */
+bool IsLocalDeclOf(const Decl& decl)
+{
+    for (Ptr<Decl> outer = decl.outerDecl; outer != nullptr; outer = outer->outerDecl) {
+        if (outer->IsNominalDecl()) {
+            return false;   // 成员声明：包名 ＋ 类型限定名
+        }
+        if (outer->astKind == AstKind::FUNC_DECL || outer->astKind == AstKind::FUNC_BODY ||
+            outer->astKind == AstKind::LAMBDA_EXPR || outer->astKind == AstKind::MACRO_DECL) {
+            return true;    // 形参、局部 func/闭包内声明
+        }
+    }
+    // 链到头（`outerDecl == nullptr`）时靠语义属性区分（实测：
+    //   包级 `func println`/`let gv` ⇒ `Attribute::GLOBAL` ✓；
+    //   函数体内的 `let a`／模式变量 ⇒ 无 GLOBAL、非成员 ✗ ⇒ 局部）
+    return !decl.IsNominalDecl() && !decl.IsMemberDecl() && !decl.TestAttr(Attribute::GLOBAL);
+}
+
+/**
+ * @brief 绑定目标的显示名（用户口径：统一 `ref=<fullname>`，局部定义不出全名）。
+ *
+ * 全名 = `<fullPackageName>::<外层声明标识符.…>.<标识符>`；局部声明只给标识符。
+ * 只给名字，暂不带声明 kind/位置（后续按需补）。
+ */
+/**
+ * @brief `extend` 块的宿主类型名（`extend<T> Array<T>` ⇒ `Array`）。
+ *
+ * extend 声明本身**没有标识符**（`identifier` 为空），`outerDecl` 链走不到宿主类型 ⇒
+ * 成员名会退化成 `包名::成员名`（`std.core::size`），把 `Array.size`/`String.size`/
+ * `StringBuilder.size` 全塌成同一个字符串。此处补上宿主类型段。
+ */
+/** 名义类型的声明名（类/接口/结构/枚举），取不到返回空串。 */
+Str NominalTyName(const Ty* ty)
+{
+    using namespace Cangjie::AST;
+    if (ty == nullptr) {
+        return Str("");
+    }
+    Ptr<Decl> host = nullptr;
+    switch (ty->kind) {
+        case TypeKind::TYPE_CLASS:
+            host = static_cast<const ClassTy*>(ty)->decl;
+            break;
+        case TypeKind::TYPE_INTERFACE:
+            host = static_cast<const InterfaceTy*>(ty)->decl;
+            break;
+        case TypeKind::TYPE_STRUCT:
+            host = static_cast<const StructTy*>(ty)->decl;
+            break;
+        case TypeKind::TYPE_ENUM:
+            host = static_cast<const EnumTy*>(ty)->decl;
+            break;
+        default:
+            break;
+    }
+    if (host != nullptr) {
+        return Str(host->identifier);
+    }
+    // 内建/无 decl 的类型（Int64、Rune、CPointer、CString…）用 KindName 兜底：
+    // 只接受首字母大写的名字（真类型名），排除 class/struct 这类结构名。
+    Str kn = Ty::KindName(ty->kind);
+    if (!kn.empty() && std::isupper(static_cast<unsigned char>(kn[0])) != 0) {
+        return kn;
+    }
+    return Str("");
+}
+
+/** `extend` 块的宿主类型名（`extend<T> Array<T>` ⇒ `Array`）。 */
+Str ExtendHostName(const ExtendDecl& ext)
+{
+    auto nodeOwned = ext.extendedType.get();
+    const Type* typeNode = nodeOwned.get();
+    return typeNode == nullptr ? Str("") : NominalTyName(typeNode->GetTy().get());
+}
+
+/** 成员访问的接收者静态类型名（`x.attr` ⇒ `x` 的类型名）。
+ *
+ *  函数型 extend 成员常常拿不到 ExtendDecl（`outerDecl` 缺失或宿主类型节点无 Ty），
+ *  只能从使用点反推宿主；否则名字退化为 `包::成员`，`Array/Thread.toString` 会混为一谈。
+ */
+Str ReceiverHostName(const AstNode& memberNode)
+{
+    for (auto& ch : AstNodeHelper::GetChildren(memberNode)) {
+        Str n = NominalTyName(ch->GetTy().get());
+        if (!n.empty()) {
+            return n;
+        }
+    }
+    return Str("");
+}
+
+Str RefTargetName(const Decl& decl, const Str& hostHint)
+{
+    Str name = decl.identifier.Val();
+    if (name.empty() || IsLocalDeclOf(decl)) {
+        return name;
+    }
+    Str qualified = name;
+    bool hasHost = false;
+    for (Ptr<Decl> outer = decl.outerDecl; outer != nullptr; outer = outer->outerDecl) {
+        Str id = outer->identifier.Val();
+        if (id.empty() && outer->astKind == AstKind::EXTEND_DECL) {
+            id = ExtendHostName(Cast<const ExtendDecl&>(*outer));   // extend 成员补宿主类型段
+        }
+        if (!id.empty()) {
+            qualified = id + "." + qualified;
+            hasHost = true;
+        }
+    }
+    // 链上取不到宿主（函数型 extend 成员）⇒ 用使用点的接收者类型补一段
+    if (!hasHost && !hostHint.empty() && decl.TestAttr(Cangjie::AST::Attribute::IN_EXTEND)) {
+        qualified = hostHint + "." + qualified;
+    }
+    return decl.fullPackageName.empty() ? qualified : (decl.fullPackageName + "::" + qualified);
+}
+
 Str AstTreePrintPass::TySuffix(const AstNode& node)
 {
+    // ★ 下标解糖的语义落在**语法节点**上（用户口径：解糖节点可选打印，语义比对不计数）：
+    //   `a[i]` 的唯一子节点是解糖 CallExpr ⇒ 按其 `FuncArg` 个数定读写：
+    //     · 1 个实参 ⇒ getter，给**元素型**（基线与解糖前语法一致）
+    //     · ≥2 个实参 ⇒ setter，`a[i]` 在左值位**不产生值** ⇒ 不给型（Unit 由 AssignExpr 承担）
+    if (node.astKind == AstKind::SUBSCRIPT_EXPR) {
+        Ptr<const AstNode> call = nullptr;
+        for (auto& ch : AstNodeHelper::GetChildren(node)) {
+            if (ch->astKind == AstKind::CALL_EXPR) {
+                call = ch;
+            }
+        }
+        if (call == nullptr) {
+            // 无子 CallExpr：写场景（CallExpr 为 AssignExpr 下的兄弟）⇒ 不给型；
+            // 其余（如元组下标 `pos[0]`，`[]` 不在子节点链上）⇒ 回退到本节点自身的 ty
+            bool isWrite = false;
+            if (AstNodeHelper::GetChildren(node).empty() && parent_ != nullptr) {
+                for (auto& sib : AstNodeHelper::GetChildren(*parent_)) {
+                    if (sib->astKind == AstKind::CALL_EXPR && sib->TestAttr(Attribute::COMPILER_ADD)) {
+                        isWrite = true;
+                    }
+                }
+            }
+            if (isWrite) {
+                return Str("");
+            }
+            Str own = TyText(node.GetTy());
+            return own.empty() ? Str("") : (" type=" + own);
+        }
+        // ⚠️ 不能用「实参个数」判读写：元组下标 `pos[0]` 的 `[]` 是 2 实参的**读取**
+        //    （`(Int64, Bool)->T`，第二参为 hasValue）⇒ 会误判成 setter 而丢型。
+        //    正确判据：**CallExpr 在 SubscriptExpr 之下 ⇒ 读**（给 CallExpr 的 ty）；
+        //    写场景 CallExpr 是 SubscriptExpr 的兄弟（SubscriptExpr 自身无子节点）⇒ 不给型。
+        Str sub = TyText(call->GetTy());
+        return sub.empty() ? Str("") : (" type=" + sub);
+    }
     // ★ 结构化 AST ＋ 语义类型一次成型（含解糖节点 ✓）：`type=<用户面名字>`
     //   parse 阶段 `ty` 是 `Ty::GetInitialTy()`（无效）⇒ 不出后缀 ✓（既有 golden 不受影响）
     Str t = TyText(node.GetTy());
-    return t.empty() ? Str("") : (" type=" + t);
+    if (!t.empty()) {
+        return " type=" + t;
+    }
+    // ★ 语法节点被解糖**替换**而自身没留型：同 kind 的 `COMPILER_ADD` 兄弟节点带着型
+    //   （如隐式转换的实参：`f(r)` ⇒ 合成 `FuncArg` 包 `ArrayLit`）⇒ 取兄弟的型回填。
+    //   只认同 kind 兄弟，避免把别的节点型挂错。
+    for (auto& ch : AstNodeHelper::GetChildren(node)) {
+        if (ch->astKind != node.astKind || !ch->TestAttr(Attribute::COMPILER_ADD)) {
+            continue;
+        }
+        Str ct = TyText(ch->GetTy());
+        if (!ct.empty()) {
+            return " type=" + ct;
+        }
+    }
+    //   解糖常把**实参整体重写**：语法 `FuncArg` 留空，同位置的 `FuncArg` 落在被改写的
+    //   `CallExpr(COMPILER_ADD)` 之下 ⇒ 到这些合成兄弟的子树里按「同 kind ＋ 同起点」找。
+    if (parent_ != nullptr) {
+        std::function<Str(const AstNode&, int)> dig = [&](const AstNode& sub, int depth) -> Str {
+            if (depth > 3) {
+                return Str("");
+            }
+            for (auto& ch : AstNodeHelper::GetChildren(sub)) {
+                // 实参被搬进 `ArrayLit` 时同位置的是**别的 kind**（`FuncArg` ↔ `CallExpr`）
+                // ⇒ 实参节点按位置认领即可（实参的型就是表达式型）。
+                bool sameKind = ch->astKind == node.astKind;
+                bool argPick = node.astKind == AstKind::FUNC_ARG;
+                if ((sameKind || argPick) && ch->begin == node.begin) {
+                    Str ct = TyText(ch->GetTy());
+                    if (!ct.empty()) {
+                        return ct;
+                    }
+                }
+                Str got = dig(*ch, depth + 1);
+                if (!got.empty()) {
+                    return got;
+                }
+            }
+            return Str("");
+        };
+        for (auto& sib : AstNodeHelper::GetChildren(*parent_)) {
+            if (sib.get() == &node || !sib->TestAttr(Attribute::COMPILER_ADD)) {
+                continue;
+            }
+            Str st = dig(*sib, 0);
+            if (!st.empty()) {
+                return " type=" + st;
+            }
+        }
+    }
+    // ★ 实参节点本身不持型：型在实参表达式上（`f(abs(x), 2)` 的 `abs(x)`）
+    if (node.astKind == AstKind::FUNC_ARG) {
+        for (auto& ch : AstNodeHelper::GetChildren(node)) {
+            Str ct = TyText(ch->GetTy());
+            if (!ct.empty()) {
+                return " type=" + ct;
+            }
+        }
+    }
+    return Str("");
+}
+
+Str AstTreePrintPass::RefSuffix(const AstNode& node)
+{
+    // ★ 引用的**绑定结果**（用户口径：统一 `ref=<fullname>`）：只打名字，不带声明 kind/位置。
+    //   仅在语义阶段有效：parse 阶段这些字段都还没填 ⇒ 天然不出 ✓。
+    //   覆盖面：`RefExpr.ref.target`／`MemberAccess.target`／`CallExpr.resolvedFunction`，
+    //   以及**类型节点**里的绑定目标：`RefType.ref.target`／`QualifiedType.target`。
+    //   重载集合（`ref.targets` / `MemberAccess.targets`）没有唯一目标 ⇒ 暂不打（后续按需补）。
+    if (!Config().Sema()) {
+        return Str("");
+    }
+    Ptr<const Decl> target = nullptr;
+    switch (node.astKind) {
+        case AstKind::REF_EXPR:
+            target = Cast<const RefExpr&>(node).ref.target;
+            break;
+        case AstKind::MEMBER_ACCESS:
+            target = Cast<const MemberAccess&>(node).target;
+            break;
+        case AstKind::CALL_EXPR:
+            target = Cast<const CallExpr&>(node).resolvedFunction;
+            break;
+        case AstKind::REF_TYPE:
+            target = Cast<const RefType&>(node).ref.target;
+            break;
+        case AstKind::QUALIFIED_TYPE:
+            target = Cast<const QualifiedType&>(node).target;
+            break;
+        case AstKind::ASSIGN_EXPR: {
+            // ★ 复合赋值解糖：外层（语法）AssignExpr ▸ 内层（COMPILER_ADD）AssignExpr ▸ 运算符 CallExpr。
+            //   语法节点本身没有 ref ⇒ 从**内层**的解糖 AssignExpr 里取运算符 CallExpr 的
+            //   resolvedFunction（下标写 `a[i] = v` 的 CallExpr 是兄弟节点，绑定归 SubscriptExpr）。
+            for (auto& ch : AstNodeHelper::GetChildren(node)) {
+                if (ch->astKind != AstKind::ASSIGN_EXPR || !ch->TestAttr(Attribute::COMPILER_ADD)) {
+                    continue;
+                }
+                for (auto& c2 : AstNodeHelper::GetChildren(*ch)) {
+                    if (c2->astKind == AstKind::CALL_EXPR) {
+                        target = Cast<const CallExpr&>(*c2).resolvedFunction;
+                        break;
+                    }
+                }
+            }
+            break;
+        }
+        case AstKind::BINARY_EXPR:
+            // ★ 二元运算解糖：`a != b` 在非原生型上解糖为 `CallExpr(operator!=)`；
+            //   语法节点 BinaryExpr 本身**没有** ref ⇒ 从解糖 CallExpr 的
+            //   `resolvedFunction` 上取，语义回落到语法节点（与下标同一口径）。
+            for (auto& ch : AstNodeHelper::GetChildren(node)) {
+                if (ch->astKind == AstKind::CALL_EXPR) {
+                    target = Cast<const CallExpr&>(*ch).resolvedFunction;
+                    break;
+                }
+            }
+            break;
+        case AstKind::SUBSCRIPT_EXPR:
+            // ★ 下标解糖的绑定目标取解糖 `CallExpr ▸ MemberAccess []` 的 target
+            //   （读写两个方向都指向 `[]` 运算符符号；区分靠 TySuffix 的实参个数）
+            //   ⚠️ **写场景**（`a[i] = v`）解糖后的 CallExpr 是 SubscriptExpr 的**兄弟**节点
+            //      （同在 AssignExpr 下，SubscriptExpr 自身为空）⇒ 需回看父节点找兄弟 ✓
+            if (AstNodeHelper::GetChildren(node).empty() && parent_ != nullptr) {
+                for (auto& sib : AstNodeHelper::GetChildren(*parent_)) {
+                    if (sib->astKind != AstKind::CALL_EXPR) {
+                        continue;
+                    }
+                    for (auto& sc : AstNodeHelper::GetChildren(*sib)) {
+                        if (sc->astKind == AstKind::MEMBER_ACCESS) {
+                            target = Cast<const MemberAccess&>(*sc).target;
+                            break;
+                        }
+                    }
+                }
+            }
+            for (auto& c1 : AstNodeHelper::GetChildren(node)) {
+                if (c1->astKind != AstKind::CALL_EXPR) {
+                    continue;
+                }
+                for (auto& c2 : AstNodeHelper::GetChildren(*c1)) {
+                    if (c2->astKind == AstKind::MEMBER_ACCESS) {
+                        target = Cast<const MemberAccess&>(*c2).target;
+                        break;
+                    }
+                }
+            }
+            break;
+        default:
+            break;
+    }
+    // ★ `this`/`super` 作为**值**使用时不带绑定目标 ⇒ 用其语义类型名作绑定
+    //   （口径与成员一致：`pkg::Type`）。必须在 `target == nullptr` 提前返回之前。
+    if (node.astKind == AstKind::REF_EXPR) {
+        auto& re = Cast<const RefExpr&>(node);
+        if (re.isThis || re.isSuper) {
+            Str tn = NominalTyName(node.GetTy().get());
+            if (!tn.empty()) {
+                return " ref=" + tn;
+            }
+        }
+    }
+    if (target == nullptr) {
+        return Str("");
+    }
+    // 宿主提示：成员访问取接收者类型；调用取被调 MemberAccess 的接收者类型
+    Str hostHint;
+    if (node.astKind == AstKind::MEMBER_ACCESS) {
+        hostHint = ReceiverHostName(node);
+    } else if (node.astKind == AstKind::CALL_EXPR) {
+        for (auto& ch : AstNodeHelper::GetChildren(node)) {
+            if (ch->astKind == AstKind::MEMBER_ACCESS) {
+                hostHint = ReceiverHostName(*ch);
+                break;
+            }
+        }
+    }
+    if (hostHint.empty()) {
+        // 隐式 self 调用（`toString()` 直接调，callee 是 RefExpr）⇒ 用所在类/extend 宿主
+        hostHint = enclosingHost_;
+    }
+    Str name = RefTargetName(*target, hostHint);
+    return name.empty() ? Str("") : (" ref=" + name);
 }
 
 void AstTreePrintPass::AppendMemberTypeArgs(const AstNode& node)
@@ -916,8 +1304,18 @@ void AstTreePrintPass::Visit(const FuncParam& node, VisitResult& res)
 }
 void AstTreePrintPass::Visit(const TuplePattern& node, VisitResult& res)
 {
-    (void)node;
-    res = VisitResult::Cont();   // 叶：不下探
+    // ★ 元素模式**照常出行**：原实现把 TuplePattern 当叶 ⇒ `let (a, b) = (1, 2)` 只剩一行空的
+    //   `TuplePattern`，绑定项（`VarPattern a` / `VarPattern b`）与元素内类型全丢 ✗。
+    //   收集器 `TUPLE_PATTERN ⇒ pat.patterns` 已备好子级，此处按序下探即可。
+    bool saved = parentIsFile_;
+    parentIsFile_ = false;
+    for (auto& pattern : node.patterns) {
+        if (pattern != nullptr) {
+            Traverse(*pattern, visitor);
+        }
+    }
+    parentIsFile_ = saved;
+    res = VisitResult::Cont();
 }
 void AstTreePrintPass::Visit(const ConstPattern& node, VisitResult& res)
 {
@@ -930,7 +1328,9 @@ void AstTreePrintPass::WalkFileChildren(const AstNode& fileNode)
     // 一次性取子级指针序列 ⇒ 便于索引扫描（花括号导入需向后吸收兄弟）
     std::vector<const AstNode*> kids;
     for (auto& c : AstNodeHelper::GetChildren(fileNode)) {
-        if (c != nullptr) {
+        // ★ 内建声明（BuiltInDecl）不属该文件源码：前端 sema 把它们硬塞进 pkg->files[0]->decls，
+        //   这里统一跳过，改由 PrintBuiltinDecls() 收在文件块之后输出（见该函数注释）。
+        if (c != nullptr && c->astKind != AstKind::BUILTIN_DECL) {
             kids.emplace_back(&*c);
         }
     }
@@ -1064,7 +1464,7 @@ void AstTreePrintPass::Visit(const FuncBody& node, VisitResult& res)
     if (node.generic != nullptr) {   // golden：函数泛参/约束排在返回类型之前（`FuncDecl genFirst ⇒ GenericParam T ⇒ GenericConstraint ⇒ RefType Base ⇒ 返回类型 ⇒ 形参`）
         Traverse(*node.generic, visitor);
     }
-    if (node.retType != nullptr) {
+    if (node.retType != nullptr && !node.retType->TestAnyAttr(Attribute::COMPILER_ADD)) {
         Traverse(*node.retType, visitor);
     }
     for (auto& pl : node.paramLists) {
@@ -1074,9 +1474,6 @@ void AstTreePrintPass::Visit(const FuncBody& node, VisitResult& res)
     }
     if (node.body != nullptr) {
         Traverse(*node.body, visitor);
-    } else if (!inEnumBody_) {
-        // golden：接口方法无体仍出一行 `Block // -`（枚举构造符无体则不出，见 golden `Constructor // 88:7`）
-        EmitEmptyBodyBlock();
     }
     parentIsFile_ = saved;
     res = VisitResult::Cont();
@@ -1161,16 +1558,31 @@ void AstTreePrintPass::Visit(const ArrayExpr& node, VisitResult& res)
 
 void AstTreePrintPass::Visit(const VarWithPatternDecl& node, VisitResult& res)
 {
+    bool saved = parentIsFile_;
+    parentIsFile_ = false;
     if (node.irrefutablePattern != nullptr && node.irrefutablePattern->astKind == AstKind::WILDCARD_PATTERN) {
-        bool saved = parentIsFile_;
-        parentIsFile_ = false;
+        Traverse(*node.irrefutablePattern, visitor);
+        // 通配模式（`var _ = e`）不出模式行，直接出初始化式
         if (node.initializer != nullptr) {
             Traverse(*node.initializer, visitor);
         }
-        parentIsFile_ = saved;
     } else {
-        this->WalkChildren(node);
+        // ★ 模式子树**照常下钻**（与 ForInExpr / LetPatternDestructor 同口径：模式是语义绑定位）。
+        //   源码序 `<pattern> [: <type>] = <initializer>`。
+        //   ⚠️ 初始化式必须在此显式下探：`VAR_WITH_PATTERN_DECL` 的收集器只纳入
+        //      `irrefutablePattern`（走 `CollectChildren(const Decl&)` ⇒ 不含 type/initializer），
+        //      靠 WalkChildren 会整段丢掉 `let (a, b) = (1, 2)` 的右值 ✗。
+        if (node.irrefutablePattern != nullptr) {
+            Traverse(*node.irrefutablePattern, visitor);
+        }
+        if (node.type != nullptr) {
+            Traverse(*node.type, visitor);
+        }
+        if (node.initializer != nullptr) {
+            Traverse(*node.initializer, visitor);
+        }
     }
+    parentIsFile_ = saved;
     res = VisitResult::Cont();
 }
 
@@ -1287,24 +1699,68 @@ void AstTreePrintPass::Run(AstNode& node)
         return;
     }
     // 一包一文件：多源文件按序拼接、文件间不留空行。
-    // 序取配置的源文件序（命令行序，对齐 golden）；未登记的（如仅用 --enable-passes）沿用 AST 序。
+    // ★ 顺序：**按文件名升序**（基名相同则用完整路径兜底）。
+    //   既不按命令行参数序，也不按 `pkg->files` 的 AST 序 —— 后者取决于前端
+    //   目录遍历/glob 次序，不保证跨机器稳定 ⇒ 同一包多文件的 .tree 不可复现。
     std::vector<const File*> ordered;
-    for (auto& name : Config().sourceOrder) {
-        for (auto& file : pkg->files) {
-            if (file != nullptr && file->fileName == name) {
-                ordered.push_back(file.get());
-            }
-        }
-    }
     for (auto& file : pkg->files) {
-        if (file != nullptr && std::find(ordered.begin(), ordered.end(), file.get()) == ordered.end()) {
+        if (file != nullptr) {
             ordered.push_back(file.get());
         }
     }
+    std::stable_sort(ordered.begin(), ordered.end(), [](const File* lhs, const File* rhs) {
+        ConStr lName = FileName(lhs->fileName);
+        ConStr rName = FileName(rhs->fileName);
+        if (lName != rName) {
+            return lName < rName;
+        }
+        return lhs->fileName < rhs->fileName;   // 基名相同（如 a.cj / a.cj.bak）时保证全序
+    });
     for (auto* file : ordered) {
         (void)Traverse(*file, visitor);
     }
+    PrintBuiltinDecls(*pkg);
     PRT().Flush();
+}
+
+/**
+ * @brief 包级内建声明（`BuiltInDecl`）统一收在**所有源码文件块之后**打印（用户口径 2026-10-27）。
+ *
+ * 由来：前端 sema 阶段给 `std.core` 注入 `RawArray` / `VArray` / `CPointer` / `CFunc` / `CString`
+ * （`Sema/TypeChecker.cpp` 的 `AddBuiltIn*Decl`），注入点**硬编码**为 `pkg->files[0]->decls`
+ * 末尾；而前端又按 `fileName` 字典序排序 `pkg->files`（`Frontend/CompileStrategy.cpp`）
+ * ⇒ 换个输入文件集就"搬家"（实测：`annotation.cj` 恰好是最小的文件名，于是这批节点看起来
+ * 像 annotation.cj 的源码声明 ✗）。
+ *
+ * 处理：源码文件块遍历时跳过它们（见 WalkFileChildren），全部集中到末尾一个 `<builtin>`
+ * 伪文件块里打印；顺序保持前端注入序（不做排序，便于与前端行为对照）。
+ */
+void AstTreePrintPass::PrintBuiltinDecls(const Package& pkg)
+{
+    std::vector<const AstNode*> builtins;
+    for (auto& file : pkg.files) {
+        if (file == nullptr) {
+            continue;
+        }
+        for (auto& decl : file->decls) {
+            if (decl != nullptr && decl->astKind == AstKind::BUILTIN_DECL) {
+                builtins.emplace_back(decl.get());
+            }
+        }
+    }
+    if (builtins.empty()) {
+        return;   // 非 std.core（或其他未注入的包）不出现该块
+    }
+    // 与源码文件根行同形：`File // <名> `（名后一空格、不定位）
+    PRT().PVal("File").PVal(" // <builtin> ").PNL();
+    PRT().Indent();
+    bool saved = parentIsFile_;
+    parentIsFile_ = false;
+    for (auto* decl : builtins) {
+        Traverse(*decl, visitor);
+    }
+    parentIsFile_ = saved;
+    PRT().Unindent();
 }
 
 /** @brief 自注册（本库被 dlopen 时生效；名称须在 config/passes.json 的 names 中登记）。

@@ -155,16 +155,8 @@ UniquePtr<PassConfig> AstHelper::MakePassConfig()
     config->IgnoreAnnotations(options.ignoreAnnotations);
     // --print-ast 指定了目录 ⇒ 打印 pass 写该目录；否则沿用工具输出目录
     config->Output(options.astTreeOutPath.has_value() ? options.astTreeOutPath.value() : cjfeHelper.GetOutDir());
-    // 源文件序（命令行序）：供打印类 pass 按命令行给定顺序输出同包多文件（AST 的 pkg->files 为字母序）
-    StrVec srcOrder;
-    for (size_t i = 1; i < options.args.size(); ++i) {
-        const ConStr& arg = options.args[i];
-        if (arg.size() > 3 && arg.compare(arg.size() - 3, 3, ".cj") == 0) {
-            size_t slash = arg.find_last_of("/\\");
-            srcOrder.push_back(slash == ConStr::npos ? arg : arg.substr(slash + 1));
-        }
-    }
-    config->SourceOrder(srcOrder);
+    // 注：同包多文件的输出顺序由各 pass 自行决定（ast-tree-print 按文件名升序），
+    //     不再从命令行提取"源文件序"下发。
     return config;
 }
 

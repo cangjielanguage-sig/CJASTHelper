@@ -80,3 +80,10 @@ test/data/
 ```
 
 > 覆盖前请人工核对输出正确性——golden 一旦更新即成为新的回归基线。
+## 6. 已知问题（仅记录，不修）
+
+| 用例 | 命令 | 现象 | 复现范围 |
+|---|---|---|---|
+| `test/data/inputs/macro.cj` | `./build/bin/cjah --dump-source=sema test/data/inputs/macro.cj` | `double free or corruption (!prev)` → SIGSEGV（exit 139） | 宏展开 + sema 转储路径；dev 基线 `3591d45` 与 `f149131` 均可复现，**不带 `--print-ast` 同样崩**，故与 AST 打印无关 |
+
+> 结论仅止于"记录"：根因未查，暂不纳入回归门禁；修复前不要把该用例放进 sema 阶段的批量对拍。

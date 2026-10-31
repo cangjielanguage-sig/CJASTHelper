@@ -19,7 +19,8 @@
  *
  * 遍历：复用 `ConstAstVisitor` —— 注册 Before/Visit/After 钩子驱动整棵树；
  * 缩进：复用仓库 `Printer` 的 `Indent()/Unindent()`（步长取配置 indent，默认 4）；
- * 词面：取 `AstInfo.inc` 第三字段（禁自造词表）；类型名取 `TypeKind.inc` 第三字段。
+ * 词面：`AstInfo.inc` 第三字段 ＋ SDK `ASTKind.inc` 类名兜底（禁自造词表；任何 kind 都有词，不再出 `Unknown`）；
+ *       类型名取 `TypeKind.inc` 第三字段。
  *
  * 本 pass 只读遍历，不改动 AST，亦不持有旁路状态。
  */
@@ -90,6 +91,8 @@ protected:
      * 目的：让**结构化 AST ＋ 语义类型**一次成型（含解糖节点），作为对齐基线 ✓
      */
     Str TySuffix(const AstNode& node);
+    /** @brief 绑定结果后缀 `ref=<fullname>`（语义阶段；局部声明只给标识符）。 */
+    Str RefSuffix(const AstNode& node);
     /**
      * @brief 语义类型渲染成**用户面名字**（`std.core.String` / `Array<UInt8>` / `(A)->B` / `T`）
      *
@@ -116,11 +119,11 @@ protected:
     void Visit(const AsExpr& node, VisitResult& res);
     /** @brief ArrayExpr：值数组只出实参（不出类型子树）。 */
     void Visit(const ArrayExpr& node, VisitResult& res);
-    /** @brief VarWithPatternDecl：通配模式不出模式行，直接出初始化式。 */
+    /** @brief VarWithPatternDecl：模式子树下钻（通配模式不出模式行）＋ 初始化式（收集器未纳入）。 */
     void Visit(const VarWithPatternDecl& node, VisitResult& res);
     /** @brief VarPattern：不出内层 VarDecl 行，直接出其子级。 */
     void Visit(const VarPattern& node, VisitResult& res);
-    /** @brief TuplePattern：叶（golden 下不出现元素行）。 */
+    /** @brief TuplePattern：元素模式逐个出行（`let (a, b) = …` 的绑定项是语义绑定位）。 */
     void Visit(const TuplePattern& node, VisitResult& res);
     /** @brief ConstPattern：叶。 */
     void Visit(const ConstPattern& node, VisitResult& res);
@@ -152,6 +155,8 @@ protected:
 
     /** @brief File 直接子级遍历；对花括号导入（IMPORT_MULTI）做表现层重分组（golden 嵌套形态）。 */
     void WalkFileChildren(const AstNode& fileNode);
+    /** @brief 包级内建声明（BuiltInDecl）收尾块：源码文件块之后统一打印 `<builtin>`。 */
+    void PrintBuiltinDecls(const Package& pkg);
     /** @brief IsExpr/AsExpr 共用：表达式 ＋ 目标类型两面都出。 */
     void TraverseTypeTestChildren(const AstNode& node, VisitResult& res);
     /** @brief LetPatternDestructor / ForInExpr 共用：不出模式子级。 */
@@ -180,5 +185,7 @@ private:
 
     bool inEnumBody_ = false;     /**< 是否处于枚举体直接子级（ctor 语境） */
     bool inNestedImport_ = false; /**< 是否处于 ImportSpec 子级（嵌套导入条目） */
+    Ptr<const AstNode> parent_ = nullptr;
+    Str enclosingHost_;          /**< 当前所在的类/结构/枚举/接口（或 extend 宿主）名，供隐式 self 调用的 ref 补宿主 */   /**< 父节点（写场景下标：解糖 CallExpr 是 SubscriptExpr 的**兄弟**） */
     bool parentIsFile_ = false;   /**< 当前节点之父是否为 File（顶层留白判定，仅一层） */
 };
