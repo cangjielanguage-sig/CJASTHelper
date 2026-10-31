@@ -771,6 +771,46 @@ bool IsLocalDeclOf(const Decl& decl)
  * 全名 = `<fullPackageName>::<外层声明标识符.…>.<标识符>`；局部声明只给标识符。
  * 只给名字，暂不带声明 kind/位置（后续按需补）。
  */
+/**
+ * @brief `extend` 块的宿主类型名（`extend<T> Array<T>` ⇒ `Array`）。
+ *
+ * extend 声明本身**没有标识符**（`identifier` 为空），`outerDecl` 链走不到宿主类型 ⇒
+ * 成员名会退化成 `包名::成员名`（`std.core::size`），把 `Array.size`/`String.size`/
+ * `StringBuilder.size` 全塌成同一个字符串。此处补上宿主类型段。
+ */
+Str ExtendHostName(const ExtendDecl& ext)
+{
+    using namespace Cangjie::AST;
+    auto nodeOwned = ext.extendedType.get();        // AST 侧的 Type 语法节点
+    const Type* typeNode = nodeOwned.get();
+    if (typeNode == nullptr) {
+        return Str("");
+    }
+    Ptr<Ty> tyPtr = typeNode->GetTy();               // 语义侧的 Ty
+    const Ty* ty = tyPtr.get();
+    if (ty == nullptr) {
+        return Str("");
+    }
+    Ptr<Decl> host = nullptr;
+    switch (ty->kind) {
+        case TypeKind::TYPE_CLASS:
+            host = static_cast<const ClassTy*>(ty)->decl;
+            break;
+        case TypeKind::TYPE_INTERFACE:
+            host = static_cast<const InterfaceTy*>(ty)->decl;
+            break;
+        case TypeKind::TYPE_STRUCT:
+            host = static_cast<const StructTy*>(ty)->decl;
+            break;
+        case TypeKind::TYPE_ENUM:
+            host = static_cast<const EnumTy*>(ty)->decl;
+            break;
+        default:
+            break;
+    }
+    return host == nullptr ? Str("") : Str(host->identifier);
+}
+
 Str RefTargetName(const Decl& decl)
 {
     Str name = decl.identifier.Val();
@@ -780,6 +820,9 @@ Str RefTargetName(const Decl& decl)
     Str qualified = name;
     for (Ptr<Decl> outer = decl.outerDecl; outer != nullptr; outer = outer->outerDecl) {
         Str id = outer->identifier.Val();
+        if (id.empty() && outer->astKind == AstKind::EXTEND_DECL) {
+            id = ExtendHostName(Cast<const ExtendDecl&>(*outer));   // extend 成员补宿主类型段
+        }
         if (!id.empty()) {
             qualified = id + "." + qualified;
         }
