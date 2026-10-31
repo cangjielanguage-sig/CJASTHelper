@@ -1070,6 +1070,17 @@ Str AstTreePrintPass::RefSuffix(const AstNode& node)
         default:
             break;
     }
+    // ★ `this`/`super` 作为**值**使用时不带绑定目标 ⇒ 用其语义类型名作绑定
+    //   （口径与成员一致：`pkg::Type`）。必须在 `target == nullptr` 提前返回之前。
+    if (node.astKind == AstKind::REF_EXPR) {
+        auto& re = Cast<const RefExpr&>(node);
+        if (re.isThis || re.isSuper) {
+            Str tn = NominalTyName(node.GetTy().get());
+            if (!tn.empty()) {
+                return " ref=" + tn;
+            }
+        }
+    }
     if (target == nullptr) {
         return Str("");
     }
