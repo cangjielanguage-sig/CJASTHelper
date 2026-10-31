@@ -818,7 +818,16 @@ Str NominalTyName(const Ty* ty)
         default:
             break;
     }
-    return host == nullptr ? Str("") : Str(host->identifier);
+    if (host != nullptr) {
+        return Str(host->identifier);
+    }
+    // 内建/无 decl 的类型（Int64、Rune、CPointer、CString…）用 KindName 兜底：
+    // 只接受首字母大写的名字（真类型名），排除 class/struct 这类结构名。
+    Str kn = Ty::KindName(ty->kind);
+    if (!kn.empty() && std::isupper(static_cast<unsigned char>(kn[0])) != 0) {
+        return kn;
+    }
+    return Str("");
 }
 
 /** `extend` 块的宿主类型名（`extend<T> Array<T>` ⇒ `Array`）。 */
